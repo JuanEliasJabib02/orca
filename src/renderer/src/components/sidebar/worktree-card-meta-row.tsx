@@ -22,6 +22,7 @@ export function WorktreeCardMetaRow({
   const {
     worktree,
     repo,
+    compactCards,
     hostContextLabel,
     identityDisplay,
     isFolder,
@@ -106,7 +107,9 @@ export function WorktreeCardMetaRow({
 
         {cacheStartedAt != null && <CacheTimer startedAt={cacheStartedAt} ttlMs={cacheTtlMs} />}
 
-        {worktree.isMainWorktree && !isFolder && repo ? <SpotlightPrimaryBadge repo={repo} /> : null}
+        {!compactCards && worktree.isMainWorktree && !isFolder && repo ? (
+          <SpotlightPrimaryBadge repo={repo} />
+        ) : null}
       </div>
 
       {showMetaRowDetails && (
