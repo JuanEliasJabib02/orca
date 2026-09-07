@@ -217,12 +217,32 @@ export async function syncSpotlightCore(
 export async function deactivateSpotlightCore(
   ctx: SpotlightGitContext,
   rootPath: string,
-  opts: { discardBackup?: boolean } = {}
+  opts: { force?: boolean } = {}
 ): Promise<SpotlightDeactivateOutcome> {
   await assertNoConflictOperation(ctx, rootPath)
   const refs = await inspectSpotlightRefsCore(ctx, rootPath)
   if (!refs.originalHeadSha) {
     throw new SpotlightCoreError('not-active', 'Spotlight is not active for this repository.')
+  }
+
+  // Same divergence guard sync/activate enforce: the reset --hard below would
+  // silently destroy tracked work committed or edited directly in the root
+  // after activation — the backup ref predates it and never captured it. Refuse
+  // unless the caller explicitly forces the discard.
+  if (!opts.force && refs.snapshotSha) {
+    if (refs.rootHeadSha !== refs.snapshotSha) {
+      throw new SpotlightCoreError(
+        'root-diverged',
+        'The repository root moved off the Spotlight snapshot (a commit or checkout happened there). Turning Spotlight off would discard it.'
+      )
+    }
+    const rootStatus = await readRootStatus(ctx, rootPath)
+    if (rootStatus.trackedDirty) {
+      throw new SpotlightCoreError(
+        'root-diverged',
+        'The repository root has tracked changes made outside the Spotlight workspace. Turning Spotlight off would discard them.'
+      )
+    }
   }
 
   await git(ctx, rootPath, ['reset', '--hard', refs.originalHeadSha])
@@ -254,7 +274,7 @@ export async function deactivateSpotlightCore(
     }
   }
 
-  if (refs.backupSha && refs.backupSha !== refs.originalHeadSha && !opts.discardBackup) {
+  if (refs.backupSha && refs.backupSha !== refs.originalHeadSha) {
     try {
       // --index also restores what was staged vs unstaged at activation time.
       await git(ctx, rootPath, ['stash', 'apply', '--index', refs.backupSha])

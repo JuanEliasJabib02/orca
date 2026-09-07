@@ -92,14 +92,22 @@ export type SpotlightSlice = {
   spotlightByRepo: Record<string, SpotlightRepoState>
   hydrateSpotlightState: () => Promise<void>
   applySpotlightChanged: (event: SpotlightChangedEvent) => void
-  activateSpotlight: (repoId: string, worktreeId: string) => Promise<SpotlightOpResult>
+  /** `force` overrides a `root-diverged` block on takeover, discarding the
+   *  root's outside changes to hand it to this workspace. */
+  activateSpotlight: (
+    repoId: string,
+    worktreeId: string,
+    opts?: { force?: boolean }
+  ) => Promise<SpotlightOpResult>
   /** `silent` suppresses repeat error toasts — used by the auto-sync watcher
    *  so a persistent failure doesn't toast on every file change. */
   syncSpotlight: (repoId: string, opts?: { silent?: boolean }) => Promise<SpotlightOpResult>
   /** Recovery for `root-diverged`: overwrite the root's outside changes with
    *  the holder workspace's snapshot. */
   forceSyncSpotlight: (repoId: string) => Promise<SpotlightOpResult>
-  deactivateSpotlight: (repoId: string) => Promise<SpotlightOpResult>
+  /** `force` discards tracked work made directly in the root after activation
+   *  (the `root-diverged` escape hatch, mirroring `forceSyncSpotlight`). */
+  deactivateSpotlight: (repoId: string, opts?: { force?: boolean }) => Promise<SpotlightOpResult>
 }
 
 export const createSpotlightSlice: StateCreator<AppState, [], [], SpotlightSlice> = (set, get) => {
@@ -137,13 +145,21 @@ export const createSpotlightSlice: StateCreator<AppState, [], [], SpotlightSlice
       applyState(event.repoId, event.state)
     },
 
-    activateSpotlight: async (repoId, worktreeId) => {
-      const result = await window.api.spotlight.activate({ repoId, worktreeId })
+    activateSpotlight: async (repoId, worktreeId, opts) => {
+      const result = await window.api.spotlight.activate({ repoId, worktreeId, force: opts?.force })
       applyState(repoId, result.state)
       if (!result.ok) {
         reportSpotlightError(
           translate('auto.store.slices.spotlight.activateFailed', 'Failed to start Spotlight'),
-          result.error
+          result.error,
+          // Takeover blocked by a diverged root: let the user discard the root's
+          // outside changes and force this workspace in, in one click.
+          result.error.code === 'root-diverged'
+            ? {
+                label: translate('auto.store.slices.spotlight.activateAnyway', 'Activate anyway'),
+                onClick: () => void get().activateSpotlight(repoId, worktreeId, { force: true })
+              }
+            : undefined
         )
         return result
       }
@@ -222,8 +238,8 @@ export const createSpotlightSlice: StateCreator<AppState, [], [], SpotlightSlice
       return result
     },
 
-    deactivateSpotlight: async (repoId) => {
-      const result = await window.api.spotlight.deactivate({ repoId })
+    deactivateSpotlight: async (repoId, opts) => {
+      const result = await window.api.spotlight.deactivate({ repoId, force: opts?.force })
       applyState(repoId, result.state)
       if (result.ok && result.leftDetachedFromBranch !== undefined) {
         // Root restored, but it couldn't return to its branch — warn instead of
@@ -254,7 +270,15 @@ export const createSpotlightSlice: StateCreator<AppState, [], [], SpotlightSlice
       } else {
         reportSpotlightError(
           translate('auto.store.slices.spotlight.deactivateFailed', 'Failed to turn off Spotlight'),
-          result.error
+          result.error,
+          // Same escape hatch sync offers: let the user discard the divergent
+          // root work and complete the turn-off in one click.
+          result.error.code === 'root-diverged'
+            ? {
+                label: translate('auto.store.slices.spotlight.deactivateAnyway', 'Turn off anyway'),
+                onClick: () => void get().deactivateSpotlight(repoId, { force: true })
+              }
+            : undefined
         )
       }
       return result

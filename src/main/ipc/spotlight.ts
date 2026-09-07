@@ -72,16 +72,16 @@ export function registerSpotlightHandlers(mainWindow: BrowserWindow, store: Stor
   ipcMain.removeHandler('spotlight:clearLogPty')
 
   ipcMain.handle('spotlight:getState', () => spotlight.getStateSnapshot())
-  ipcMain.handle('spotlight:activate', (_event, args: { repoId: string; worktreeId: string }) =>
-    spotlight.activate(args.repoId, args.worktreeId)
+  ipcMain.handle(
+    'spotlight:activate',
+    (_event, args: { repoId: string; worktreeId: string; force?: boolean }) =>
+      spotlight.activate(args.repoId, args.worktreeId, { force: args.force })
   )
   ipcMain.handle('spotlight:sync', (_event, args: { repoId: string; force?: boolean }) =>
     spotlight.sync(args.repoId, { force: args.force })
   )
-  ipcMain.handle(
-    'spotlight:deactivate',
-    (_event, args: { repoId: string; discardBackup?: boolean }) =>
-      spotlight.deactivate(args.repoId, { discardBackup: args.discardBackup })
+  ipcMain.handle('spotlight:deactivate', (_event, args: { repoId: string; force?: boolean }) =>
+    spotlight.deactivate(args.repoId, { force: args.force })
   )
   ipcMain.handle('spotlight:setLogPty', async (_event, args: { repoId: string; ptyId: string }) => {
     const repo = store.getRepo(args.repoId)

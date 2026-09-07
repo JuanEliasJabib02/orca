@@ -57,14 +57,14 @@ export class SpotlightService {
   }
 
   getStateSnapshot(): SpotlightStateSnapshot {
-    const byRepo: Record<string, SpotlightRepoState> = {}
-    for (const [repoId, state] of Object.entries(this.store.getAllSpotlightStates())) {
-      byRepo[repoId] = state
-    }
-    return { byRepo }
+    return { byRepo: { ...this.store.getAllSpotlightStates() } }
   }
 
-  async activate(repoId: string, worktreeId: string): Promise<SpotlightOpResult> {
+  async activate(
+    repoId: string,
+    worktreeId: string,
+    opts: { force?: boolean } = {}
+  ): Promise<SpotlightOpResult> {
     return this.withRepoLock(repoId, async () => {
       const resolved = this.resolveRepoContext(repoId)
       if ('error' in resolved) {
@@ -99,6 +99,7 @@ export class SpotlightService {
           resolved.repo.path,
           worktreePath,
           {
+            force: opts.force,
             reuseIndexForHead: this.reuseIndexHeadFor(repoId, worktreeId),
             requireOnBranch
           }
@@ -178,10 +179,7 @@ export class SpotlightService {
     })
   }
 
-  async deactivate(
-    repoId: string,
-    opts: { discardBackup?: boolean } = {}
-  ): Promise<SpotlightOpResult> {
+  async deactivate(repoId: string, opts: { force?: boolean } = {}): Promise<SpotlightOpResult> {
     return this.withRepoLock(repoId, async () => {
       const state = this.store.getSpotlightState(repoId)
       // requireEnabled:false — turning the repo's Spotlight toggle off while it
@@ -195,7 +193,7 @@ export class SpotlightService {
       }
       try {
         const outcome = await deactivateSpotlightCore(resolved.ctx, resolved.repo.path, {
-          discardBackup: opts.discardBackup
+          force: opts.force
         })
         this.clearSpotlightRecord(repoId, resolved.repo.path)
         void appendSpotlightLogNote(

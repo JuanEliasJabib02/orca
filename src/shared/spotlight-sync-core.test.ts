@@ -153,6 +153,23 @@ describe('spotlight-sync-core', () => {
     expect(refs.originalHeadSha).toBeNull()
   })
 
+  it('refuses to turn off when the root diverged, unless forced', async () => {
+    await activateSpotlightCore(ctx, rootPath, worktreePath)
+    // Tracked edit made directly in the root after activation — the backup ref
+    // predates it, so reset --hard on turn-off would silently destroy it.
+    write(rootPath, 'a.txt', 'edited-directly-in-root\n')
+
+    await expect(deactivateSpotlightCore(ctx, rootPath)).rejects.toMatchObject({
+      code: 'root-diverged'
+    })
+    // Nothing was reset — the divergent work is still there.
+    expect(readFileSync(path.join(rootPath, 'a.txt'), 'utf-8')).toBe('edited-directly-in-root\n')
+
+    // Forcing discards it and completes the turn-off.
+    await deactivateSpotlightCore(ctx, rootPath, { force: true })
+    expect((await inspectSpotlightRefsCore(ctx, rootPath)).originalHeadSha).toBeNull()
+  })
+
   it('refuses to sync when the root diverged, unless forced', async () => {
     await activateSpotlightCore(ctx, rootPath, worktreePath)
     write(rootPath, 'a.txt', 'edited-directly-in-root\n')
