@@ -387,15 +387,6 @@ export function RepositoryPane({
         ) : null}
       </section>
     ) : null,
-    hooksSection,
-    !isFolder &&
-    (forceFullPaneForRepoMatch || matchesSettingsSearch(searchQuery, sourceControlAiEntries)) ? (
-      <RepositorySourceControlAiSection
-        key="source-control-ai"
-        repo={repo}
-        updateRepo={updateSelectedRepo}
-      />
-    ) : null,
     !isFolder &&
     !repo.connectionId &&
     (forceFullPaneForRepoMatch || matchesSettingsSearch(searchQuery, spotlightEntries)) ? (
@@ -404,6 +395,15 @@ export function RepositoryPane({
         repo={repo}
         updateRepo={updateSelectedRepo}
         forceVisible={forceFullPaneForRepoMatch}
+      />
+    ) : null,
+    hooksSection,
+    !isFolder &&
+    (forceFullPaneForRepoMatch || matchesSettingsSearch(searchQuery, sourceControlAiEntries)) ? (
+      <RepositorySourceControlAiSection
+        key="source-control-ai"
+        repo={repo}
+        updateRepo={updateSelectedRepo}
       />
     ) : null,
     !isFolder &&

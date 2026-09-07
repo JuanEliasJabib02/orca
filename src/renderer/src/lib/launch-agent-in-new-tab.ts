@@ -23,6 +23,7 @@ import {
 import { resolveLocalWindowsAgentStartupShell } from '../../../shared/windows-terminal-shell'
 import { TUI_AGENT_CONFIG } from '../../../shared/tui-agent-config'
 import { repoIsRemote } from '../../../shared/agent-launch-remote'
+import { withSpotlightAgentGuidance } from '../../../shared/spotlight-agent-guidance'
 import { seedCommandCodeSubmittedPromptStatus } from '@/lib/command-code-prompt-status-seed'
 import type { TuiAgent } from '../../../shared/tui-agent'
 import type { LaunchSource } from '../../../shared/telemetry-events'
@@ -112,10 +113,16 @@ export function launchAgentInNewTab(args: LaunchAgentInNewTabArgs): LaunchAgentI
     terminalWindowsShell: store.settings?.terminalWindowsShell
   })
   const cmdOverrides = store.settings?.agentCmdOverrides ?? {}
-  const effectiveAgentArgs =
+  // Why: when Spotlight is active, tell the agent (Claude) where the mirrored
+  // dev-server log lives so it uses it without the user having to explain the
+  // setup. No-op for non-Spotlight repos and non-Claude agents.
+  const effectiveAgentArgs = withSpotlightAgentGuidance(
     agentArgs !== undefined
       ? agentArgs
-      : resolveTuiAgentLaunchArgs(agent, store.settings?.agentDefaultArgs)
+      : resolveTuiAgentLaunchArgs(agent, store.settings?.agentDefaultArgs),
+    agent,
+    repo
+  )
   const agentEnv = resolveTuiAgentLaunchEnv(agent, store.settings?.agentDefaultEnv)
   const trimmedPrompt = prompt?.trim() ?? ''
   const hasPrompt = trimmedPrompt.length > 0
