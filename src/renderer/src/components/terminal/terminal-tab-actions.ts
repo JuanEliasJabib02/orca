@@ -164,7 +164,7 @@ export function closeTerminalTab(
         toast.error(
           translate(
             'components.native-chat.structuredSessionCloseFailed',
-            'Could not close this Codex chat'
+            'Could not close this chat session'
           ),
           {
             description: translate(
