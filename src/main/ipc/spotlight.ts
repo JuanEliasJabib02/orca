@@ -25,10 +25,12 @@ export async function deactivateSpotlightBeforeTeardown(repoId: string): Promise
     return
   }
   await service.deactivate(repoId)
-  // If deactivate couldn't finish (merge/rebase in the root, or a restore
-  // conflict), removeProject is about to drop the record — orphaning the refs
-  // with no reconcile left to reach them. Force-clean them, keeping the backup
-  // ref for manual recovery. No-op when deactivate already cleared the record.
+  // If deactivate couldn't finish (merge/rebase in the root, a restore conflict,
+  // or a diverged root — no force here on purpose, so direct-root work is
+  // preserved rather than reset --hard away), removeProject is about to drop the
+  // record — orphaning the refs with no reconcile left to reach them. Force-clean
+  // them, keeping the backup ref for manual recovery (original HEAD stays
+  // reachable via backup^). No-op when deactivate already cleared the record.
   if (service.getState(repoId)) {
     await service.purgeForTeardown(repoId)
   }
@@ -49,6 +51,9 @@ export async function deactivateSpotlightIfHolder(
   if (!service || service.getState(repoId)?.holderWorktreeId !== worktreeId) {
     return
   }
+  // No force on purpose: a diverged root blocks the restore rather than discarding
+  // direct-root work, leaving the record active over the deleted holder until the
+  // user turns Spotlight off (which offers the force escape). Preserving work wins.
   await service.deactivate(repoId)
   // As above: the holder worktree is about to be deleted, so release the capture
   // even if the restore couldn't complete.
