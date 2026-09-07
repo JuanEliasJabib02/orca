@@ -235,6 +235,10 @@ export function WorktreeCardHeader({
           </Tooltip>
         )}
 
+        {!compactCards && worktree.isMainWorktree && !isFolder && repo ? (
+          <SpotlightPrimaryBadge repo={repo} />
+        ) : null}
+
         {worktree.isSparse && (
           <Tooltip>
             <TooltipTrigger asChild>

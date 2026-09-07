@@ -10,7 +10,6 @@ import { TruncatedSidebarLabel } from './truncated-sidebar-label'
 import { getDirectoryName } from './worktree-card-model'
 import type { WorktreeCardPresentation } from './worktree-card-presentation'
 import type { WorktreeCardController } from './use-worktree-card-controller'
-import { SpotlightPrimaryBadge } from './WorktreeCardSpotlightControls'
 
 export function WorktreeCardMetaRow({
   card,
@@ -22,7 +21,6 @@ export function WorktreeCardMetaRow({
   const {
     worktree,
     repo,
-    compactCards,
     hostContextLabel,
     identityDisplay,
     isFolder,
@@ -106,10 +104,6 @@ export function WorktreeCardMetaRow({
         )}
 
         {cacheStartedAt != null && <CacheTimer startedAt={cacheStartedAt} ttlMs={cacheTtlMs} />}
-
-        {!compactCards && worktree.isMainWorktree && !isFolder && repo ? (
-          <SpotlightPrimaryBadge repo={repo} />
-        ) : null}
       </div>
 
       {showMetaRowDetails && (
