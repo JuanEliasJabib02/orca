@@ -39,7 +39,7 @@ import {
   hasExplicitTuiAgentArgs,
   resolveAgentLaunchRoute
 } from '@/lib/agent-launch-routing'
-import { readLocalRuntimeCapabilities } from '@/runtime/local-runtime-capabilities'
+import { readLocalRuntimeCapabilitiesOrUnknown } from '@/runtime/local-runtime-capabilities'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../../shared/constants'
 
 export type LaunchAgentInNewTabArgs = {
@@ -135,13 +135,11 @@ function launchAgentInNewTabInternal(
   // Why: when Spotlight is active, tell the agent (Claude) where the mirrored
   // dev-server log lives so it uses it without the user having to explain the
   // setup. No-op for non-Spotlight repos and non-Claude agents.
-  const effectiveAgentArgs = withSpotlightAgentGuidance(
+  const baseAgentArgs =
     agentArgs !== undefined
       ? agentArgs
-      : resolveTuiAgentLaunchArgs(agent, store.settings?.agentDefaultArgs),
-    agent,
-    repo
-  )
+      : resolveTuiAgentLaunchArgs(agent, store.settings?.agentDefaultArgs)
+  const effectiveAgentArgs = withSpotlightAgentGuidance(baseAgentArgs, agent, repo)
   const agentEnv = resolveTuiAgentLaunchEnv(agent, store.settings?.agentDefaultEnv)
   const trimmedPrompt = prompt?.trim() ?? ''
   const hasPrompt = trimmedPrompt.length > 0
@@ -220,8 +218,7 @@ function launchAgentInNewTabInternal(
         agent,
         settings: store.settings,
         executionHostId: getExecutionHostIdForWorktree(store, worktreeId),
-        platform: CLIENT_PLATFORM,
-        hostCapabilities: readLocalRuntimeCapabilities(),
+        hostCapabilities: readLocalRuntimeCapabilitiesOrUnknown(),
         workspaceKind,
         projectRuntime: getLocalProjectExecutionRuntimeContext(store, worktreeId),
         promptDelivery: viewModePromptDelivery,
