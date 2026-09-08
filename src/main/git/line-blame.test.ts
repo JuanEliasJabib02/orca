@@ -65,13 +65,40 @@ describe('parseBlamePorcelain', () => {
     expect(parseBlamePorcelain('   \n')).toBeNull()
   })
 
-  it('returns null when the first token is not a 40-char sha', () => {
+  it('returns null when the first token is not a valid object id', () => {
     expect(parseBlamePorcelain('not-a-sha here\nauthor X')).toBeNull()
+    // 39, 41, and 63 hex: none is a valid object-id length.
+    expect(parseBlamePorcelain(`${'a'.repeat(39)} 1 1 1\nauthor X`)).toBeNull()
+    expect(parseBlamePorcelain(`${'a'.repeat(41)} 1 1 1\nauthor X`)).toBeNull()
+    expect(parseBlamePorcelain(`${'a'.repeat(63)} 1 1 1\nauthor X`)).toBeNull()
+  })
+
+  // Why: a SHA-256 repository (`git init --object-format=sha256`) reports 64-hex
+  // object ids. Rejecting those left both blame surfaces silently empty.
+  it('parses a 64-hex object id from a SHA-256 repository', () => {
+    const result = parseBlamePorcelain(SHA256_LINE)
+    expect(result?.sha).toBe(SHA256)
+    expect(result?.author).toBe('Ada')
+    expect(result?.isUncommitted).toBe(false)
+  })
+
+  it('flags an all-zero 64-hex sha as uncommitted', () => {
+    const result = parseBlamePorcelain(SHA256_LINE.replace(SHA256, '0'.repeat(64)))
+    expect(result?.isUncommitted).toBe(true)
   })
 })
 
 const SHA = 'a'.repeat(40)
 const ZERO = '0'.repeat(40)
+const SHA256 = 'b'.repeat(64)
+const SHA256_LINE = [
+  `${SHA256} 5 3 1`,
+  'author Ada',
+  'author-time 1777664339',
+  'summary feat: add a thing',
+  'filename src/index.ts',
+  '\tconst x = 1'
+].join('\n')
 
 describe('parseFileBlamePorcelain', () => {
   it('does not treat tab-prefixed content that looks like a header as a header', () => {
@@ -146,5 +173,40 @@ describe('parseFileBlamePorcelain', () => {
       ].join('\n')
     )
     expect(out[1].author).toBe('Root')
+  })
+
+  // Why: a SHA-256 repository reports 64-hex object ids. Rejecting those made the
+  // whole-file read return nothing, which also silently disabled the per-line
+  // fallback's cache, so no authorship appeared anywhere.
+  it('parses 64-hex object ids from a SHA-256 repository, including carry-forward', () => {
+    const out = parseFileBlamePorcelain(
+      [
+        `${SHA256} 1 1 1`,
+        'author Ada',
+        'author-time 1700000000',
+        'summary first',
+        '\tone',
+        `${SHA256} 2 2 1`,
+        '\ttwo'
+      ].join('\n')
+    )
+    expect(out[1].sha).toBe(SHA256)
+    expect(out[1].author).toBe('Ada')
+    expect(out[1].isUncommitted).toBe(false)
+    expect(out[2].author).toBe('Ada')
+    expect(out[2].summary).toBe('first')
+  })
+
+  it('flags an all-zero 64-hex sha as uncommitted', () => {
+    const out = parseFileBlamePorcelain(
+      [
+        `${'0'.repeat(64)} 3 3 1`,
+        'author Not Committed Yet',
+        'author-time 1700000000',
+        'summary x',
+        '\tnew'
+      ].join('\n')
+    )
+    expect(out[3].isUncommitted).toBe(true)
   })
 })

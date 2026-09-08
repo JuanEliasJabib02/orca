@@ -3,8 +3,24 @@ import type { GitRuntimeOptions } from './git-runtime-options'
 import { gitOptionsForWorktree } from './git-runtime-options'
 import { gitExecFileAsync } from './runner'
 
-// git's sentinel sha for a line that isn't committed yet (local/unsaved change).
-const UNCOMMITTED_SHA = '0'.repeat(40)
+// Why both lengths: a git object id is 40 hex characters in a SHA-1 repository
+// and 64 in a SHA-256 one (`git init --object-format=sha256`). Accepting only 40
+// made every porcelain header unparseable in a SHA-256 repo, so both blame
+// surfaces silently showed nothing at all rather than reporting a problem.
+const OBJECT_ID_PATTERN = '[0-9a-f]{64}|[0-9a-f]{40}'
+const FILE_BLAME_HEADER = new RegExp(`^(${OBJECT_ID_PATTERN}) \\d+ (\\d+)(?: \\d+)?$`, 'i')
+const LINE_BLAME_SHA = new RegExp(`^(?:${OBJECT_ID_PATTERN})$`, 'i')
+
+/**
+ * git's sentinel for a line that isn't committed yet is an all-zero object id,
+ * so its length follows the repository's hash algorithm.
+ *
+ * Callers pass an id already matched against OBJECT_ID_PATTERN, so this only has
+ * to separate all-zero from real.
+ */
+function isUncommittedSha(sha: string): boolean {
+  return /^0+$/.test(sha)
+}
 
 // Cap the blame so a slow `git blame` (huge file/history) can't stall
 // cursor-driven updates or leave a child process hanging.
@@ -40,7 +56,7 @@ export function parseFileBlamePorcelain(stdout: string): Record<number, GitLineB
   const commits = new Map<string, { author: string; authorTimeMs: number; summary: string }>()
   let current: { sha: string; line: number } | null = null
   for (const raw of stdout.split(/\r?\n/)) {
-    const header = /^([0-9a-f]{40}) \d+ (\d+)(?: \d+)?$/i.exec(raw)
+    const header = FILE_BLAME_HEADER.exec(raw)
     if (header) {
       current = { sha: header[1], line: Number(header[2]) }
       if (!commits.has(current.sha)) {
@@ -68,7 +84,7 @@ export function parseFileBlamePorcelain(stdout: string): Record<number, GitLineB
         author: commit?.author ?? '',
         authorTimeMs: commit?.authorTimeMs ?? Number.NaN,
         summary: commit?.summary ?? '',
-        isUncommitted: current.sha === UNCOMMITTED_SHA
+        isUncommitted: isUncommittedSha(current.sha)
       }
       current = null
     }
@@ -99,7 +115,7 @@ export function parseBlamePorcelain(stdout: string): GitLineBlameResult | null {
   // '\r' on author/summary values.
   const lines = text.split(/\r?\n/)
   const sha = lines[0]?.split(' ')[0] ?? ''
-  if (!/^[0-9a-f]{40}$/i.test(sha)) {
+  if (!LINE_BLAME_SHA.test(sha)) {
     return null
   }
   let author = ''
@@ -116,7 +132,7 @@ export function parseBlamePorcelain(stdout: string): GitLineBlameResult | null {
       summary = line.slice('summary '.length)
     }
   }
-  return { sha, author, authorTimeMs, summary, isUncommitted: sha === UNCOMMITTED_SHA }
+  return { sha, author, authorTimeMs, summary, isUncommitted: isUncommittedSha(sha) }
 }
 
 // Blame a single 1-indexed line of a repo-relative file. Returns null when there
