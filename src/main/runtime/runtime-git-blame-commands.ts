@@ -1,12 +1,9 @@
 import type { GitLineBlameResult } from '../../shared/git-line-blame-types'
 import { getFileBlame, getLineBlame } from '../git/line-blame'
 import {
-  getSshGitProvider,
-  SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE
-} from '../providers/ssh-git-dispatch'
-import {
   localGitOptionsForTarget,
   normalizeRuntimeGitRelativePath,
+  requireRuntimeGitProvider,
   type RuntimeGitCommandHost
 } from './runtime-git-command-target'
 
@@ -25,11 +22,10 @@ export class RuntimeGitBlameCommands {
   ): Promise<Record<number, GitLineBlameResult> | null> {
     const target = await this.host.resolveRuntimeGitTarget(worktreeSelector)
     const relativePath = normalizeRuntimeGitRelativePath(filePath)
-    if (target.connectionId) {
-      const provider = getSshGitProvider(target.connectionId)
-      if (!provider) {
-        throw new Error(SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE)
-      }
+    // `null` means the host is local; an unreachable SSH host throws rather than
+    // silently running remote work here.
+    const provider = requireRuntimeGitProvider(target)
+    if (provider) {
       return provider.getFileBlame(target.worktree.path, relativePath)
     }
     return getFileBlame(target.worktree.path, relativePath, localGitOptionsForTarget(target))
@@ -43,11 +39,8 @@ export class RuntimeGitBlameCommands {
   ): Promise<GitLineBlameResult | null> {
     const target = await this.host.resolveRuntimeGitTarget(worktreeSelector)
     const relativePath = normalizeRuntimeGitRelativePath(filePath)
-    if (target.connectionId) {
-      const provider = getSshGitProvider(target.connectionId)
-      if (!provider) {
-        throw new Error(SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE)
-      }
+    const provider = requireRuntimeGitProvider(target)
+    if (provider) {
       return provider.getLineBlame(target.worktree.path, relativePath, line1Indexed)
     }
     return getLineBlame(

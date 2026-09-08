@@ -49,6 +49,10 @@ export type WorktreeCardMode = 'Default' | 'Compact'
 
 export type AgentActivityDisplayMode = 'compact' | 'full'
 
+// Re-exported so existing importers keep one home for UI chrome types; the
+// value domain lives with the normalizers that police it.
+export type { ActivityGroupBy, ThreadReadFilter } from './agents-view-thread-filters'
+
 // Why the array is the source and the type derives from it: the client wire schema
 // builds its accepted value domain from this same array (client-ui-schemas.ts), so
 // an item cannot reach the type without also reaching the schema. A separately

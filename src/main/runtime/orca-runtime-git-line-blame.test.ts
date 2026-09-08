@@ -15,7 +15,8 @@ vi.mock('../git/line-blame', () => ({
 }))
 
 vi.mock('../providers/ssh-git-dispatch', () => ({
-  getSshGitProvider: mocks.getSshGitProvider
+  getSshGitProvider: mocks.getSshGitProvider,
+  SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE: 'ssh git provider unavailable'
 }))
 
 const tempDirs: string[] = []
@@ -52,7 +53,10 @@ describe('RuntimeGitCommands line blame', () => {
     const worktreePath = mkdtempSync(join(tmpdir(), 'orca-runtime-git-blame-'))
     tempDirs.push(worktreePath)
     const commands = new RuntimeGitCommands({
-      resolveRuntimeGitTarget: async () => ({ worktree: makeWorktree(worktreePath) }),
+      resolveRuntimeGitTarget: async () => ({
+        worktree: makeWorktree(worktreePath),
+        executionHostId: 'local' as const
+      }),
       getRuntimeSettings: () => ({}) as GlobalSettings
     })
     const blame = {
@@ -76,7 +80,7 @@ describe('RuntimeGitCommands line blame', () => {
     const commands = new RuntimeGitCommands({
       resolveRuntimeGitTarget: async () => ({
         worktree: makeWorktree('/remote/repo'),
-        connectionId: 'conn-1'
+        executionHostId: 'ssh:conn-1' as const
       }),
       getRuntimeSettings: () => ({}) as GlobalSettings
     })
