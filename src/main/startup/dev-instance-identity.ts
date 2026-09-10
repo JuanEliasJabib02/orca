@@ -2,8 +2,11 @@ import { createHash } from 'node:crypto'
 import path from 'node:path'
 import type { AppIdentity } from '../../shared/app-identity'
 
-const BASE_APP_NAME = 'Orca'
-const BASE_APP_USER_MODEL_ID = 'com.stablyai.orca'
+// LOCAL BUILD ONLY — do not commit. Renames this checkout's packaged app to
+// "Orca Dev" so it installs, stores its data (~/Library/Application Support/
+// Orca Dev), and holds its single-instance lock separately from the real Orca.
+const BASE_APP_NAME = 'Orca Dev'
+const BASE_APP_USER_MODEL_ID = 'com.stablyai.orca.dev'
 const MAX_LABEL_LENGTH = 80
 
 export type DevInstanceIdentity = AppIdentity & {

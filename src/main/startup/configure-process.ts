@@ -188,6 +188,16 @@ export function patchPackagedProcessPath(): void {
 }
 
 export function configureDevUserDataPath(isDev: boolean): void {
+  // LOCAL BUILD ONLY (skip-worktree): isolate this packaged build from the real
+  // Orca so it doesn't collide with the real app's single-instance lock (which
+  // would make it open-then-immediately-close). The lock is derived from the
+  // userData PATH, so setName alone isn't enough — explicitly repoint userData
+  // here (ahead of the lock in main-process-preflight). Both the name and the
+  // path use "Orca Dev" → its own data dir + its own lock namespace.
+  if (app.isPackaged) {
+    app.setName('Orca Dev')
+    app.setPath('userData', join(app.getPath('appData'), 'Orca Dev'))
+  }
   const e2eConfig = getMainE2EConfig()
   if (e2eConfig.userDataDir) {
     // Why: the E2E suite launches a fresh Electron app for each spec. A

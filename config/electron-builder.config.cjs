@@ -63,7 +63,12 @@ const devChannelRepo = isHourlyChannel
     : isAdhocChannel
       ? 'orca-adhoc'
       : null
-const appId = 'com.stablyai.orca'
+// LOCAL BUILD ONLY — do not commit. Separate app id + name so this build
+// installs as its own "Orca Dev" app alongside the real Orca. (Data-dir /
+// single-instance-lock isolation is done in code via an early app.setName in
+// configure-process.ts — NOT via electron-builder's extraMetadata, which
+// rewrites the source package.json in place and strips its scripts.)
+const appId = 'com.stablyai.orca.dev'
 const featureWallResources = {
   from: 'resources/onboarding/feature-wall',
   to: 'onboarding/feature-wall'
@@ -150,7 +155,7 @@ const MARKDOWN_FILE_EXTENSIONS = ['md', 'markdown', 'mdx']
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
   appId,
-  productName: 'Orca',
+  productName: 'Orca Pro Max',
   protocols: [{ name: 'Orca', schemes: ['orca'] }],
   toolsets: { appimage: '1.0.3' },
   ...(devChannelBuildVersion
