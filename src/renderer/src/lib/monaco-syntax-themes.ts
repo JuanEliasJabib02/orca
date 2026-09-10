@@ -93,7 +93,7 @@ function buildMonacoThemeData(
 
 const ONE_DARK_PRO = buildMonacoThemeData('vs-dark', ONE_DARK_PRO_COLORS, {
   'editor.lineHighlightBackground': '#2c313c',
-  'editor.selectionBackground': '#3e4451',
+  'editor.selectionBackground': '#67769660',
   'editor.selectionHighlightBackground': '#3e445150',
   'editor.findMatchBackground': '#42557b',
   'editor.findMatchHighlightBackground': '#314365',
