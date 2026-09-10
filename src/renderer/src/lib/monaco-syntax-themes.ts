@@ -57,11 +57,81 @@ const ROLE_TOKENS: Record<EditorSyntaxRole, string[]> = {
 
 const hex = (value: string): string => value.replace('#', '')
 
-/** Compile a role palette into a Monaco theme; extraColors overrides chrome. */
+// TextMate scope → color rules for One Dark Pro, mirroring the real extension so
+// TextMate-tokenized languages (e.g. Python) read identically to VS Code / Cursor.
+// Monaco matches these hierarchically, so a rule for `entity.name.function` also
+// colors `entity.name.function.python`.
+const ONE_DARK_PRO_SCOPE_RULES: monaco.editor.ITokenThemeRule[] = [
+  { token: 'comment', foreground: '7f848e', fontStyle: 'italic' },
+  { token: 'punctuation.definition.comment', foreground: '7f848e', fontStyle: 'italic' },
+  { token: 'keyword', foreground: 'c678dd' },
+  { token: 'storage', foreground: 'c678dd' },
+  { token: 'keyword.operator', foreground: 'abb2bf' },
+  { token: 'keyword.operator.logical', foreground: '56b6c2' },
+  { token: 'keyword.operator.arithmetic', foreground: '56b6c2' },
+  { token: 'keyword.operator.comparison', foreground: '56b6c2' },
+  { token: 'string', foreground: '98c379' },
+  { token: 'constant.character.escape', foreground: '56b6c2' },
+  { token: 'constant.numeric', foreground: 'd19a66' },
+  { token: 'constant.language', foreground: 'd19a66' },
+  { token: 'constant', foreground: 'd19a66' },
+  { token: 'entity.name.function', foreground: '61afef' },
+  { token: 'meta.function-call', foreground: '61afef' },
+  { token: 'support.function', foreground: '56b6c2' },
+  { token: 'meta.function.decorator', foreground: '61afef' },
+  { token: 'entity.name.type', foreground: 'e5c07b' },
+  { token: 'entity.name.class', foreground: 'e5c07b' },
+  { token: 'entity.name.namespace', foreground: 'e5c07b' },
+  { token: 'support.class', foreground: 'e5c07b' },
+  { token: 'support.type', foreground: 'e5c07b' },
+  { token: 'support.type.python', foreground: '56b6c2' },
+  { token: 'variable', foreground: 'e06c75' },
+  { token: 'variable.parameter', foreground: 'abb2bf' },
+  { token: 'support.variable', foreground: 'e06c75' },
+  { token: 'entity.name.tag', foreground: 'e06c75' },
+  { token: 'entity.other.attribute-name', foreground: 'd19a66' },
+  { token: 'punctuation', foreground: 'abb2bf' }
+]
+
+const ONE_LIGHT_SCOPE_RULES: monaco.editor.ITokenThemeRule[] = [
+  { token: 'comment', foreground: 'a0a1a7', fontStyle: 'italic' },
+  { token: 'punctuation.definition.comment', foreground: 'a0a1a7', fontStyle: 'italic' },
+  { token: 'keyword', foreground: 'a626a4' },
+  { token: 'storage', foreground: 'a626a4' },
+  { token: 'keyword.operator', foreground: '383a42' },
+  { token: 'keyword.operator.logical', foreground: '0184bc' },
+  { token: 'keyword.operator.arithmetic', foreground: '0184bc' },
+  { token: 'keyword.operator.comparison', foreground: '0184bc' },
+  { token: 'string', foreground: '50a14f' },
+  { token: 'constant.character.escape', foreground: '0184bc' },
+  { token: 'constant.numeric', foreground: '986801' },
+  { token: 'constant.language', foreground: '986801' },
+  { token: 'constant', foreground: '986801' },
+  { token: 'entity.name.function', foreground: '4078f2' },
+  { token: 'meta.function-call', foreground: '4078f2' },
+  { token: 'support.function', foreground: '0184bc' },
+  { token: 'meta.function.decorator', foreground: '4078f2' },
+  { token: 'entity.name.type', foreground: 'c18401' },
+  { token: 'entity.name.class', foreground: 'c18401' },
+  { token: 'entity.name.namespace', foreground: 'c18401' },
+  { token: 'support.class', foreground: 'c18401' },
+  { token: 'support.type', foreground: 'c18401' },
+  { token: 'support.type.python', foreground: '0184bc' },
+  { token: 'variable', foreground: 'e45649' },
+  { token: 'variable.parameter', foreground: '383a42' },
+  { token: 'support.variable', foreground: 'e45649' },
+  { token: 'entity.name.tag', foreground: 'e45649' },
+  { token: 'entity.other.attribute-name', foreground: '986801' },
+  { token: 'punctuation', foreground: '383a42' }
+]
+
+/** Compile a role palette into a Monaco theme; extraColors overrides chrome,
+ *  scopeRules adds TextMate scope colors for TextMate-tokenized languages. */
 function buildMonacoThemeData(
   base: monaco.editor.BuiltinTheme,
   colors: EditorCustomTheme,
-  extraColors: Record<string, string> = {}
+  extraColors: Record<string, string> = {},
+  scopeRules: monaco.editor.ITokenThemeRule[] = []
 ): monaco.editor.IStandaloneThemeData {
   const rules: monaco.editor.ITokenThemeRule[] = [
     { token: '', foreground: hex(colors.foreground), background: hex(colors.background) }
@@ -75,6 +145,7 @@ function buildMonacoThemeData(
       rules.push(rule)
     }
   }
+  rules.push(...scopeRules)
   return {
     base,
     inherit: true,
@@ -91,29 +162,39 @@ function buildMonacoThemeData(
   }
 }
 
-const ONE_DARK_PRO = buildMonacoThemeData('vs-dark', ONE_DARK_PRO_COLORS, {
-  'editor.lineHighlightBackground': '#2c313c',
-  'editor.selectionBackground': '#67769660',
-  'editor.selectionHighlightBackground': '#3e445150',
-  'editor.findMatchBackground': '#42557b',
-  'editor.findMatchHighlightBackground': '#314365',
-  'editorCursor.foreground': '#528bff',
-  'editorLineNumber.foreground': '#495162',
-  'editorIndentGuide.background': '#3b4048',
-  'editorIndentGuide.activeBackground': '#5c6370',
-  'editorWhitespace.foreground': '#3b4048'
-})
+const ONE_DARK_PRO = buildMonacoThemeData(
+  'vs-dark',
+  ONE_DARK_PRO_COLORS,
+  {
+    'editor.lineHighlightBackground': '#2c313c',
+    'editor.selectionBackground': '#67769660',
+    'editor.selectionHighlightBackground': '#3e445150',
+    'editor.findMatchBackground': '#42557b',
+    'editor.findMatchHighlightBackground': '#314365',
+    'editorCursor.foreground': '#528bff',
+    'editorLineNumber.foreground': '#495162',
+    'editorIndentGuide.background': '#3b4048',
+    'editorIndentGuide.activeBackground': '#5c6370',
+    'editorWhitespace.foreground': '#3b4048'
+  },
+  ONE_DARK_PRO_SCOPE_RULES
+)
 
-const ONE_LIGHT = buildMonacoThemeData('vs', ONE_LIGHT_COLORS, {
-  'editor.lineHighlightBackground': '#f0f0f1',
-  'editor.selectionBackground': '#e5e5e6',
-  'editor.selectionHighlightBackground': '#e5e5e650',
-  'editorCursor.foreground': '#526fff',
-  'editorLineNumber.foreground': '#9d9d9f',
-  'editorIndentGuide.background': '#eaeaeb',
-  'editorIndentGuide.activeBackground': '#a0a1a7',
-  'editorWhitespace.foreground': '#d4d4d5'
-})
+const ONE_LIGHT = buildMonacoThemeData(
+  'vs',
+  ONE_LIGHT_COLORS,
+  {
+    'editor.lineHighlightBackground': '#f0f0f1',
+    'editor.selectionBackground': '#e5e5e6',
+    'editor.selectionHighlightBackground': '#e5e5e650',
+    'editorCursor.foreground': '#526fff',
+    'editorLineNumber.foreground': '#9d9d9f',
+    'editorIndentGuide.background': '#eaeaeb',
+    'editorIndentGuide.activeBackground': '#a0a1a7',
+    'editorWhitespace.foreground': '#d4d4d5'
+  },
+  ONE_LIGHT_SCOPE_RULES
+)
 
 /** Compile a user palette into a Monaco theme definition. */
 export function buildCustomMonacoTheme(

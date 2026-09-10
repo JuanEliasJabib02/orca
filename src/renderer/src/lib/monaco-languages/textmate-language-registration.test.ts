@@ -73,19 +73,26 @@ describe('registerTextMateLanguage', () => {
     })
   })
 
-  it('does not register duplicate language ids', () => {
-    const { monaco } = createMonacoMock([{ id: 'nim' }])
+  it('keeps existing metadata but still installs the TextMate tokens provider for an already-registered id', () => {
+    // Why: a Monaco basic language (e.g. python) pre-registers the id with a
+    // Monarch factory; we must override the tokenizer without clobbering its config.
+    const { monaco } = createMonacoMock([{ id: 'python' }])
 
     registerTextMateLanguage(monaco as never, {
       language: {
-        id: 'nim',
-        extensions: ['.nim']
+        id: 'python',
+        extensions: ['.py']
       },
-      scopeName: 'source.nim',
+      configuration: { comments: { lineComment: '#' } },
+      scopeName: 'source.python',
       loadGrammar: vi.fn()
     })
 
     expect(monaco.languages.register).not.toHaveBeenCalled()
-    expect(monaco.languages.registerTokensProviderFactory).not.toHaveBeenCalled()
+    expect(monaco.languages.setLanguageConfiguration).not.toHaveBeenCalled()
+    expect(monaco.languages.registerTokensProviderFactory).toHaveBeenCalledWith(
+      'python',
+      expect.objectContaining({ create: expect.any(Function) })
+    )
   })
 })
