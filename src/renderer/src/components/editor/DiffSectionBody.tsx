@@ -13,6 +13,7 @@ import { LargeDiffFallback } from './LargeDiffFallback'
 import { LargeDiffLoadPrompt } from './LargeDiffLoadPrompt'
 import { buildDiffEditorWhitespaceOptions } from './diff-editor-whitespace-options'
 import { buildDiffEditorWordWrapOptions } from './diff-editor-word-wrap-options'
+import { resolveMonacoThemeName } from '@/lib/monaco-syntax-themes'
 import { monacoFindOptions } from './monaco-find-options'
 import { installDiffEditorShiftWheelScroll } from './diff-editor-shift-wheel-scroll'
 
@@ -36,6 +37,7 @@ type DiffSectionBodyProps = {
   isBranchMode: boolean
   sideBySide: boolean
   isDark: boolean
+  editorTheme?: string
   language: string
   modelPathBase: string
   isEditable: boolean
@@ -63,6 +65,7 @@ export function DiffSectionBody({
   isBranchMode,
   sideBySide,
   isDark,
+  editorTheme,
   language,
   modelPathBase,
   isEditable,
@@ -195,7 +198,7 @@ export function DiffSectionBody({
           language={language}
           original={section.originalContent}
           modified={section.modifiedContent}
-          theme={isDark ? 'vs-dark' : 'vs'}
+          theme={resolveMonacoThemeName(editorTheme, isDark)}
           onMount={handleEditorMount}
           // Why: @monaco-editor/react can dispose models before widget teardown.
           // Keep them through unmount and dispose unattached models next tick.

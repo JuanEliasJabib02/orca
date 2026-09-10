@@ -45,6 +45,29 @@ export const getGeneralEditorSearchEntries = createLocalizedCatalog(() => [
     ]
   },
   {
+    title: translate(
+      'auto.components.settings.general.search.editorColorTheme',
+      'Editor Color Theme'
+    ),
+    description: translate(
+      'auto.components.settings.general.search.editorColorThemeDesc',
+      'Syntax highlighting palette for file editors and diffs, including a custom build-your-own theme.'
+    ),
+    keywords: [
+      ...translateSearchKeyword('auto.components.settings.general.search.e1ee631696', 'editor'),
+      ...translateSearchKeyword('auto.components.settings.general.search.editorThemeKw', 'theme'),
+      ...translateSearchKeyword('auto.components.settings.general.search.editorColorKw', 'color'),
+      ...translateSearchKeyword(
+        'auto.components.settings.general.search.editorSyntaxKw',
+        'syntax highlighting'
+      ),
+      ...translateSearchKeyword(
+        'auto.components.settings.general.search.editorOneDarkKw',
+        'one dark pro'
+      )
+    ]
+  },
+  {
     title: translate('auto.components.settings.general.search.e61157e926', 'Editor Word Wrap'),
     description: translate(
       'auto.components.settings.general.search.005be5c699',
