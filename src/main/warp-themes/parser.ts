@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { parseDocument } from 'yaml'
 import type { TerminalColorOverrides } from '../../shared/terminal-color-overrides'
+import { hexColorLuminance } from '../../shared/color-validation'
 import {
   hasUsableTerminalThemeColors,
   makeCustomTerminalThemeSelection,
@@ -98,17 +99,9 @@ function addWarpPalette(
   }
 }
 
-function luminance(hexColor: string): number {
-  const hex = hexColor.slice(1)
-  const red = Number.parseInt(hex.slice(0, 2), 16) / 255
-  const green = Number.parseInt(hex.slice(2, 4), 16) / 255
-  const blue = Number.parseInt(hex.slice(4, 6), 16) / 255
-  return 0.2126 * red + 0.7152 * green + 0.0722 * blue
-}
-
 function inferMode(background: string | undefined, details: unknown): TerminalCustomThemeMode {
   if (background) {
-    return luminance(background) >= 0.55 ? 'light' : 'dark'
+    return hexColorLuminance(background) >= 0.55 ? 'light' : 'dark'
   }
   if (details === 'lighter') {
     return 'light'

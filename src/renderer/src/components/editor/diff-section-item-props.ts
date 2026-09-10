@@ -14,6 +14,7 @@ export type DiffSectionItemProps = {
     terminalFontFamily?: string
     diffWordWrap?: boolean
     diffShowWhitespace?: boolean
+    editorTheme?: string
   } | null
   sectionHeight: number | undefined
   worktreeId?: string

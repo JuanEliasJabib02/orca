@@ -8,6 +8,7 @@ import type { AppIconId } from './app-icon'
 import type { SourceControlAiSettings } from './source-control-ai-types'
 import type { ClaudeAgentTeamsMode } from './claude-agent-teams-tmux-compat'
 import type { TerminalCustomTheme } from './terminal-custom-themes'
+import type { EditorCustomTheme } from './editor-custom-theme'
 import type { UiLanguage } from './ui-language'
 import type { GlobalWindowsRuntimeDefault } from './project-execution-runtime'
 import type { PersistedNativeChatSessionOptions } from './native-chat-session-options'
@@ -89,6 +90,10 @@ export type GlobalSettings = {
   editorMinimapEnabled: boolean
   /** Opt-in code-editor font; empty (the default) keeps following `terminalFontFamily`. */
   editorFontFamily?: string
+  /** Selectable Monaco syntax theme id (see monaco-syntax-themes.ts); missing/unknown = Monaco's built-in vs/vs-dark. */
+  editorTheme?: string
+  /** User-built syntax palette applied when editorTheme === 'custom'; missing roles fall back to One Dark Pro. */
+  editorCustomTheme?: EditorCustomTheme
   /** Defaults on for profiles saved before file-editor wrapping became configurable. */
   editorWordWrap?: boolean
   /** Persisted opt-out for browser spellcheck noise in rich Markdown editing surfaces. */

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { monaco } from '@/lib/monaco-setup'
 import { computeEditorFontSize, resolveEditorFontFamily } from '@/lib/editor-font-zoom'
 import { resolveDocumentTheme } from '@/lib/document-theme'
+import { resolveMonacoThemeName } from '@/lib/monaco-syntax-themes'
 import { useAppStore } from '@/store'
 import { cn } from '@/lib/utils'
 
@@ -53,12 +54,13 @@ export default function MonacoCodeExcerpt({
   )
   const fontFamily = resolveEditorFontFamily(settings)
   const isDark = resolveDocumentTheme(settings?.theme ?? 'system')
+  const monacoThemeName = resolveMonacoThemeName(settings?.editorTheme, isDark)
   const code = useMemo(() => lines.join('\n'), [lines])
   const [htmlLines, setHtmlLines] = useState<string[]>(() => lines.map(() => ''))
 
   useEffect(() => {
-    monaco.editor.setTheme(isDark ? 'vs-dark' : 'vs')
-  }, [isDark])
+    monaco.editor.setTheme(monacoThemeName)
+  }, [monacoThemeName])
 
   useEffect(() => {
     if (lines.length === 0) {
@@ -84,7 +86,9 @@ export default function MonacoCodeExcerpt({
     return () => {
       cancelled = true
     }
-  }, [code, language, lines])
+    // Why: re-colorize on theme change — colorize() bakes theme-relative mtk<N>
+    // classes, so a stale render maps to the new theme's wrong colors.
+  }, [code, language, lines, monacoThemeName])
 
   return (
     <div

@@ -1006,6 +1006,11 @@
         "preview": {
           "pairedOutsideWorktree": "Files outside the workspace can't be previewed on a paired server yet."
         }
+      },
+      "monacoSyntaxThemes": {
+        "oneDarkPro": "One Dark Pro",
+        "custom": "Custom (build your own)",
+        "default": "Default (VS)"
       }
     },
     "hooks": {
@@ -9699,7 +9704,13 @@
             "sidebar": "sidebar",
             "867dddea41": "pinned",
             "5250cf0e48": "pin",
-            "afa37a34e1": "close"
+            "afa37a34e1": "close",
+            "editorColorTheme": "Editor Color Theme",
+            "editorColorThemeDesc": "Syntax highlighting palette for file editors and diffs, including a custom build-your-own theme.",
+            "editorThemeKw": "theme",
+            "editorColorKw": "color",
+            "editorSyntaxKw": "syntax highlighting",
+            "editorOneDarkKw": "one dark pro"
           }
         },
         "git": {
@@ -11901,6 +11912,13 @@
           "targetDescription": "Higher values increase contrast where possible. Background colors stay unchanged.",
           "subtle": "Subtle",
           "strong": "Strong"
+        },
+        "EditorSyntaxThemeSetting": {
+          "customHint": "Pick a color for each syntax role. Changes preview live below.",
+          "reset": "Reset to One Dark Pro",
+          "lowContrast": "Background and Default text are very close — editor code may be hard to read.",
+          "title": "Editor Color Theme",
+          "description": "Syntax highlighting palette for file editors and diffs. Follows light/dark automatically."
         }
       },
       "right": {

@@ -6,6 +6,7 @@ import { syncContentOnMount, syncContentUpdate } from '@/components/editor/monac
 import { isMonacoFindWidgetOpen } from '@/components/editor/monaco-find-widget'
 import { computeEditorFontSize, resolveEditorFontFamily } from '@/lib/editor-font-zoom'
 import { resolveDocumentTheme } from '@/lib/document-theme'
+import { resolveMonacoThemeName } from '@/lib/monaco-syntax-themes'
 import '@/lib/monaco-setup'
 import { useAppStore } from '@/store'
 import { cn } from '@/lib/utils'
@@ -155,7 +156,7 @@ export function AutomationEditorPromptEditor({
           // Why: defaultValue, not controlled value — this surface owns
           // post-mount sync so React cannot wipe Monaco's undo stack.
           defaultValue={value}
-          theme={isDark ? 'vs-dark' : 'vs'}
+          theme={resolveMonacoThemeName(settings?.editorTheme, isDark)}
           onChange={handleChange}
           onMount={handleMount}
           options={options}

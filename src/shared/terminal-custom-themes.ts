@@ -1,5 +1,5 @@
 import type { TerminalColorOverrides } from './terminal-color-overrides'
-import { HEX_COLOR_RE } from './color-validation'
+import { normalizeHexColor } from './color-validation'
 
 export type TerminalCustomThemeSource = 'warp' | 'ghostty' | 'manual'
 export type TerminalCustomThemeMode = 'dark' | 'light' | 'unknown'
@@ -131,22 +131,7 @@ export function normalizeTerminalThemeName(value: unknown, fallback = 'Imported 
 }
 
 export function normalizeTerminalHexColor(value: unknown): string | null {
-  if (typeof value !== 'string') {
-    return null
-  }
-  const trimmed = value.trim()
-  if (!HEX_COLOR_RE.test(trimmed)) {
-    return null
-  }
-  const withoutHash = trimmed.startsWith('#') ? trimmed.slice(1) : trimmed
-  const expanded =
-    withoutHash.length === 3
-      ? withoutHash
-          .split('')
-          .map((character) => `${character}${character}`)
-          .join('')
-      : withoutHash
-  return `#${expanded.toLowerCase()}`
+  return normalizeHexColor(value)
 }
 
 export function normalizeTerminalColorOverrides(value: unknown): TerminalColorOverrides {
