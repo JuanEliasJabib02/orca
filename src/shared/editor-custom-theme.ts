@@ -37,7 +37,7 @@ export const EDITOR_SYNTAX_ROLES = [
 export const ONE_DARK_PRO_COLORS: EditorCustomTheme = {
   background: '#282c34',
   foreground: '#abb2bf',
-  comment: '#5c6370',
+  comment: '#7f848e',
   keyword: '#c678dd',
   string: '#98c379',
   number: '#d19a66',
