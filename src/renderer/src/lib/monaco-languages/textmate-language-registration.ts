@@ -29,13 +29,20 @@ export function registerTextMateLanguage(
   const languageAlreadyRegistered = monaco.languages
     .getLanguages()
     .some((language) => language.id === registration.language.id)
-  if (languageAlreadyRegistered) {
-    return
-  }
 
-  monaco.languages.register(registration.language)
-  if (registration.configuration) {
-    monaco.languages.setLanguageConfiguration(registration.language.id, registration.configuration)
+  // Why: a Monaco basic language (e.g. python) may already own the id with an
+  // eager Monarch tokens factory. Register metadata/config only when the id is
+  // new — so we keep Monaco's richer built-in configuration — but ALWAYS install
+  // the TextMate tokens provider, since registerTokensProviderFactory replaces
+  // any prior factory (and nothing re-installs Monarch afterward).
+  if (!languageAlreadyRegistered) {
+    monaco.languages.register(registration.language)
+    if (registration.configuration) {
+      monaco.languages.setLanguageConfiguration(
+        registration.language.id,
+        registration.configuration
+      )
+    }
   }
 
   let tokensProviderPromise: Promise<TextMateTokensProvider> | undefined
