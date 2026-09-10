@@ -10,6 +10,7 @@ import { resolveMonacoThemeName } from '@/lib/monaco-syntax-themes'
 
 import { useContextualCopySetup } from './useContextualCopySetup'
 import { MonacoGutterContextMenu } from './MonacoGutterContextMenu'
+import { useInlineGitBlame } from './useInlineGitBlame'
 import { isLinuxUserAgent } from '../terminal-pane/pane-helpers'
 import { buildFileEditorWordWrapOptions } from './file-editor-word-wrap-options'
 import { getMonacoAutoHeightForContent, isMonacoAutoHeightCapped } from './monaco-auto-height'
@@ -201,6 +202,10 @@ export default function MonacoEditor({
     annotations,
     gutterMenu: { setGutterMenuOpen, setGutterMenuPoint, setGutterMenuLine }
   })
+
+  // Why: read-only tabs (diffs, previews) show content that isn't the file on
+  // disk, so end-of-line authorship there would label the wrong lines.
+  useInlineGitBlame(mountedEditor, !readOnly)
 
   // Navigate to line and highlight match when requested (for already-mounted editor)
   useEffect(() => {
