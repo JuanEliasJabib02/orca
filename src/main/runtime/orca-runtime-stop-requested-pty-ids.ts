@@ -1,6 +1,7 @@
 // @ts-nocheck -- mechanically split from OrcaRuntimeService; behavior is covered by AST equivalence and characterization tests.
 import { OrchestrationStructuredMailboxPointerDelivery } from './orchestration/structured-mailbox-pointer-delivery'
 import { createStructuredMailboxPointerHost } from './orchestration/structured-mailbox-pointer-host'
+import { localOrchestrationCliCommand } from './orchestration/cli-command'
 import { isStructuredWorkerHandle } from './structured-worker-identity'
 import { resolveStructuredWorkerAuthority } from './structured-worker-authority'
 import { OrcaRuntimeWithRuntimeId } from './orca-runtime-runtime-id'
@@ -107,7 +108,7 @@ export class OrcaRuntimeWithStopRequestedPtyIds extends OrcaRuntimeWithRuntimeId
     issueLeafHandle: (leaf) => this.issueHandle(leaf),
     issuePtyHandle: (pty) => this.issuePtyHandle(pty),
     makePaneKey: (leaf) => this.makeRuntimePaneKey(leaf),
-    getWorktreeId: (handle) => this.getWorktreeIdForTerminalHandle(handle),
+    getWorktreeId: (handle) => this.getTerminalWorktreeIdForHandle(handle),
     getHandleForPaneKey: (paneKey) => this.getTerminalHandleForPaneKey(paneKey),
     getPaneKey: (handle) => this.getPaneKeyForTerminalHandle(handle),
     getDispatchAuthority: (handle) => this.getOrchestrationDispatchAuthority(handle),
@@ -203,6 +204,7 @@ export class OrcaRuntimeWithStopRequestedPtyIds extends OrcaRuntimeWithRuntimeId
     getLeaf: (leafKey) => this.leaves.get(leafKey),
     getLeafKey: (tabId, leafId) => this.getLeafKey(tabId, leafId),
     getLiveLeafForHandle: (handle) => this.getLiveLeafForHandle(handle).leaf,
+    isAgentSettledForDelivery: (leaf) => this.checkDeliverySettledAndArmRecheck(leaf),
     getMessageWaiters: (mailboxHandle) => this.messageWaiters.get(mailboxHandle),
     getTabTitle: (tabId) => this.tabs.get(tabId)?.title,
     getCliCommand: (terminalHandle) => this.getTerminalOrchestrationCliCommand(terminalHandle),
@@ -220,6 +222,7 @@ export class OrcaRuntimeWithStopRequestedPtyIds extends OrcaRuntimeWithRuntimeId
       getMessageWaiters: (mailboxHandle) => this.messageWaiters.get(mailboxHandle),
       resolveStructuredTarget: (mailboxHandle) =>
         this.resolveStructuredMailboxTarget(mailboxHandle),
+      getCliCommand: localOrchestrationCliCommand,
       host: createStructuredMailboxPointerHost()
     })
 

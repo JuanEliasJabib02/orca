@@ -7,6 +7,7 @@ import SpotlightAutoSyncGate from '../components/sidebar/SpotlightAutoSyncGate'
 import { WorkspacePortScanner } from '../components/ports/WorkspacePortScanner'
 import { MacosTccPromptNoticeHost } from '../hooks/MacosTccPromptNoticeHost'
 import { useAppStore } from '../store'
+import { StructuredAgentSessionAttentionBridge } from '../components/native-chat/StructuredAgentSessionAttentionBridge'
 import { StructuredAgentSessionStatusBridge } from '../components/native-chat/StructuredAgentSessionStatusBridge'
 
 const DashboardPopoutBridge = lazy(() => import('../components/dashboard/DashboardPopoutBridge'))
@@ -37,6 +38,9 @@ export function AppBackgroundServices(): React.JSX.Element {
       ) : null}
       <AgentHibernationGate />
       <StructuredAgentSessionStatusBridge />
+      {/* Why here and not in the chat pane: a backgrounded chat has no mounted pane, and that is
+          exactly the completion the user needs the dot for. */}
+      <StructuredAgentSessionAttentionBridge />
     </>
   )
 }

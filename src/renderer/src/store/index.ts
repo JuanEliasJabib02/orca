@@ -21,6 +21,7 @@ import { createWorkspaceSpaceSlice } from './slices/workspace-space'
 import {
   createClaudeUsageSlice,
   createCodexUsageSlice,
+  createMuseUsageSlice,
   createOpenCodeUsageSlice
 } from './slices/usage-provider-slices'
 import { createBrowserSlice } from './slices/browser'
@@ -43,6 +44,7 @@ import { createPinnedTabCloseConfirmSlice } from './slices/pinned-tab-close-conf
 import { createRecentlyClosedTabsSlice } from './slices/recently-closed-tabs'
 import { createOrcaProfilesSlice } from './slices/orca-profiles'
 import { createNewIssueDraftSlice } from './slices/new-issue-draft'
+import { createFeedbackDraftSlice } from './slices/feedback-draft'
 import { createTaskCreationDraftsSlice } from './slices/task-creation-drafts'
 import { createRemoteServerUpdatesSlice } from './slices/remote-server-updates'
 import { createTerminalQuickCommandHostsSlice } from './slices/terminal-quick-command-hosts'
@@ -96,6 +98,7 @@ export const useAppStore = create<AppState>()(
         ...createClaudeUsageSlice(...a),
         ...createCodexUsageSlice(...a),
         ...createOpenCodeUsageSlice(...a),
+        ...createMuseUsageSlice(...a),
         ...createBrowserSlice(...a),
         ...createRateLimitSlice(...a),
         ...createSshSlice(...a),
@@ -116,6 +119,7 @@ export const useAppStore = create<AppState>()(
         ...createRecentlyClosedTabsSlice(...a),
         ...createOrcaProfilesSlice(...a),
         ...createNewIssueDraftSlice(...a),
+        ...createFeedbackDraftSlice(...a),
         ...createTaskCreationDraftsSlice(...a),
         ...createRemoteServerUpdatesSlice(...a),
         ...createTerminalQuickCommandHostsSlice(...a)

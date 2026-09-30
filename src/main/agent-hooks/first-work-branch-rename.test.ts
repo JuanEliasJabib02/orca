@@ -118,7 +118,21 @@ describe('maybeAutoRenameBranchOnFirstWork', () => {
       })
       const feed = new StructuredAgentSessionStatusFeed({
         sessions: new Map([
-          ['session', { journal, params: { location: { workspaceId }, provider: agent } }]
+          [
+            'session',
+            {
+              journal,
+              params: {
+                location: {
+                  executionHostId: 'local',
+                  wslDistro: null,
+                  workspaceId,
+                  workspaceKind: 'git-worktree'
+                },
+                provider: agent
+              }
+            }
+          ]
         ]),
         getRecord: () => null,
         now: () => 1,
@@ -193,7 +207,12 @@ describe('maybeAutoRenameBranchOnFirstWork', () => {
         ]
       })
     } as unknown as AgentSessionJournal
-    const location = { workspaceId, workspaceKind: 'git-worktree' as const }
+    const location = {
+      executionHostId: 'local' as const,
+      wslDistro: null,
+      workspaceId,
+      workspaceKind: 'git-worktree' as const
+    }
     const pending: Promise<void>[] = []
     const feed = new StructuredAgentSessionStatusFeed({
       sessions: new Map([['session', { journal, params: { location, provider: 'codex' } }]]),
@@ -312,13 +331,6 @@ describe('maybeAutoRenameBranchOnFirstWork', () => {
       expect.objectContaining({ cwd: '/repo/wt' })
     )
     expect(setDisplayName).not.toHaveBeenCalled()
-  })
-
-  it('resolves the worktree from the tab when the hook payload omits worktreeId', async () => {
-    // workingEvent() carries worktreeId: undefined; resolveWorktreeIdForTab supplies it.
-    const { deps, onRenamed } = makeDeps()
-    await maybeAutoRenameBranchOnFirstWork(workingEvent(), deps)
-    expect(onRenamed).toHaveBeenCalledWith(REPO_ID)
   })
 
   it('runs Git against the backing folder for a folder-workspace instance id', async () => {

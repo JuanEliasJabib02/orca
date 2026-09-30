@@ -57,7 +57,7 @@ export function openSpotlightTerminalTab({
     if (reveal) {
       activateAndRevealWorktree(worktreeId)
       store.setActiveTabForWorktree(worktreeId, existing.id)
-      store.setActiveTabType('terminal')
+      store.setActiveTabType('terminal', worktreeId)
     }
     return { ok: true, tabId: existing.id }
   }
@@ -86,7 +86,7 @@ export function openSpotlightTerminalTab({
     if (reveal) {
       activateAndRevealWorktree(worktreeId)
       store.setActiveTabForWorktree(worktreeId, adopted.id)
-      store.setActiveTabType('terminal')
+      store.setActiveTabType('terminal', worktreeId)
     }
     return { ok: true, tabId: adopted.id }
   }
@@ -106,10 +106,9 @@ export function openSpotlightTerminalTab({
   if (reveal) {
     activateAndRevealWorktree(worktreeId)
     useAppStore.getState().setActiveTabForWorktree(worktreeId, tab.id)
-    // setActiveTabType targets the ACTIVE worktree's pane, so only flip it when
-    // revealing — otherwise a reveal:false activation from a feature workspace
-    // would yank the user's current pane to the terminal.
-    useAppStore.getState().setActiveTabType('terminal')
+    // Only flip the pane when revealing — otherwise a reveal:false activation
+    // from a feature workspace would yank the root's pane to the terminal.
+    useAppStore.getState().setActiveTabType('terminal', worktreeId)
   }
 
   return { ok: true, tabId: tab.id }

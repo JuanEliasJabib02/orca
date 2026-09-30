@@ -1,4 +1,7 @@
-import type { AgentJournalItemIdentity } from '../../shared/agent-session-journal-types'
+import type {
+  AgentJournalItemIdentity,
+  AgentJournalTurnScope
+} from '../../shared/agent-session-journal-types'
 import type { NativeChatSubagentEntry } from '../../shared/native-chat-types'
 import type { ClaudeSubagentTaskFrame } from './claude-subagent-task-frames'
 
@@ -14,11 +17,16 @@ export type TrackedEntry = {
   /** Label before its ordinal suffix, so a later announcement can tell a
    *  provisional row from one that already carries the provider's own name. */
   labelBase: string
+  /** Which run of this child. Identity survives a resume by design, so without
+   *  this the retained rows of two runs read as one uninterrupted timeline. */
+  attempt: number
 }
 
 export type RosterGroup = {
   groupId: string
   identity: AgentJournalItemIdentity
+  /** The spawning turn's scope: the row reports its children beside that turn's work. */
+  turnScope: AgentJournalTurnScope
   /** Insertion order is the display order; the map holds the state. */
   entries: Map<string, TrackedEntry>
   /** Lifetime admissions bound retained labels even when entries are removed. */
@@ -48,6 +56,10 @@ export function applyClaudeSubagentInvocation(
     }
     tracked.invocationIds.add(frame.toolUseId)
     if (tracked.toolUseId !== null && tracked.toolUseId !== frame.toolUseId) {
+      // THE reactivation: a new spawn alias reopening this entry. The one place
+      // the attempt moves, and it is gated on the observed alias change rather
+      // than on the counter, so a late duplicate cannot advance a settled run.
+      tracked.attempt += 1
       tracked.backgrounded = frame.backgrounded ?? false
       tracked.entry = { ...tracked.entry, state: frame.state ?? 'working', settledAt: undefined }
     }

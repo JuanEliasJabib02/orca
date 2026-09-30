@@ -6,6 +6,8 @@ import type { ExecutionHostId } from '../../../shared/execution-host'
 import { normalizeExecutionHostId } from '../../../shared/execution-host'
 import { normalizeRepoBadgeColor } from '../../../shared/repo-badge-color'
 import { sanitizeRepoIcon } from '../../../shared/repo-icon'
+import { normalizeGhAccountBinding } from '../../../shared/github/account-binding'
+import type { GhAccountBinding } from '../../../shared/github/account-binding'
 import { normalizeRepoSourceControlAiOverrides } from '../../../shared/source-control-ai'
 import {
   normalizeCustomWorktreeVisibilitySources,
@@ -53,6 +55,7 @@ export function registerRepoUpdateHandler(mainWindow: BrowserWindow, store: Stor
           externalWorktreeDiscoverySuppressedAt?:
             | Repo['externalWorktreeDiscoverySuppressedAt']
             | null
+          ghAccount?: GhAccountBinding | null
         }
       }
     ) => {
@@ -82,6 +85,19 @@ export function registerRepoUpdateHandler(mainWindow: BrowserWindow, store: Stor
         typeof updates.spotlightTestingEnabled !== 'boolean'
       ) {
         delete updates.spotlightTestingEnabled
+      }
+      // Why: null is the transport sentinel for clearing the binding; malformed shapes are dropped, never coerced.
+      if ('ghAccount' in updates) {
+        if (updates.ghAccount == null) {
+          updates.ghAccount = null
+        } else {
+          const normalized = normalizeGhAccountBinding(updates.ghAccount)
+          if (!normalized) {
+            delete updates.ghAccount
+          } else {
+            updates.ghAccount = normalized
+          }
+        }
       }
       // Why: worktree materialization calls .trim() per entry, so strip non-string[] at the boundary to avoid a silent throw later.
       if ('symlinkPaths' in updates && updates.symlinkPaths !== undefined) {

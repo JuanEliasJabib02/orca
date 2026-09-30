@@ -67,6 +67,8 @@ export const STATUS_BAR_ITEMS = [
   'kimi',
   'minimax',
   'grok',
+  'cursor',
+  'zcode',
   'ssh',
   'resource-usage',
   'ports',

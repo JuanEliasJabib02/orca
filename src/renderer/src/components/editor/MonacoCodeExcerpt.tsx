@@ -1,10 +1,48 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { monaco } from '@/lib/monaco-setup'
 import { computeEditorFontSize, resolveEditorFontFamily } from '@/lib/editor-font-zoom'
-import { resolveDocumentTheme } from '@/lib/document-theme'
-import { resolveMonacoThemeName } from '@/lib/monaco-syntax-themes'
 import { useAppStore } from '@/store'
 import { cn } from '@/lib/utils'
+import { useDocumentDarkTheme } from '@/hooks/use-document-dark-theme'
+import { resolveMonacoThemeName } from '@/lib/monaco-syntax-themes'
+
+/** Monaco token HTML per line, colored with the user's selected syntax theme. */
+export function useMonacoColorizedLines(lines: string[], language: string): string[] {
+  const isDark = useDocumentDarkTheme()
+  const editorTheme = useAppStore((s) => s.settings?.editorTheme)
+  const monacoThemeName = resolveMonacoThemeName(editorTheme, isDark)
+  const code = useMemo(() => lines.join('\n'), [lines])
+  const [htmlLines, setHtmlLines] = useState<string[]>(() => lines.map(() => ''))
+
+  useEffect(() => {
+    monaco.editor.setTheme(monacoThemeName)
+  }, [monacoThemeName])
+
+  // Why: colorize emits theme-specific token classes, so a theme switch must re-colorize.
+  useEffect(() => {
+    if (lines.length === 0) {
+      setHtmlLines([])
+      return
+    }
+
+    let cancelled = false
+    // Why: colorize() resolves the language's registered tokenizer factory
+    // (TextMate for Python, Monarch for the rest) before returning HTML.
+    void monaco.editor.colorize(code, language, { tabSize: 2 }).then((html) => {
+      if (cancelled) {
+        return
+      }
+      const nextLines = html.split('<br/>').slice(0, lines.length)
+      setHtmlLines(nextLines)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [code, language, lines, monacoThemeName])
+
+  return htmlLines
+}
 
 type MonacoCodeExcerptProps = {
   lines: string[]
@@ -28,38 +66,7 @@ export default function MonacoCodeExcerpt({
     editorFontZoomLevel
   )
   const fontFamily = resolveEditorFontFamily(settings)
-  const isDark = resolveDocumentTheme(settings?.theme ?? 'system')
-  const monacoThemeName = resolveMonacoThemeName(settings?.editorTheme, isDark)
-  const code = useMemo(() => lines.join('\n'), [lines])
-  const [htmlLines, setHtmlLines] = useState<string[]>(() => lines.map(() => ''))
-
-  useEffect(() => {
-    monaco.editor.setTheme(monacoThemeName)
-  }, [monacoThemeName])
-
-  useEffect(() => {
-    if (lines.length === 0) {
-      setHtmlLines([])
-      return
-    }
-
-    let cancelled = false
-    // Why: colorize() resolves the language's registered tokenizer factory
-    // (TextMate for Python, Monarch for the rest) before returning HTML.
-    void monaco.editor.colorize(code, language, { tabSize: 2 }).then((html) => {
-      if (cancelled) {
-        return
-      }
-      const nextLines = html.split('<br/>').slice(0, lines.length)
-      setHtmlLines(nextLines)
-    })
-
-    return () => {
-      cancelled = true
-    }
-    // Why: re-colorize on theme change — colorize() bakes theme-relative mtk<N>
-    // classes, so a stale render maps to the new theme's wrong colors.
-  }, [code, language, lines, monacoThemeName])
+  const htmlLines = useMonacoColorizedLines(lines, language)
 
   return (
     <div

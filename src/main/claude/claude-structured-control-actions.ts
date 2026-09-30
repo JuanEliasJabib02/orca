@@ -1,8 +1,15 @@
-import { applyClaudePromptAnswer } from './claude-structured-prompt-replies'
+import type { PermissionResult } from '@anthropic-ai/claude-agent-sdk'
+import type { ClaudePromptClaim } from './claude-structured-prompt-replies'
 import { ClaudeControlRequestError } from './claude-stream-json-connection'
+import { settleCancelledClaudeDispatchWaiters } from './claude-structured-dispatch'
+import type { ClaudeLateDispatchSettlement } from './claude-replay-turn-resolution'
 import type { ClaudeSession } from './claude-structured-session-state'
 
 const INTERRUPT_CANCEL_QUEUED_CAPABILITY = 'interrupt_cancel_queued_v1'
+
+export function supportsClaudeQueuedInterruptCancellation(session: ClaudeSession): boolean {
+  return session.capabilities.includes(INTERRUPT_CANCEL_QUEUED_CAPABILITY)
+}
 
 export type ClaudeTurnCancellationGuard = () => boolean
 
@@ -10,29 +17,37 @@ export type ClaudeTurnCancellationGuard = () => boolean
  * Interrupt the running turn, then make sure no queued async user message survives to spawn a
  * later unexpected turn. On a CLI advertising `interrupt_cancel_queued_v1` one round trip
  * cancels the queue alongside the abort; otherwise the interrupt receipt lists `still_queued`
- * uuids, and each is withdrawn best-effort with `cancel_async_message`. Older CLIs resolve no
- * receipt, so there is nothing to sweep.
+ * uuids, and each is withdrawn best-effort with `cancel_async_message`. Either way, every send
+ * the CLI confirms it withdrew settles as cancelled. Older CLIs resolve no receipt, so there is
+ * nothing to sweep.
  */
 export async function cancelClaudeTurn(
   session: ClaudeSession,
   timeoutMs: number | undefined,
-  isCurrent: ClaudeTurnCancellationGuard = () => true
+  isCurrent: ClaudeTurnCancellationGuard = () => true,
+  onDispatchSettledLate?: ClaudeLateDispatchSettlement
 ): Promise<{ cancelled: boolean }> {
   // The SDK interrupt is session-scoped. Re-check the caller's turn/fence
   // immediately before issuing it so a delayed request cannot stop a later turn.
   if (!isCurrent()) {
     return { cancelled: false }
   }
-  const cancelQueued = session.capabilities.includes(INTERRUPT_CANCEL_QUEUED_CAPABILITY)
+  const cancelQueued = supportsClaudeQueuedInterruptCancellation(session)
   try {
     const receipt = await session.connection.interrupt({
       ...(cancelQueued ? { cancelQueued: true } : {}),
       timeoutMs
     })
-    if (!cancelQueued) {
+    if (cancelQueued) {
+      settleCancelledClaudeDispatchWaiters(session, receipt?.cancelled ?? [], onDispatchSettledLate)
+    } else {
+      const withdrawn: string[] = []
       for (const uuid of receipt?.still_queued ?? []) {
-        await session.connection.cancelAsyncMessage(uuid, { timeoutMs }).catch(() => {})
+        if (await session.connection.cancelAsyncMessage(uuid, { timeoutMs }).catch(() => false)) {
+          withdrawn.push(uuid)
+        }
       }
+      settleCancelledClaudeDispatchWaiters(session, withdrawn, onDispatchSettledLate)
     }
     return { cancelled: true }
   } catch (error) {
@@ -71,16 +86,13 @@ export async function stopClaudeBackgroundTasks(
 
 export async function answerClaudePrompt(
   session: ClaudeSession,
-  input: { itemId: string; kind: 'approval' | 'question'; optionId: string }
+  claim: ClaudePromptClaim,
+  reply: PermissionResult
 ): Promise<void> {
-  const found = session.prompts.find(input.itemId)
-  if (!found || found.prompt.kind !== input.kind) {
-    throw new Error(`claude is no longer waiting on ${input.itemId}`)
+  if (!session.prompts.ownsClaim(claim)) {
+    throw new Error(`claude is no longer waiting on ${claim.itemId}`)
   }
-  const response = applyClaudePromptAnswer(found, input.optionId)
-  if (response === null) {
-    return
-  }
-  session.prompts.forget(found.prompt)
-  found.prompt.settle(response)
+  session.prompts.forget(claim.found.prompt)
+  claim.found.prompt.settle(reply)
+  session.translator?.journalPrompts.resolve(claim.found.prompt.promptKey)
 }

@@ -9,7 +9,6 @@ import {
   resolveHostSessionTabIdForWebSessionTab
 } from '@/runtime/web-session-tabs-sync'
 import { resolveTerminalWorktreeRoute } from '@/lib/terminal-worktree-route'
-import { translate } from '@/i18n/i18n'
 import {
   guardPinnedTabClose,
   isSpotlightProtectedTab,
@@ -17,12 +16,6 @@ import {
   resolvePinnedTabLabel,
   shouldConfirmPinnedTabClose
 } from '@/store/pinned-tab-close-guard'
-import {
-  closeStructuredTerminalSessionWithRetry,
-  disposeStructuredTerminalSession,
-  structuredTerminalSessionId
-} from './structured-terminal-session-disposal'
-import { toast } from 'sonner'
 import type {
   TerminalTabCloseReason,
   TerminalTabRetirementPlan
@@ -59,8 +52,6 @@ export function closeTerminalTab(
     skipRunningProcessConfirm?: boolean
     captureRecentlyClosed?: boolean
     localPtyTeardownOwnedExternally?: boolean
-    /** Internal re-entry after the structured provider close is proven. */
-    structuredSessionCloseConfirmed?: boolean
     precomputedRetirementPlan?: TerminalTabRetirementPlan
     precomputedCloseState?: PrecomputedTerminalCloseState
     onClosed?: () => void
@@ -147,59 +138,6 @@ export function closeTerminalTab(
   }
 
   const runtimeEnvironmentId = worktreeRoute.runtimeEnvironmentId
-  const structuredSessionId = structuredTerminalSessionId(
-    state.unifiedTabsByWorktree?.[owningWorktreeId],
-    terminalTabId
-  )
-  if (
-    structuredSessionId &&
-    options?.reason !== 'pty-exit' &&
-    options?.structuredSessionCloseConfirmed !== true
-  ) {
-    const target = runtimeEnvironmentId
-      ? ({ kind: 'environment', environmentId: runtimeEnvironmentId } as const)
-      : ({ kind: 'local' } as const)
-    void closeStructuredTerminalSessionWithRetry(target, structuredSessionId).then((closed) => {
-      if (!closed) {
-        toast.error(
-          translate(
-            'components.native-chat.structuredSessionCloseFailed',
-            'Could not close this chat session'
-          ),
-          {
-            description: translate(
-              'components.native-chat.structuredSessionCloseFailedDescription',
-              'The terminal stayed open so the provider remains recoverable.'
-            )
-          }
-        )
-        options?.onCancel?.()
-        return
-      }
-      closeTerminalTab(tabId, {
-        ...options,
-        force: true,
-        skipRunningProcessConfirm: true,
-        structuredSessionCloseConfirmed: true
-      })
-    })
-    return
-  }
-  const retireStructuredSession = (): void => {
-    const closeReason = options?.reason ?? options?.hostCloseReason ?? 'user'
-    const target = runtimeEnvironmentId
-      ? ({ kind: 'environment', environmentId: runtimeEnvironmentId } as const)
-      : ({ kind: 'local' } as const)
-    if (options?.structuredSessionCloseConfirmed === true) {
-      return
-    }
-    disposeStructuredTerminalSession({
-      unifiedTabs: state.unifiedTabsByWorktree?.[owningWorktreeId],
-      terminalTabId,
-      target,
-      reason: closeReason
-    })
-  }
   if (runtimeEnvironmentId && isWebRuntimeSessionActive(runtimeEnvironmentId)) {
     if (options?.reason === 'pty-exit') {
       // Why: stream exit is not host-tab closure; the HUB snapshot decides whether reconnect restores or removes this tab.
@@ -258,7 +196,6 @@ export function closeTerminalTab(
           }
         : {})
     })
-    retireStructuredSession()
     options?.onClosed?.()
     return
   }
@@ -313,12 +250,12 @@ export function closeTerminalTab(
         const worktreeFile = current.openFiles.find((f) => f.worktreeId === owningWorktreeId)
         if (worktreeFile) {
           current.setActiveFile(worktreeFile.id)
-          current.setActiveTabType('editor')
+          current.setActiveTabType('editor', owningWorktreeId)
         } else {
           const browserTab = (current.browserTabsByWorktree?.[owningWorktreeId] ?? [])[0]
           if (browserTab) {
             current.setActiveBrowserTab(browserTab.id)
-            current.setActiveTabType('browser')
+            current.setActiveTabType('browser', owningWorktreeId)
           } else {
             current.setActiveWorktree(null)
           }
@@ -326,6 +263,5 @@ export function closeTerminalTab(
       }
     }
   }
-  retireStructuredSession()
   options?.onClosed?.()
 }
