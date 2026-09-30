@@ -1,5 +1,15 @@
 import { execFile, spawn } from 'node:child_process'
-import { copyFile, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  symlink,
+  writeFile
+} from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, sep } from 'node:path'
@@ -9,6 +19,7 @@ import { describe, expect, it } from 'vitest'
 const require = createRequire(import.meta.url)
 const execFileAsync = promisify(execFile)
 const itRunsUnixShell = process.platform === 'win32' ? it.skip : it
+const itRunsOnMac = process.platform === 'darwin' ? it : it.skip
 const unixTerminationSignals = ['SIGINT', 'SIGTERM'] as const
 const builderConfig = require('../../../config/electron-builder.config.cjs') as {
   files?: string[]
@@ -244,6 +255,46 @@ printf 'arg=%s\\n' "$@"
       }
     }
   )
+
+  itRunsOnMac('runs the executable named by CFBundleExecutable in the macOS launcher', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'orca-mac-cli-'))
+    try {
+      // Why realpath: the launcher resolves with `cd -P`, and macOS tmpdir is a /var symlink.
+      const contentsDir = join(await realpath(root), 'Orca Pro Max.app', 'Contents')
+      const launcherPath = join(contentsDir, 'Resources', 'bin', 'orca')
+      const electronPath = join(contentsDir, 'MacOS', 'Orca Pro Max')
+      const cliPath = join(contentsDir, 'Resources', 'app.asar.unpacked', 'out', 'cli', 'index.js')
+
+      await mkdir(dirname(launcherPath), { recursive: true })
+      await mkdir(dirname(electronPath), { recursive: true })
+      await mkdir(dirname(cliPath), { recursive: true })
+      await copyFile(darwinLauncherAsset, launcherPath)
+      await writeFile(cliPath, '', 'utf8')
+      await writeFile(
+        join(contentsDir, 'Info.plist'),
+        `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>CFBundleExecutable</key><string>Orca Pro Max</string></dict></plist>
+`,
+        'utf8'
+      )
+      await writeFile(
+        electronPath,
+        `#!/usr/bin/env bash
+printf 'electron=%s\\n' "$0"
+printf 'arg=%s\\n' "$@"
+`,
+        { encoding: 'utf8', mode: 0o755 }
+      )
+
+      const result = await execFileAsync(launcherPath, ['--help'])
+      expect(result.stdout).toContain(`electron=${electronPath}`)
+      expect(result.stdout).toContain(`arg=${cliPath}`)
+      expect(result.stdout).toContain('arg=--help')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
 
   // Why: registration on every Linux install method now points at this one
   // launcher, so its env sanitation and argv passthrough are the contract the

@@ -20,6 +20,14 @@ fi
 
 CONTENTS="$APP_PATH/Contents"
 ELECTRON="$CONTENTS/MacOS/Orca"
+# Why: a build with a different productName ships a differently named executable.
+# PlistBuddy prints to stdout even on failure, so only trust a name that exists.
+if [ -f "$CONTENTS/Info.plist" ]; then
+	EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$CONTENTS/Info.plist" 2>/dev/null || true)"
+	if [ -n "$EXECUTABLE" ] && [ -f "$CONTENTS/MacOS/$EXECUTABLE" ]; then
+		ELECTRON="$CONTENTS/MacOS/$EXECUTABLE"
+	fi
+fi
 # Why: Orca packages the CLI entrypoint outside app.asar so the public shell
 # command can execute it directly with ELECTRON_RUN_AS_NODE, mirroring VS Code's
 # launcher model instead of requiring a separate npm-distributed binary.
