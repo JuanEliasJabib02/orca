@@ -6,6 +6,10 @@ import { getSetupConfig } from '@/lib/new-workspace'
 import { getSettingsForRepoRuntimeOwner } from '@/lib/repo-runtime-owner'
 import { checkRuntimeHooks } from '@/runtime/runtime-hooks-client'
 import {
+  getRuntimeRepoBaseRefDefault,
+  searchRuntimeRepoBaseRefs
+} from '@/runtime/runtime-repo-client'
+import {
   isHookScriptContentTrusted,
   resolveHookTrustContent
 } from '@/lib/hook-script-trust-content'
@@ -16,8 +20,12 @@ import {
   type CompanionLaunchPlan,
   type CompanionSetupResolution
 } from './multi-repo-worktree-creation'
+import { baseRefSearchFound, toSearchableBaseRef } from './companion-base-ref'
 
 const SKIP_SETUP: CompanionSetupResolution = { decision: 'skip', needsUserDecision: false }
+
+// Why generous: the search ranks substring matches, so an exact ref can trail fresher near matches.
+const COMPANION_BASE_REF_SEARCH_LIMIT = 200
 
 /**
  * The composer's setup rules for one companion, minus every prompt: a repo that would ask
@@ -59,8 +67,8 @@ export const STORE_COMPANION_CREATION_DEPS: CompanionCreationDeps = {
     useAppStore.getState().createWorktree(
       repo.id,
       request.name,
-      // Why undefined: each companion branches from its own default base (develop or main).
-      undefined,
+      // Why: the primary's base when this repo has it; undefined falls back to the repo's own default.
+      request.baseBranch,
       request.setupDecision,
       undefined,
       request.telemetrySource,
@@ -89,6 +97,26 @@ export const STORE_COMPANION_CREATION_DEPS: CompanionCreationDeps = {
       }
     ),
   resolveSetup: resolveCompanionSetup,
+  // Why the same reads as CreateFromPicker: the companions must match what the dialog showed.
+  resolveDefaultBaseRef: async (repo) =>
+    (
+      await getRuntimeRepoBaseRefDefault(
+        getSettingsForRepoRuntimeOwner(useAppStore.getState(), repo.id),
+        repo.id,
+        getRepoExecutionHostId(repo)
+      )
+    ).defaultBaseRef,
+  hasBaseRef: async (repo, baseRef) =>
+    baseRefSearchFound(
+      await searchRuntimeRepoBaseRefs(
+        getSettingsForRepoRuntimeOwner(useAppStore.getState(), repo.id),
+        repo.id,
+        toSearchableBaseRef(baseRef),
+        COMPANION_BASE_REF_SEARCH_LIMIT,
+        getRepoExecutionHostId(repo)
+      ),
+      baseRef
+    ),
   seedTerminals: (result) => {
     if (!result.setup && !result.defaultTabs) {
       return

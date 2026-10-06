@@ -73,6 +73,8 @@ export type PreparedQuickSubmit = QuickSubmitSource & {
   linkedLinearIssueOrganizationUrlKey: string | undefined
   effectiveBranchNameOverride: string | undefined
   submitBaseBranch: string | undefined
+  /** True when the base is a pull request's head, which other repos won't have. */
+  submitBaseIsPullRequestHead: boolean
   createDisplayName: string | undefined
   pendingFirstAgentMessageRename: boolean
   trimmedNote: string

@@ -11,8 +11,13 @@ import {
   formatWorkspaceCreateError,
   getWorkspaceCreateErrorToastMessage
 } from '@/lib/workspace-create-error-format'
-import { translate } from '@/i18n/i18n'
 import type { PreparedQuickSubmit } from './composer-submit-model'
+import {
+  resolveCompanionBaseBranch,
+  resolvePrimaryBaseRef,
+  type CompanionBaseFallback
+} from './companion-base-ref'
+import { summarizeCompanionOutcomes } from './companion-outcome-summary'
 
 /** What the composer submits for its "Also create in" row. */
 export type ComposerCompanionSubmit = {
@@ -32,6 +37,8 @@ export type CompanionWorktreeRequest = {
   displayNameKind?: 'generated' | 'user'
   nameWasGenerated?: boolean
   branchNameOverride?: string
+  /** The primary's base, set only when this repo has it; otherwise the repo's own default. */
+  baseBranch?: string
   setupDecision: 'run' | 'skip'
   workspaceStatus?: WorkspaceStatus
   telemetrySource?: WorkspaceSource
@@ -46,29 +53,41 @@ export type CompanionWorktreeOutcome =
       branch: string
       /** The pinned branch this companion asked for, set only when it landed on another one. */
       expectedBranch?: string
+      /** Set when this companion could not use the primary's base and took its own default. */
+      baseFallback?: CompanionBaseFallback
       setupNeedsUserDecision: boolean
     }
   | { status: 'failed'; repo: Repo; error: string }
 
 export type CompanionCreationDeps = {
-  /** Awaits the real create (each repo's own base branch, no agent) and returns its result. */
+  /** Awaits the real create (no agent) and returns its result. */
   createWorktree: (repo: Repo, request: CompanionWorktreeRequest) => Promise<CreateWorktreeResult>
   resolveSetup: (repo: Repo) => Promise<CompanionSetupResolution>
+  /** The repo's detected default base, which its picker shows when none is configured; may reject. */
+  resolveDefaultBaseRef: (repo: Repo) => Promise<string | null>
+  /** Whether `baseRef` exists in `repo`, asked on that repo's execution host; may reject. */
+  hasBaseRef: (repo: Repo, baseRef: string) => Promise<boolean>
   /** Starts setup / default-tab terminals in the background; must not throw. */
   seedTerminals: (result: CreateWorktreeResult) => void
 }
 
-type CompanionNaming = Omit<CompanionWorktreeRequest, 'setupDecision' | 'branchNameOverride'>
+type CompanionNaming = Omit<
+  CompanionWorktreeRequest,
+  'setupDecision' | 'branchNameOverride' | 'baseBranch'
+>
 
 /**
  * Creates each companion worktree in order, one at a time, so every repo gets the same branch:
  * an explicit name is pinned everywhere, otherwise the first created branch becomes the pin.
+ * Each one branches from the primary's base when it has that ref, otherwise from its own default.
  * A failure is recorded and the rest still run; cancelling stops it only before a companion exists.
  */
 export async function createCompanionWorktrees(args: {
   companions: readonly Repo[]
   naming: CompanionNaming
   branchNameOverride: string | undefined
+  /** The primary's effective base; undefined leaves every companion on its own default. */
+  baseBranch?: string
   isCancelled: () => boolean
   deps: CompanionCreationDeps
 }): Promise<{ outcomes: CompanionWorktreeOutcome[]; branchName: string | undefined }> {
@@ -82,8 +101,11 @@ export async function createCompanionWorktrees(args: {
       break
     }
     try {
-      const setup = await args.deps.resolveSetup(repo)
-      // Why re-check: resolveSetup can await a remote hooks read, long enough for a dismissal.
+      const [setup, base] = await Promise.all([
+        args.deps.resolveSetup(repo),
+        resolveCompanionBaseBranch(repo, args.baseBranch, args.deps.hasBaseRef)
+      ])
+      // Why re-check: both lookups can await a remote host, long enough for a dismissal.
       if (cancelledBeforeAnyCompanion()) {
         break
       }
@@ -91,7 +113,8 @@ export async function createCompanionWorktrees(args: {
       const result = await args.deps.createWorktree(repo, {
         ...args.naming,
         setupDecision: setup.decision,
-        ...(requestedBranch ? { branchNameOverride: requestedBranch } : {})
+        ...(requestedBranch ? { branchNameOverride: requestedBranch } : {}),
+        ...(base.baseBranch ? { baseBranch: base.baseBranch } : {})
       })
       const branch = stripBranchRef(result.worktree.branch)
       pinnedBranch ??= branch || undefined
@@ -105,6 +128,7 @@ export async function createCompanionWorktrees(args: {
         ...(requestedBranch && branch !== requestedBranch
           ? { expectedBranch: requestedBranch }
           : {}),
+        ...(base.fallback ? { baseFallback: base.fallback } : {}),
         setupNeedsUserDecision: setup.needsUserDecision
       })
       args.deps.seedTerminals(result)
@@ -117,74 +141,6 @@ export async function createCompanionWorktrees(args: {
     }
   }
   return { outcomes, branchName: pinnedBranch }
-}
-
-export type CompanionOutcomeSummary = {
-  kind: 'error' | 'warning'
-  title: string
-  description: string
-}
-
-function summaryTitle(hasFailures: boolean, hasOffBranch: boolean): string {
-  if (hasFailures) {
-    return translate(
-      'auto.hooks.useComposerState.companionCreateFailed',
-      'Some companion worktrees were not created'
-    )
-  }
-  if (hasOffBranch) {
-    return translate(
-      'auto.hooks.useComposerState.companionBranchMismatchTitle',
-      'Some companion worktrees are on a different branch'
-    )
-  }
-  return translate(
-    'auto.hooks.useComposerState.companionSetupSkippedTitle',
-    'Companion worktrees created without setup'
-  )
-}
-
-/**
- * One toast for everything the user should know: failed repos first, then companions off the
- * shared branch, then skipped setups.
- */
-export function summarizeCompanionOutcomes(
-  outcomes: readonly CompanionWorktreeOutcome[]
-): CompanionOutcomeSummary | null {
-  const failed = outcomes.flatMap((outcome) => (outcome.status === 'failed' ? [outcome] : []))
-  const offBranch = outcomes.flatMap((outcome) =>
-    outcome.status === 'created' && outcome.expectedBranch ? [outcome] : []
-  )
-  const setupSkipped = outcomes.flatMap((outcome) =>
-    outcome.status === 'created' && outcome.setupNeedsUserDecision ? [outcome.repo] : []
-  )
-  if (failed.length === 0 && offBranch.length === 0 && setupSkipped.length === 0) {
-    return null
-  }
-  const lines = failed.map((outcome) => `${outcome.repo.displayName}: ${outcome.error}`)
-  for (const outcome of offBranch) {
-    lines.push(
-      translate(
-        'auto.hooks.useComposerState.companionBranchMismatch',
-        '{{name}} is on {{branch}} instead of {{expected}}',
-        { name: outcome.repo.displayName, branch: outcome.branch, expected: outcome.expectedBranch }
-      )
-    )
-  }
-  if (setupSkipped.length > 0) {
-    lines.push(
-      translate(
-        'auto.hooks.useComposerState.companionSetupSkipped',
-        'Setup did not run in {{names}}: it needs a setup decision or script approval.',
-        { names: setupSkipped.map((repo) => repo.displayName).join(', ') }
-      )
-    )
-  }
-  return {
-    kind: failed.length > 0 ? 'error' : 'warning',
-    title: summaryTitle(failed.length > 0, offBranch.length > 0),
-    description: lines.join('\n')
-  }
 }
 
 /** The selected companions that can still be created next to `primaryRepo`, in selection order. */
@@ -211,6 +167,8 @@ export type CompanionPrimarySubmit = Pick<
   | 'nameWasGenerated'
   | 'effectiveBranchNameOverride'
   | 'pendingFirstAgentMessageRename'
+  | 'submitBaseBranch'
+  | 'submitBaseIsPullRequestHead'
 >
 
 /** A companion worktree that exists, named the way a cleanup notice shows it. */
@@ -236,7 +194,7 @@ export async function prepareCompanionWorktrees(args: {
   submit: ComposerCompanionSubmit | undefined
   repos: readonly Repo[]
   primaryRepo: Repo
-  /** The primary's prepared quick submit: its agent, names and branch decisions. */
+  /** The primary's prepared quick submit: its agent, names, branch and base decisions. */
   primary: CompanionPrimarySubmit
   /** False when the agent runs somewhere the companion paths do not exist (an ephemeral VM). */
   agentCanReachCompanions: boolean
@@ -260,6 +218,13 @@ export async function prepareCompanionWorktrees(args: {
   if (companions.length === 0) {
     return unchanged
   }
+  // Why the shown default too: with nothing selected the primary still branches from what its picker shows.
+  const baseBranch = await resolvePrimaryBaseRef({
+    // Why: a PR head exists only in the primary's repo; companions share the primary's default base instead.
+    explicitBaseBranch: primary.submitBaseIsPullRequestHead ? undefined : primary.submitBaseBranch,
+    primaryRepo: args.primaryRepo,
+    resolveDefaultBaseRef: args.deps.resolveDefaultBaseRef
+  })
   const { outcomes, branchName } = await createCompanionWorktrees({
     companions,
     naming: {
@@ -275,6 +240,7 @@ export async function prepareCompanionWorktrees(args: {
       telemetrySource: args.telemetrySource
     },
     branchNameOverride: primary.effectiveBranchNameOverride,
+    baseBranch,
     isCancelled: args.isCancelled,
     deps: args.deps
   })
