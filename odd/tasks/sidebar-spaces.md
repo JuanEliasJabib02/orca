@@ -120,6 +120,10 @@ Arc's spaces.
     `upsertAddedRepoWithProjectHostSetup`, the shared path for the Add Project, clone,
     create and non-git folder flows, and only for projects that weren't already
     present. A project on a different host than the space stays spaceless.
+  - Follow-up fix: the main "Add Project → pick a folder" path goes through the store's
+    `addRepoPath`, not the upsert, so it was missed at first. That path now files the
+    project too. The helper takes the state as a parameter to avoid a store import
+    cycle. Checked with 4 test files / 19 tests, `tc:web` and oxlint.
   - Not covered: `orca repo add` from the CLI, and the nested import in "group" mode,
     which creates its own top-level group and so a new space.
 

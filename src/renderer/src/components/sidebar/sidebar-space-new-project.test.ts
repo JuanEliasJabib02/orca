@@ -1,12 +1,7 @@
-// @vitest-environment happy-dom
-
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useAppStore } from '@/store'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { Repo } from '../../../../shared/repo-types'
 import { fileNewRepoIntoActiveSidebarSpace } from './sidebar-space-new-project'
-
-const initialState = useAppStore.getInitialState()
 
 function makeSpace(
   id: string,
@@ -41,51 +36,47 @@ function makeRepo(overrides: Partial<Repo> = {}): Repo {
 
 describe('fileNewRepoIntoActiveSidebarSpace', () => {
   const moveProjectToGroup = vi.fn()
+  let state: Parameters<typeof fileNewRepoIntoActiveSidebarSpace>[1]
 
   beforeEach(() => {
     moveProjectToGroup.mockReset().mockResolvedValue(true)
-    useAppStore.setState(initialState, true)
-    useAppStore.setState({
+    state = {
       moveProjectToGroup,
       projectGroups: [makeSpace('action-black', 0), makeSpace('arctic-grey', 1)],
       activeSidebarSpaceGroupId: 'arctic-grey'
-    })
-  })
-
-  afterEach(() => {
-    useAppStore.setState(initialState, true)
+    }
   })
 
   it('moves a new local project into the active space', () => {
-    fileNewRepoIntoActiveSidebarSpace(makeRepo())
+    fileNewRepoIntoActiveSidebarSpace(makeRepo(), state)
 
     expect(moveProjectToGroup).toHaveBeenCalledWith('new-repo', 'arctic-grey')
   })
 
   it('uses the first space when none is stored yet', () => {
-    useAppStore.setState({ activeSidebarSpaceGroupId: null })
+    state = { ...state, activeSidebarSpaceGroupId: null }
 
-    fileNewRepoIntoActiveSidebarSpace(makeRepo())
+    fileNewRepoIntoActiveSidebarSpace(makeRepo(), state)
 
     expect(moveProjectToGroup).toHaveBeenCalledWith('new-repo', 'action-black')
   })
 
   it('leaves a project that already has a group where it is', () => {
-    fileNewRepoIntoActiveSidebarSpace(makeRepo({ projectGroupId: 'action-black' }))
+    fileNewRepoIntoActiveSidebarSpace(makeRepo({ projectGroupId: 'action-black' }), state)
 
     expect(moveProjectToGroup).not.toHaveBeenCalled()
   })
 
   it('does not move a project from another host into a local space', () => {
-    fileNewRepoIntoActiveSidebarSpace(makeRepo({ connectionId: 'devbox' }))
+    fileNewRepoIntoActiveSidebarSpace(makeRepo({ connectionId: 'devbox' }), state)
 
     expect(moveProjectToGroup).not.toHaveBeenCalled()
   })
 
   it('does nothing while there are no spaces', () => {
-    useAppStore.setState({ projectGroups: [], activeSidebarSpaceGroupId: null })
+    state = { ...state, projectGroups: [], activeSidebarSpaceGroupId: null }
 
-    fileNewRepoIntoActiveSidebarSpace(makeRepo())
+    fileNewRepoIntoActiveSidebarSpace(makeRepo(), state)
 
     expect(moveProjectToGroup).not.toHaveBeenCalled()
   })

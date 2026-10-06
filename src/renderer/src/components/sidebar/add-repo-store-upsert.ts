@@ -52,7 +52,7 @@ export function upsertAddedRepoWithProjectHostSetup(
     projectHostSetups: projection.setups
   })
   if (!alreadyPresent) {
-    fileNewRepoIntoActiveSidebarSpace(ownedRepo)
+    fileNewRepoIntoActiveSidebarSpace(ownedRepo, useAppStore.getState())
   }
   return { alreadyPresent, repo: ownedRepo }
 }
