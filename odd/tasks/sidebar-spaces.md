@@ -75,10 +75,10 @@ Arc's spaces.
   - Upstream-merge risk: the Ctrl+Tab helpers moved to `recent-tab-switcher-chord.ts`
     to keep `window-shortcut-policy.ts` under max-lines.
   - Tooltip chip done afterwards. It uses `formatShortcutKeyComboDetails`, so it follows
-    remaps. Verification pending.
+    remaps (`36b7f0e43a`).
   - Unrelated failures: `browser-manager-tab-identity.test.ts` fails, but it imports
     none of this; to check at the end. Two spotlight tests fail at HEAD.
-- [ ] **4. Attention badge per space** (code done, `cf89e844dc`)
+- [x] **4. Attention badge per space** (`cf89e844dc`, single color `6de9a00591`)
   - A pure rollup from live agent status (`permission`) and unread
     (`isUnread` + `unreadTerminalTabs`) to group ids, rendered as a dot on
     inactive spaces.
@@ -86,9 +86,8 @@ Arc's spaces.
   - Code is complete: `sidebar-space-attention.ts` with 19 rollup tests,
     `use-sidebar-space-attention.ts`, and the dot plus 8 switcher tests. The dot sits
     outside the dimmed wrapper. Permission uses `bg-agent-question` and unread uses
-    `bg-foreground`. **Verification pending:** Juan asked for no test/tc runs until the
-    whole feature is done.
-- [ ] **5. Every project lives in a space (drop All)** (code done, `fce741f9dd`)
+    `bg-foreground`. Verified (see below).
+- [x] **5. Every project lives in a space (drop All)** (`fce741f9dd`)
   - Change the scope rules to match the "No All space" decision above, and remove the
     All button. Creating the first space adopts the ungrouped projects, and `+`
     activates the new space.
@@ -102,10 +101,9 @@ Arc's spaces.
   - The first space adopts the spaceless repos on its own host
     (`listSpacelessRepoIdsOnHost`), so an SSH repo stays spaceless rather than
     crossing hosts.
-  - **Verification pending.**
   - Known edge: a saved space on a remote host whose groups load after the local ones
     can be replaced by the first local space.
-- [ ] **6. Notification jumps follow the space** (code done)
+- [x] **6. Notification jumps follow the space** (`28073197dd`, ⌖ no-switch `2002fa8acd`)
   - When a jump (e.g. clicking a notification) reveals a workspace outside the active
     space, switch to that workspace's space.
   - Check: unit tests and `pnpm tc`.
@@ -115,8 +113,7 @@ Arc's spaces.
   - Juan doesn't want the ⌖ button to switch spaces. When the active workspace is in
     another space, ⌖ now does nothing.
   - Cmd+J lists only the current space, so it never needs a switch.
-  - **Verification pending.**
-- [ ] **7. New projects join the active space** (code done)
+- [x] **7. New projects join the active space** (`1d0b040c28`)
   - A project added while a space is active goes into that group.
   - Check: unit test and `pnpm tc`.
   - Code is complete. `sidebar-space-new-project.ts` is called from
@@ -125,4 +122,18 @@ Arc's spaces.
     present. A project on a different host than the space stays spaceless.
   - Not covered: `orca repo add` from the CLI, and the nested import in "group" mode,
     which creates its own top-level group and so a new space.
-  - **Verification pending.**
+
+## Verification (2026-10-06, with Juan's OK)
+
+- 19 test files / 157 tests pass (all the spaces tests plus the Add Project callers
+  and the reveal hook).
+- `oxlint` is clean on every file the branch changed.
+- The typecheck passes inside `build:desktop`.
+- `orca-pro-max` was fast-forwarded to `2002fa8acd`; the backup is
+  `backup/orca-pro-max-2026-10-06`. The packaged app is
+  `dist/mac-arm64/Orca Pro Max.app` in the root checkout.
+- Not run: the full `pnpm test`.
+- Known failures outside this feature:
+  - The two spotlight tests fail at HEAD (checked by the task 3 agent).
+  - `browser-manager-tab-identity.test.ts` fails too. It imports none of this work,
+    but it was not rerun at the base commit.
