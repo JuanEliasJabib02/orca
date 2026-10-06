@@ -48,7 +48,8 @@ export function forwardGuestShortcutInput(
   if (input.isAutoRepeat) {
     if (
       (action?.type === 'dictationKeyDown' && shouldForwardDictationShortcut?.()) ||
-      action?.type === 'deleteCurrentWorkspace'
+      action?.type === 'deleteCurrentWorkspace' ||
+      action?.type === 'selectSidebarSpace'
     ) {
       event.preventDefault()
       return true
@@ -205,6 +206,8 @@ export function forwardGuestShortcutInput(
     } else {
       renderer.send('ui:jumpToTabIndex', action.index)
     }
+  } else if (action?.type === 'selectSidebarSpace') {
+    renderer.send('ui:selectSidebarSpace', action.index)
   } else if (action?.type === 'dictationKeyDown') {
     if (!shouldForwardDictationShortcut?.()) {
       return false

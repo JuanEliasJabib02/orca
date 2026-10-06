@@ -14,6 +14,7 @@ import {
 } from '../hooks/usePrimarySelectionPaste'
 import { useRadixBodyPointerEventsRecovery } from '../hooks/useRadixBodyPointerEventsRecovery'
 import { useGitStatusPolling } from '../components/right-sidebar/useGitStatusPolling'
+import { useSidebarSpaceShortcuts } from '../components/sidebar/use-sidebar-space-shortcuts'
 import { useOsc52ClipboardDefaultOnNotice } from '../components/terminal-pane/osc52-clipboard-default-on-notice'
 import { useWebSessionTabsSync } from '../runtime/web-session-tabs-sync'
 import { useLocalStructuredSessionTabsSync } from '../runtime/local-structured-session-tabs-sync'
@@ -40,6 +41,7 @@ export function useAppShellServices(options: { floatingPanelVisible: boolean }):
   useLocalStructuredSessionTabsSync()
   // Subscribe to IPC push events
   useIpcEvents()
+  useSidebarSpaceShortcuts()
   useRemoteRuntimeRecoveryTriggers()
   useTerminalViewerColorPublication()
   useAutomationDispatchEvents()

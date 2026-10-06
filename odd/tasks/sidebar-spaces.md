@@ -11,8 +11,8 @@ Arc's spaces.
   everything that follows the sidebar's filters: board, Cmd+1–9, Cmd+J) shows. It
   never changes the open workspace or terminal.
 - **UI:** inside the existing footer row (`SidebarToolbar.tsx`), between the
-  settings/help buttons and reveal/board. "All" icon first, then one identical `<>`
-  (lucide `Code`) per top-level group in `tabOrder`, then `+`. Arc's look, kept simple:
+  settings/help buttons and reveal/board. One identical `<>` (lucide `Code`) per
+  top-level group in `tabOrder`, then `+`. Arc's look, kept simple:
   the active icon is full foreground (white in dark mode), the rest are the same icon
   at low opacity, with no background or pill. The tooltip shows the group name and its
   key. The group header in the list tells you where you are.
@@ -21,8 +21,16 @@ Arc's spaces.
 - **Badge** on inactive spaces only: orange = an agent there is waiting for
   permission or input. Plain dot = something finished that you haven't seen (the
   same unread state as the sidebar and Dock).
-- Ungrouped projects show only in "All". Nested groups stay sections inside their
-  top-level space.
+- **No "All" space** (Juan, later the same day). Every project belongs to a space:
+  - With at least one space, one is always active. An unset or invalid id resolves
+    to the first space.
+  - With no spaces, the sidebar shows everything, and the bar shows only `+`.
+  - Creating the first space adopts every ungrouped project. All of Juan's current
+    projects go to Action Black (F1).
+  - `+` switches to the new space.
+  - Safety net: an ungrouped project (e.g. after "Remove from group") shows in every
+    space, so it is never hidden.
+- Nested groups stay sections inside their top-level space.
 
 ## Tasks
 
@@ -53,20 +61,35 @@ Arc's spaces.
     oxlint are clean. The color and opacity live on a span wrapper, because
     `shadcn/no-restyle` rejects them on `<Button>`. `+` leaves you on All so the new
     empty group is visible. A failed create is silent, like the other
-    `createProjectGroup` callers.
-- [ ] **3. F1/F2/F3 keybindings**
+    `createProjectGroup` callers. Commit `b903442442`.
+- [x] **3. F1/F2/F3 keybindings**
   - Three global keybinding definitions with `allowBareKeybindings`, wired to set
     the active space. The tooltips show the effective binding label.
   - Check: keybinding tests and `pnpm tc`.
+  - Done: `sidebar.space.select1..3` (F1–F3) are routed through main
+    (`window-shortcut-policy` → `ui:selectSidebarSpace`), from both the window and
+    the browser guest, with held-key repeats swallowed. The hook is mounted in the
+    app shell, so it also works with the sidebar collapsed. `pnpm tc` is clean and
+    16 files / 154 tests pass.
+  - Upstream-merge risk: the Ctrl+Tab helpers moved to `recent-tab-switcher-chord.ts`
+    to keep `window-shortcut-policy.ts` under max-lines.
+  - Tooltip chip still pending. It will be wired once task 4 lands.
+  - Unrelated failures: `browser-manager-tab-identity.test.ts` fails, but it imports
+    none of this; to check at the end. Two spotlight tests fail at HEAD.
 - [ ] **4. Attention badge per space**
   - A pure rollup from live agent status (`permission`) and unread
     (`isUnread` + `unreadTerminalTabs`) to group ids, rendered as a dot on
     inactive spaces.
   - Check: unit tests for the rollup, a component test, and `pnpm tc`.
-- [ ] **5. Reveal follows the space**
+- [ ] **5. Every project lives in a space (drop All)**
+  - Change the scope rules to match the "No All space" decision above, and remove the
+    All button. Creating the first space adopts the ungrouped projects, and `+`
+    activates the new space.
+  - Check: scope and switcher tests, and `pnpm tc`.
+- [ ] **6. Reveal follows the space**
   - When ⌖ is clicked or `revealWorkspaceFilters` runs for a workspace outside the
-    active space, switch to that workspace's space, or to "All" if it has none.
+    active space, switch to that workspace's space.
   - Check: unit tests and `pnpm tc`.
-- [ ] **6. New projects join the active space**
+- [ ] **7. New projects join the active space**
   - A project added while a space is active goes into that group.
   - Check: unit test and `pnpm tc`.

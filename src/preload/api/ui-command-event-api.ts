@@ -78,6 +78,7 @@ export type UiCommandEventApi = {
   onToggleAgentDashboard: (callback: () => void) => () => void
   onJumpToWorktreeIndex: (callback: (index: number) => void) => () => void
   onJumpToTabIndex: (callback: (index: number) => void) => () => void
+  onSelectSidebarSpace: (callback: (index: number) => void) => () => void
   onWorktreeHistoryNavigate: (callback: (direction: 'back' | 'forward') => void) => () => void
   onNewBrowserTab: (callback: () => void) => () => void
   onNewMarkdownTab: (callback: () => void) => () => void

@@ -66,5 +66,33 @@ export const KEYBINDING_DEFINITION_CORE_4: readonly KeybindingDefinition[] = [
     },
     // Why: macOS uses Shift+Space as an input-source shortcut; Orca otherwise rejects Shift-only bindings to avoid stealing typed text.
     allowShiftOnlyKeybindings: true
+  },
+  // Why: bare F1-F3 mirror Arc's space keys; function keys are safe unmodified, so each row opts into allowBareKeybindings (like editor.nextChange).
+  {
+    id: 'sidebar.space.select1',
+    title: 'Switch to Space 1',
+    group: 'Global',
+    scope: 'global',
+    searchKeywords: ['shortcut', 'sidebar', 'space', 'project group', 'switch', 'select', '1'],
+    defaultBindings: platformBindings(['F1']),
+    allowBareKeybindings: true
+  },
+  {
+    id: 'sidebar.space.select2',
+    title: 'Switch to Space 2',
+    group: 'Global',
+    scope: 'global',
+    searchKeywords: ['shortcut', 'sidebar', 'space', 'project group', 'switch', 'select', '2'],
+    defaultBindings: platformBindings(['F2']),
+    allowBareKeybindings: true
+  },
+  {
+    id: 'sidebar.space.select3',
+    title: 'Switch to Space 3',
+    group: 'Global',
+    scope: 'global',
+    searchKeywords: ['shortcut', 'sidebar', 'space', 'project group', 'switch', 'select', '3'],
+    defaultBindings: platformBindings(['F3']),
+    allowBareKeybindings: true
   }
 ]

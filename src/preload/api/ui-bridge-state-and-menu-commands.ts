@@ -124,6 +124,11 @@ export const uiStateAndMenuCommandsApi = {
     ipcRenderer.on('ui:jumpToTabIndex', listener)
     return () => ipcRenderer.removeListener('ui:jumpToTabIndex', listener)
   },
+  onSelectSidebarSpace: (callback: (index: number) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, index: number) => callback(index)
+    ipcRenderer.on('ui:selectSidebarSpace', listener)
+    return () => ipcRenderer.removeListener('ui:selectSidebarSpace', listener)
+  },
   onWorktreeHistoryNavigate: (callback: (direction: 'back' | 'forward') => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, direction: 'back' | 'forward') =>
       callback(direction)

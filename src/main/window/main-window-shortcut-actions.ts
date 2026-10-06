@@ -63,6 +63,9 @@ export function sendResolvedWindowShortcutAction(
     case 'jumpToTabIndex':
       mainWindow.webContents.send('ui:jumpToTabIndex', action.index)
       return
+    case 'selectSidebarSpace':
+      mainWindow.webContents.send('ui:selectSidebarSpace', action.index)
+      return
     case 'worktreeHistoryNavigate':
       mainWindow.webContents.send('ui:worktreeHistoryNavigate', action.direction)
   }
