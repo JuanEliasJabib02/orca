@@ -43,12 +43,17 @@ Arc's spaces.
   - Done: 11 test files / 175 tests pass, `pnpm tc` and oxlint clean. The gate's 60
     findings are all in earlier fork files. Also narrows the Cmd+1–9 order
     (`rendered-sidebar-worktree-order.ts`). An active group that gets nested
-    resolves to All.
-- [ ] **2. Space switcher in the footer**
+    resolves to All. Commit `456930b959`.
+- [x] **2. Space switcher in the footer**
   - `SidebarSpaceSwitcher.tsx` inside `SidebarToolbar`: All, one `<>` per space,
     and `+`. `+` opens the existing group name dialog, creates a top-level group,
     and activates it.
   - Check: component test, `pnpm tc`, and the design-system gate.
+  - Done: 11 switcher tests plus the toolbar and sidebar tests pass, and `pnpm tc` and
+    oxlint are clean. The color and opacity live on a span wrapper, because
+    `shadcn/no-restyle` rejects them on `<Button>`. `+` leaves you on All so the new
+    empty group is visible. A failed create is silent, like the other
+    `createProjectGroup` callers.
 - [ ] **3. F1/F2/F3 keybindings**
   - Three global keybinding definitions with `allowBareKeybindings`, wired to set
     the active space. The tooltips show the effective binding label.

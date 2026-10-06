@@ -38,6 +38,10 @@ vi.mock('./SidebarSettingsHelpMenu', () => ({
   SidebarSettingsHelpMenu: () => <button type="button">Settings</button>
 }))
 
+vi.mock('./SidebarSpaceSwitcher', () => ({
+  SidebarSpaceSwitcher: () => <div data-testid="space-switcher" />
+}))
+
 const roots: Root[] = []
 
 async function renderToolbar(onWorkspaceBoardToggle = vi.fn()): Promise<{
@@ -146,6 +150,16 @@ describe('SidebarToolbar moved workspace board hint', () => {
     const localized = ko.auto.components.sidebar.SidebarToolbar['49f62c5665']
     expect(localized).not.toBe('Workspace board')
     expect(container.querySelector(`button[aria-label="${localized}"]`)).not.toBeNull()
+  })
+
+  it('places the space switcher between the settings menu and the board button', async () => {
+    const { container } = await renderToolbar()
+
+    const order = Array.from(
+      container.querySelectorAll('button[type="button"], [data-testid="space-switcher"]')
+    ).map((element) => element.getAttribute('data-testid') ?? element.textContent)
+
+    expect(order.slice(0, 3)).toEqual(['Settings', 'space-switcher', 'Current workspace'])
   })
 
   it('keeps account controls out of the sidebar footer', async () => {

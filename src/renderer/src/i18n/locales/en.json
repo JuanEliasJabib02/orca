@@ -6522,6 +6522,13 @@
           "copied": "Command copied",
           "retry": "Retry now",
           "restored": "Git is working again. Worktrees refreshed."
+        },
+        "SidebarSpaceSwitcher": {
+          "all": "All",
+          "newSpace": "New space",
+          "newSpaceTitle": "New Space",
+          "newSpaceDescription": "Creates a project group you can switch to from the bottom bar.",
+          "create": "Create"
         }
       },
       "shared": {
