@@ -47,6 +47,7 @@ import { buildQuickComposerStartup } from './quick-startup-plan'
 import { buildQuickCreationRequest } from './quick-creation-request'
 import type { PendingSmartGitHubSubmitResolution } from './source-selection-decisions'
 import { planAgentSessionLaunch } from '@/lib/agent-session-launch-plan'
+import { prepareStoreCompanionWorktrees } from './companion-worktree-creation-deps'
 
 export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
   const {
@@ -87,7 +88,8 @@ export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
       workspaceNameSeed: string,
       workspaceRunContext: WorktreeCreationRequest['workspaceRunContext'],
       repoId: string,
-      selectedRepo: Repo
+      selectedRepo: Repo,
+      companions?: Parameters<ComposerModel['submitQuick']>[1]
     ): Promise<void> => {
       const prepared = await prepareQuickSubmit(
         smartGitHubResolution,
@@ -114,10 +116,8 @@ export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
         linkedLinearIssue,
         linkedLinearIssueWorkspaceId,
         linkedLinearIssueOrganizationUrlKey,
-        effectiveBranchNameOverride,
         submitBaseBranch,
         createDisplayName,
-        pendingFirstAgentMessageRename,
         trimmedNote
       } = prepared
 
@@ -125,22 +125,6 @@ export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
 
       const { prompt: quickPrompt, draftPrompt: quickDraftPrompt } =
         resolveQuickCreateLinkedWorkItemPrompt(promptLinkedWorkItem, trimmedNote)
-
-      const {
-        startupPlan,
-        backendStartup,
-        telemetry: quickTelemetry
-      } = buildQuickComposerStartup({
-        agent,
-        prompt: quickPrompt,
-        draftPrompt: quickDraftPrompt,
-        settings,
-        repoConnectionId: selectedRepo.connectionId,
-        platform: selectedRepoAgentLaunchPlatform,
-        shell: selectedRepoStartupShell,
-        isRemote: selectedRepoIsRemote,
-        telemetrySource
-      })
 
       const startupPolicySettlement = await settleComposerSubmit(
         persistSetupAgentStartupPolicy(),
@@ -194,6 +178,34 @@ export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
         }
       }
 
+      // Why before the primary: its agent needs the companions' real paths for `--add-dir`.
+      const companionPlan = await prepareStoreCompanionWorktrees({
+        submit: companions,
+        primaryRepo: selectedRepo,
+        primary: prepared,
+        agentCanReachCompanions: !ephemeralVmRecipe,
+        workspaceStatus: resolvedInitialWorkspaceStatus,
+        telemetrySource,
+        isCancelled: isSubmissionCancelled
+      })
+
+      const {
+        startupPlan,
+        backendStartup,
+        telemetry: quickTelemetry
+      } = buildQuickComposerStartup({
+        agent,
+        prompt: quickPrompt,
+        draftPrompt: quickDraftPrompt,
+        settings,
+        repoConnectionId: selectedRepo.connectionId,
+        platform: selectedRepoAgentLaunchPlatform,
+        shell: selectedRepoStartupShell,
+        isRemote: selectedRepoIsRemote,
+        telemetrySource,
+        addDirPaths: companionPlan.addDirPaths
+      })
+
       const promptDelivery = quickDraftPrompt ? 'draft' : 'auto-submit'
       // Why: the verdict is persisted on the request as data and re-entered once the worktree exists.
       const agentLaunchRoute = agent
@@ -241,7 +253,7 @@ export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
         linkedLinearIssue,
         linkedLinearIssueWorkspaceId,
         linkedLinearIssueOrganizationUrlKey,
-        branchNameOverride: effectiveBranchNameOverride,
+        branchNameOverride: companionPlan.branchNameOverride,
         parentWorktreeId,
         workspaceStatus: resolvedInitialWorkspaceStatus,
         linkedGitLabMR,
@@ -249,7 +261,7 @@ export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
         includeGitLabLinks: smartGitHubResolution.kind === 'none',
         startup: structuredLaunch ? undefined : backendStartup,
         issueCommand,
-        pendingFirstAgentMessageRename,
+        pendingFirstAgentMessageRename: companionPlan.pendingFirstAgentMessageRename,
         note: trimmedNote,
         startupPlan,
         quickPrompt,

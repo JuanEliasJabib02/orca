@@ -4,11 +4,8 @@ import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import type { NewWorkspaceProjectOption } from '@/lib/new-workspace-project-options'
 import { translate } from '@/i18n/i18n'
-import {
-  getAmbiguousProjectOptionIds,
-  rankProjectOptions,
-  sectionProjectOptions
-} from './project-combobox-matching'
+import { getAmbiguousProjectOptionIds, rankProjectOptions } from './project-combobox-matching'
+import { sectionProjectOptionsBySpace } from './project-option-space-partition'
 import { ProjectOptionDetail, ProjectOptionMark, ProjectOptionRow } from './ProjectComboboxRow'
 import { useRecentProjectIds } from './use-recent-project-ids'
 import { isWithinComboboxRoot, useTypeAheadCombobox } from './use-type-ahead-combobox'
@@ -24,6 +21,8 @@ type ProjectComboboxProps = {
   triggerClassName?: string
   invalid?: boolean
   describedBy?: string
+  /** Opt-in space narrowing: these options are listed only under "Other spaces" while searching. */
+  outOfSpaceOptionIds?: ReadonlySet<string> | null
 }
 
 const ADD_PROJECT_KEY = 'add-project'
@@ -45,7 +44,8 @@ export default function ProjectCombobox({
   placeholder = 'Choose project',
   triggerClassName,
   invalid = false,
-  describedBy
+  describedBy,
+  outOfSpaceOptionIds = null
 }: ProjectComboboxProps): React.JSX.Element {
   const recentIds = useRecentProjectIds()
   // Ranking depends on the query the hook owns, so rows are derived from it and
@@ -55,14 +55,15 @@ export default function ProjectCombobox({
   // and Enter created the workspace in the wrong project.
   const deriveRowKeys = useCallback(
     (query: string): string[] => [
-      ...sectionProjectOptions(
+      ...sectionProjectOptionsBySpace(
         rankProjectOptions(options, query, recentIds),
         query,
-        recentIds
+        recentIds,
+        outOfSpaceOptionIds
       ).flatMap((section) => section.items.map((match) => match.option.id)),
       ...(onAddProject ? [ADD_PROJECT_KEY] : [])
     ],
-    [onAddProject, options, recentIds]
+    [onAddProject, options, outOfSpaceOptionIds, recentIds]
   )
   const {
     query,
@@ -84,9 +85,10 @@ export default function ProjectCombobox({
     [options, query, recentIds]
   )
   const sections = useMemo(
-    () => sectionProjectOptions(matches, query, recentIds),
-    [matches, query, recentIds]
+    () => sectionProjectOptionsBySpace(matches, query, recentIds, outOfSpaceOptionIds),
+    [matches, outOfSpaceOptionIds, query, recentIds]
   )
+  const visibleRowCount = sections.reduce((count, section) => count + section.items.length, 0)
   const ambiguous = useMemo(() => getAmbiguousProjectOptionIds(options), [options])
   const selected = options.find((option) => option.id === value) ?? null
   // A committed pick shows as the field's own content; typing replaces it.
@@ -283,7 +285,7 @@ export default function ProjectCombobox({
               role="presentation"
               className="max-h-72 min-h-0 flex-1 overflow-y-auto p-1 scrollbar-sleek"
             >
-              {matches.length === 0 ? (
+              {visibleRowCount === 0 ? (
                 // Why: row-height rather than a tall centred block — a 60px panel
                 // next to 32px rows reads as a different kind of surface and
                 // makes an empty result feel like an error.
@@ -293,10 +295,15 @@ export default function ProjectCombobox({
                         'auto.components.new.workspace.ProjectCombobox.noProjects',
                         'No projects yet.'
                       )
-                    : translate(
-                        'auto.components.new.workspace.ProjectCombobox.empty',
-                        'No projects match your search.'
-                      )}
+                    : matches.length > 0 && query.trim() === ''
+                      ? translate(
+                          'auto.components.new.workspace.ProjectCombobox.emptySpace',
+                          'No projects in this space.'
+                        )
+                      : translate(
+                          'auto.components.new.workspace.ProjectCombobox.empty',
+                          'No projects match your search.'
+                        )}
                 </p>
               ) : null}
               {sections.map((section) => (

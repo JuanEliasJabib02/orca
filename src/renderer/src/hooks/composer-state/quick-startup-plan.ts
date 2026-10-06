@@ -12,6 +12,12 @@ import {
 import { resolveInitialNativeChatSessionOptions } from '@/components/native-chat/native-chat-launch-session-options'
 import { isNativeChatTranscriptLocalReadable } from '@/lib/native-chat-transcript-readability'
 import { tuiAgentToAgentKind } from '@/lib/telemetry'
+import {
+  agentSupportsAddDir,
+  buildAddDirAgentArgs,
+  withLeadingAgentArgs
+} from '../../../../shared/agent-add-dir-args'
+import { resolveStartupShell } from '../../../../shared/tui-agent-startup-shell'
 
 export type QuickComposerStartupInput = {
   agent: TuiAgent | null
@@ -23,12 +29,23 @@ export type QuickComposerStartupInput = {
   shell: AgentStartupShell | null | undefined
   isRemote: boolean
   telemetrySource: WorktreeCreationRequest['telemetrySource']
+  /** Companion worktrees this launch may reach; dropped for agents without `--add-dir`. */
+  addDirPaths?: readonly string[]
 }
 
 export type QuickComposerStartup = {
   startupPlan: AgentStartupPlan | null
   backendStartup: WorktreeCreationRequest['startup']
   telemetry: AgentStartedTelemetry | null
+}
+
+function resolveQuickAgentArgs(input: QuickComposerStartupInput, agent: TuiAgent): string {
+  const configured = resolveTuiAgentLaunchArgs(agent, input.settings?.agentDefaultArgs)
+  if (!agentSupportsAddDir(agent) || !input.addDirPaths?.length) {
+    return configured
+  }
+  const shell = resolveStartupShell(input.platform, input.shell ?? undefined)
+  return withLeadingAgentArgs(configured, buildAddDirAgentArgs(input.addDirPaths, shell))
 }
 
 export function buildQuickComposerStartup(input: QuickComposerStartupInput): QuickComposerStartup {
@@ -59,7 +76,7 @@ export function buildQuickComposerStartup(input: QuickComposerStartupInput): Qui
           agent,
           draft: draftPrompt,
           cmdOverrides: settings?.agentCmdOverrides ?? {},
-          agentArgs: resolveTuiAgentLaunchArgs(agent, settings?.agentDefaultArgs),
+          agentArgs: resolveQuickAgentArgs(input, agent),
           agentEnv: resolveTuiAgentLaunchEnv(agent, settings?.agentDefaultEnv),
           sessionOptions,
           platform: input.platform,
@@ -85,7 +102,7 @@ export function buildQuickComposerStartup(input: QuickComposerStartupInput): Qui
       agent,
       prompt,
       cmdOverrides: settings?.agentCmdOverrides ?? {},
-      agentArgs: resolveTuiAgentLaunchArgs(agent, settings?.agentDefaultArgs),
+      agentArgs: resolveQuickAgentArgs(input, agent),
       agentEnv: resolveTuiAgentLaunchEnv(agent, settings?.agentDefaultEnv),
       sessionOptions,
       platform: input.platform,

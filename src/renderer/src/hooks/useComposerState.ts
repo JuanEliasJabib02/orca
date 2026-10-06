@@ -24,6 +24,7 @@ import { useComposerExternalSync } from './composer-state/composer-external-sync
 import { useComposerSourceState } from './composer-state/composer-source-state'
 import { useComposerSubmitOrchestration } from './composer-state/composer-submit-orchestration'
 import { assembleComposerModel } from './composer-state/assemble-composer-model'
+import type { ComposerCompanionSubmit } from './composer-state/multi-repo-worktree-creation'
 import type {
   ComposerCardActionProps,
   ComposerCardSourceProps
@@ -59,7 +60,7 @@ export type UseComposerStateResult = {
   promptTextareaRef: RefObject<HTMLTextAreaElement | null>
   nameInputRef: RefObject<HTMLInputElement | null>
   submit: () => Promise<void>
-  submitQuick: (agent: TuiAgent | null) => Promise<void>
+  submitQuick: (agent: TuiAgent | null, companions?: ComposerCompanionSubmit) => Promise<void>
   createDisabled: boolean
   selectAddedProjectRepo: (repoId: string) => void
 }

@@ -11,9 +11,11 @@ import type {
   NewWorkspaceComposerCardProps
 } from './new-workspace-composer-card-props'
 import { EMPTY_PROJECT_OPTIONS } from './new-workspace-composer-card-props'
+import { useOutOfSpaceProjectOptionIds } from './use-out-of-space-project-option-ids'
 
 type NewWorkspaceComposerProjectSectionProps = Pick<
   NewWorkspaceComposerCardProps,
+  | 'eligibleRepos'
   | 'projectOptions'
   | 'selectedProjectId'
   | 'onProjectChange'
@@ -50,6 +52,7 @@ type NewWorkspaceComposerProjectSectionProps = Pick<
 
 export function NewWorkspaceComposerProjectSection({
   disabled = false,
+  eligibleRepos,
   projectOptions = EMPTY_PROJECT_OPTIONS,
   selectedProjectId = null,
   onProjectChange,
@@ -81,6 +84,7 @@ export function NewWorkspaceComposerProjectSection({
   connectButtonLabel,
   selectedProjectName
 }: NewWorkspaceComposerProjectSectionProps): React.JSX.Element {
+  const outOfSpaceProjectOptionIds = useOutOfSpaceProjectOptionIds(projectOptions, eligibleRepos)
   return (
     <fieldset disabled={disabled} className="space-y-1">
       <div className="space-y-1">
@@ -126,6 +130,7 @@ export function NewWorkspaceComposerProjectSection({
             triggerClassName="h-9 w-full border-input text-sm focus:border-ring focus:ring-[3px] focus:ring-ring/50"
             invalid={Boolean(projectError)}
             describedBy={projectDescriptionId}
+            outOfSpaceOptionIds={outOfSpaceProjectOptionIds}
           />
           {projectError ? (
             <p id={projectDescriptionId} className="text-[11px] text-destructive">

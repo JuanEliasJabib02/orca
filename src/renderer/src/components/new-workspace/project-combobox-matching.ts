@@ -86,7 +86,7 @@ export function rankProjectOptions(
 }
 
 export type ProjectOptionSection = {
-  key: 'recent' | 'projects' | 'folders' | 'results'
+  key: 'recent' | 'projects' | 'folders' | 'results' | 'other-spaces'
   heading: string | null
   items: ScoredProjectOption[]
 }

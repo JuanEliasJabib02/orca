@@ -8,6 +8,7 @@ import type { AgentStartedTelemetry } from '@/lib/worktree-startup-payload'
 import type { LinkedWorkItemSummary } from '@/lib/new-workspace'
 import type { WorktreeCreationRequest } from '@/lib/pending-worktree-creation'
 import type { PendingSmartGitHubSubmitResolution } from './source-selection-decisions'
+import type { ComposerCompanionSubmit } from './multi-repo-worktree-creation'
 
 type SmartCreateNames = {
   workspaceName: string
@@ -88,7 +89,8 @@ export type ComposerSubmitModel = {
     workspaceNameSeed: string,
     workspaceRunContext: WorktreeCreationRequest['workspaceRunContext'],
     repoId: string,
-    selectedRepo: Repo
+    selectedRepo: Repo,
+    companions?: ComposerCompanionSubmit
   ) => Promise<void>
   prepareFullSubmit: (
     resolution: PendingSmartGitHubSubmitResolution
@@ -108,6 +110,6 @@ export type ComposerSubmitModel = {
   ) => QuickSubmitSource | null
   resetForNextCreate: () => void
   submit: () => Promise<void>
-  submitQuick: (agent: TuiAgent | null) => Promise<void>
+  submitQuick: (agent: TuiAgent | null, companions?: ComposerCompanionSubmit) => Promise<void>
   submitFolderTarget: (requestedAgent: TuiAgent | null) => Promise<void>
 }

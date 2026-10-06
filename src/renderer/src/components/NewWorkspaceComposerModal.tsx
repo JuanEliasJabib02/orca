@@ -27,6 +27,7 @@ import type { TaskSourceContext } from '../../../shared/task-source-context'
 import { translate } from '@/i18n/i18n'
 import { getWorkspaceComposerInitialFocusTarget } from '@/lib/workspace-composer-initial-focus'
 import { getFolderWorkspacePrimaryActionLabel } from '@/components/sidebar/folder-workspace-composer-helpers'
+import { useComposerCompanionRepos } from '@/components/new-workspace/use-composer-companion-repos'
 
 // Why: match App-level AddRepoDialog loading — the add flow is off the hot
 // path for the composer, so keep its clone/SSH machinery out of the entry render.
@@ -190,9 +191,20 @@ function QuickTabBody({
     setQuickAgentOverride(agent)
   }, [])
 
+  const selectedProjectOption = cardProps.projectOptions.find(
+    (option) => option.id === cardProps.selectedProjectId
+  )
+  const isFolderWorkspaceTarget = selectedProjectOption?.kind === 'project-group'
+  const companionRepos = useComposerCompanionRepos({
+    primaryRepoId: cardProps.repoId,
+    eligibleRepos: cardProps.eligibleRepos,
+    enabled: cardProps.selectedRepoIsGit && !isFolderWorkspaceTarget
+  })
+  const { selectedIds: companionRepoIds, grantAgentAccess } = companionRepos
+
   const handleCreate = useCallback(async (): Promise<void> => {
-    await submitQuick(quickAgent)
-  }, [quickAgent, submitQuick])
+    await submitQuick(quickAgent, { repoIds: companionRepoIds, grantAgentAccess })
+  }, [companionRepoIds, grantAgentAccess, quickAgent, submitQuick])
   // Why: Add Project layers over the composer as a nested dialog instead of
   // replacing it in the activeModal slot — closing the composer mid-flow (and
   // losing the typed name/prompt) was the old, abrupt behavior. Once opened it
@@ -232,10 +244,6 @@ function QuickTabBody({
     }),
     [addProjectOpen, handleAddProjectCloseAutoFocus, handleProjectAdded]
   )
-  const selectedProjectOption = cardProps.projectOptions.find(
-    (option) => option.id === cardProps.selectedProjectId
-  )
-  const isFolderWorkspaceTarget = selectedProjectOption?.kind === 'project-group'
   const primaryActionLabel = isFolderWorkspaceTarget
     ? getFolderWorkspacePrimaryActionLabel()
     : cardProps.selectedRepoIsGit
@@ -312,6 +320,7 @@ function QuickTabBody({
         onCreate={() => void handleCreate()}
         onAddProjectOverride={handleOpenAddProject}
         onNestedDialogOpenChange={setSetLocationOpen}
+        companionRepos={companionRepos}
       />
       <AgentSettingsDialog open={agentSettingsOpen} onOpenChange={setAgentSettingsOpen} />
       {addProjectMounted ? (

@@ -75,6 +75,23 @@ function getProjectModel({
   }
 }
 
+/** Repo ids behind each project, from the same project model the options are built from. */
+export function getNewWorkspaceProjectRepoIds(
+  input: BuildNewWorkspaceProjectOptionsInput
+): Map<string, string[]> {
+  const { projectHostSetups } = getProjectModel(input)
+  const repoIdsByProjectId = new Map<string, string[]>()
+  for (const setup of projectHostSetups) {
+    const repoIds = repoIdsByProjectId.get(setup.projectId)
+    if (repoIds) {
+      repoIds.push(setup.repoId)
+    } else {
+      repoIdsByProjectId.set(setup.projectId, [setup.repoId])
+    }
+  }
+  return repoIdsByProjectId
+}
+
 function getProjectDetail(project: Project, readySetupCount: number): string {
   if (project.providerIdentity) {
     return `${project.providerIdentity.owner}/${project.providerIdentity.repo}`

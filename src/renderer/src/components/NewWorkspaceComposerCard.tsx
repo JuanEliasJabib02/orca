@@ -28,6 +28,7 @@ import { NewWorkspaceComposerAgentSection } from './new-workspace/NewWorkspaceCo
 import { NewWorkspaceComposerFooter } from './new-workspace/NewWorkspaceComposerFooter'
 import { NewWorkspaceComposerNameSection } from './new-workspace/NewWorkspaceComposerNameSection'
 import { NewWorkspaceComposerProjectSection } from './new-workspace/NewWorkspaceComposerProjectSection'
+import { ComposerCompanionReposField } from './new-workspace/ComposerCompanionReposField'
 import {
   EMPTY_EPHEMERAL_VM_RECIPES,
   EMPTY_PROJECT_HOST_SETUP_OPTIONS,
@@ -318,6 +319,13 @@ export default function NewWorkspaceComposerCard(
           connectButtonLabel={connectButtonLabel}
           selectedProjectName={selectedProjectName}
         />
+        {props.companionRepos ? (
+          <ComposerCompanionReposField
+            companions={props.companionRepos}
+            quickAgent={props.quickAgent}
+            disabled={sparseEditing}
+          />
+        ) : null}
         <NewWorkspaceComposerNameSection {...props} onNamePlainEnter={handleNamePlainEnter} />
         <NewWorkspaceComposerAgentSection
           {...props}
