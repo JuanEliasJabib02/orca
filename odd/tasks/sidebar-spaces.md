@@ -105,15 +105,16 @@ Arc's spaces.
   - **Verification pending.**
   - Known edge: a saved space on a remote host whose groups load after the local ones
     can be replaced by the first local space.
-- [ ] **6. Reveal follows the space** (code done)
-  - When ⌖ is clicked or `revealWorkspaceFilters` runs for a workspace outside the
-    active space, switch to that workspace's space.
+- [ ] **6. Notification jumps follow the space** (code done)
+  - When a jump (e.g. clicking a notification) reveals a workspace outside the active
+    space, switch to that workspace's space.
   - Check: unit tests and `pnpm tc`.
   - Code is complete. `findSidebarSpaceToReveal` is a pure function in
-    `sidebar-space-scope.ts`. `use-reveal-requests.ts` switches the space before the
-    filter logic, in both the pending-row path (Cmd+J, notifications) and the ⌖ path.
-  - There is no confirmation for a space switch. When a switch happens, the filter
-    dialog is skipped, because `visibleWorktrees` still reflects the old space.
+    `sidebar-space-scope.ts`. Only the pending-row path, which is how a notification
+    click reveals its workspace, switches the space, with no confirmation.
+  - Juan doesn't want the ⌖ button to switch spaces. When the active workspace is in
+    another space, ⌖ now does nothing.
+  - Cmd+J lists only the current space, so it never needs a switch.
   - **Verification pending.**
 - [ ] **7. New projects join the active space** (code done)
   - A project added while a space is active goes into that group.

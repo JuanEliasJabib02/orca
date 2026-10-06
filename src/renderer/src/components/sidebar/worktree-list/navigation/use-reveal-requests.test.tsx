@@ -17,13 +17,18 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
 const state = vi.hoisted(() => {
   const space: {
+    pendingRevealSidebarRow: { rowKey: string } | null
     activeSidebarSpaceGroupId: string | null
     projectGroups: ProjectGroup[]
     repos: Repo[]
-  } = { activeSidebarSpaceGroupId: null, projectGroups: [], repos: [] }
+  } = {
+    pendingRevealSidebarRow: null,
+    activeSidebarSpaceGroupId: null,
+    projectGroups: [],
+    repos: []
+  }
   return {
     setGroupBy: vi.fn(),
-    pendingRevealSidebarRow: null,
     revealSidebarRow: vi.fn(),
     revealWorktreeInSidebar: vi.fn(),
     setContextualToursBlockingSurfaceVisible: vi.fn(),
@@ -65,6 +70,7 @@ async function click(label: string): Promise<void> {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  state.pendingRevealSidebarRow = null
   state.activeSidebarSpaceGroupId = null
   state.projectGroups = []
   state.repos = []
@@ -284,17 +290,22 @@ describe('revealing a workspace that lives in another space', () => {
     ]
   })
 
-  it('switches to its space and reveals it without asking about filters', async () => {
+  it('switches to its space when a jump asks to reveal it, without touching filters', async () => {
+    state.pendingRevealSidebarRow = { rowKey: 'wt-1' }
+    await render()
+
+    expect(state.setActiveSidebarSpaceGroupId).toHaveBeenCalledWith('personal')
+    expect(args.revealWorkspaceFilters).not.toHaveBeenCalled()
+  })
+
+  it('keeps the reveal button inside the current space', async () => {
     await render()
     await act(async () => requestScrollToCurrentWorkspaceReveal())
 
-    expect(state.setActiveSidebarSpaceGroupId).toHaveBeenCalledWith('personal')
+    expect(state.setActiveSidebarSpaceGroupId).not.toHaveBeenCalled()
     expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(args.revealWorkspaceFilters).not.toHaveBeenCalled()
-    expect(state.revealWorktreeInSidebar).toHaveBeenCalledWith(
-      'wt-1',
-      expect.objectContaining({ highlight: true })
-    )
+    expect(state.revealWorktreeInSidebar).not.toHaveBeenCalled()
   })
 
   it('stays in the current space when that space already holds the workspace', async () => {

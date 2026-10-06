@@ -71,28 +71,28 @@ export function useSidebarRevealRequests(args: {
     latestArgs.current = args
   })
 
-  // Why no confirmation, unlike filters: a space is a context, so switching to it hides nothing for good.
-  const switchSpaceToReveal = useCallback(
-    (worktree: Worktree): boolean => {
-      const spaceId = findSidebarSpaceToReveal(worktree, {
+  const findSpaceToReveal = useCallback(
+    (worktree: Worktree): string | null =>
+      findSidebarSpaceToReveal(worktree, {
         activeGroupId: activeSidebarSpaceGroupId,
         projectGroups,
         repos,
         folderWorkspaces
-      })
+      }),
+    [activeSidebarSpaceGroupId, folderWorkspaces, projectGroups, repos]
+  )
+
+  // Why no confirmation, unlike filters: a space is a context, so switching to it hides nothing for good.
+  const switchSpaceToReveal = useCallback(
+    (worktree: Worktree): boolean => {
+      const spaceId = findSpaceToReveal(worktree)
       if (!spaceId) {
         return false
       }
       setActiveSidebarSpaceGroupId(spaceId)
       return true
     },
-    [
-      activeSidebarSpaceGroupId,
-      folderWorkspaces,
-      projectGroups,
-      repos,
-      setActiveSidebarSpaceGroupId
-    ]
+    [findSpaceToReveal, setActiveSidebarSpaceGroupId]
   )
 
   useEffect(() => {
@@ -164,11 +164,12 @@ export function useSidebarRevealRequests(args: {
       if (!activeWorktree || activeWorktree.isArchived) {
         return
       }
-      // Why skip the filter check after a switch: visibleWorktrees still reflects the old space.
-      const switchedSpace = switchSpaceToReveal(activeWorktree)
+      // Why: the reveal button stays inside the current space; only jumps (notifications) switch spaces.
+      if (findSpaceToReveal(activeWorktree)) {
+        return
+      }
       // Collapsed groups hide rows without excluding their workspaces from the filter results.
       if (
-        !switchedSpace &&
         hasFilters &&
         !workspacePassesFilters(activeWorktree, visibleWorktrees, visibleFolderWorkspaces)
       ) {
@@ -227,7 +228,7 @@ export function useSidebarRevealRequests(args: {
       currentSidebarExecutionHostId,
       folderWorkspaces,
       revealSidebarRow,
-      switchSpaceToReveal,
+      findSpaceToReveal,
       visibleWorktrees,
       visibleFolderWorkspaces,
       revealWorktreeInSidebar,
