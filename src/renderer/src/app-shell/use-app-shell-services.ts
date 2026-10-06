@@ -15,6 +15,7 @@ import {
 import { useRadixBodyPointerEventsRecovery } from '../hooks/useRadixBodyPointerEventsRecovery'
 import { useGitStatusPolling } from '../components/right-sidebar/useGitStatusPolling'
 import { useSidebarSpaceShortcuts } from '../components/sidebar/use-sidebar-space-shortcuts'
+import { useSidebarActiveSpaceNormalization } from '../components/sidebar/use-sidebar-active-space-normalization'
 import { useOsc52ClipboardDefaultOnNotice } from '../components/terminal-pane/osc52-clipboard-default-on-notice'
 import { useWebSessionTabsSync } from '../runtime/web-session-tabs-sync'
 import { useLocalStructuredSessionTabsSync } from '../runtime/local-structured-session-tabs-sync'
@@ -42,6 +43,7 @@ export function useAppShellServices(options: { floatingPanelVisible: boolean }):
   // Subscribe to IPC push events
   useIpcEvents()
   useSidebarSpaceShortcuts()
+  useSidebarActiveSpaceNormalization()
   useRemoteRuntimeRecoveryTriggers()
   useTerminalViewerColorPublication()
   useAutomationDispatchEvents()

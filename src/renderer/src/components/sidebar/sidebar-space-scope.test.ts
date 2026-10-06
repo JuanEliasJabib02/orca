@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
 import type { FolderWorkspace } from '../../../../shared/folder-workspace-types'
 import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { Repo } from '../../../../shared/repo-types'
@@ -6,7 +7,10 @@ import {
   filterFolderWorkspacesToSidebarSpace,
   filterProjectGroupsToSidebarSpace,
   isWorktreeInSidebarSpace,
+  isSpacelessRepo,
   listSidebarSpaces,
+  listSpacelessRepoIdsOnHost,
+  resolveActiveSidebarSpaceId,
   resolveSidebarSpaceScope,
   resolveSidebarSpaceScopeFromState
 } from './sidebar-space-scope'
@@ -88,7 +92,9 @@ describe('resolveSidebarSpaceScope', () => {
     const scope = resolve('work')
 
     expect(scope?.groupIds).toEqual(new Set(['work', 'work-client', 'work-client-legacy']))
-    expect(scope?.repoIds).toEqual(new Set(['repo-work', 'repo-client', 'repo-legacy']))
+    expect(scope?.repoIds).toEqual(
+      new Set(['repo-work', 'repo-client', 'repo-legacy', 'repo-ungrouped'])
+    )
     expect(scope?.folderWorkspaceIds).toEqual(new Set(['folder-work']))
   })
 
@@ -96,11 +102,22 @@ describe('resolveSidebarSpaceScope', () => {
     expect(resolve('work-client')).toBeNull()
   })
 
-  it('excludes ungrouped projects and projects in other spaces', () => {
+  it('excludes projects in other spaces but keeps spaceless ones in every space', () => {
     const scope = resolve('personal')
 
-    expect(scope?.repoIds).toEqual(new Set(['repo-personal']))
+    expect(scope?.repoIds).toEqual(new Set(['repo-personal', 'repo-ungrouped']))
     expect(scope?.folderWorkspaceIds).toEqual(new Set(['folder-personal']))
+  })
+
+  it('treats a repo whose group was deleted as spaceless, so every space shows it', () => {
+    const scope = resolveSidebarSpaceScope({
+      activeGroupId: 'personal',
+      projectGroups: groups,
+      repos: [makeRepo('repo-orphan', 'deleted-group'), makeRepo('repo-work', 'work')],
+      folderWorkspaces: []
+    })
+
+    expect(scope?.repoIds).toEqual(new Set(['repo-orphan']))
   })
 
   it('terminates when corrupt data makes a group its own descendant', () => {
@@ -124,7 +141,7 @@ describe('resolveSidebarSpaceScopeFromState', () => {
     expect(
       resolveSidebarSpaceScopeFromState({ ...state, activeSidebarSpaceGroupId: 'personal' })
         ?.repoIds
-    ).toEqual(new Set(['repo-personal']))
+    ).toEqual(new Set(['repo-personal', 'repo-ungrouped']))
     expect(
       resolveSidebarSpaceScopeFromState({ ...state, activeSidebarSpaceGroupId: null })
     ).toBeNull()
@@ -137,7 +154,7 @@ describe('isWorktreeInSidebarSpace', () => {
   it('matches repo worktrees by their repo', () => {
     expect(isWorktreeInSidebarSpace({ id: 'wt-1', repoId: 'repo-client' }, scope)).toBe(true)
     expect(isWorktreeInSidebarSpace({ id: 'wt-2', repoId: 'repo-personal' }, scope)).toBe(false)
-    expect(isWorktreeInSidebarSpace({ id: 'wt-3', repoId: 'repo-ungrouped' }, scope)).toBe(false)
+    expect(isWorktreeInSidebarSpace({ id: 'wt-3', repoId: 'repo-ungrouped' }, scope)).toBe(true)
   })
 
   it('matches folder workspaces by their workspace id, not the synthetic repo id', () => {
@@ -194,5 +211,57 @@ describe('listSidebarSpaces', () => {
 
     expect(listSidebarSpaces(input).map((group) => group.id)).toEqual(['b', 'a'])
     expect(input).toEqual(snapshot)
+  })
+})
+
+describe('resolveActiveSidebarSpaceId', () => {
+  const spaces = [
+    makeGroup('second', null, 1),
+    makeGroup('first', null, 0),
+    makeGroup('child', 'first')
+  ]
+
+  it('keeps a stored id that is still a space', () => {
+    expect(resolveActiveSidebarSpaceId('second', spaces)).toBe('second')
+  })
+
+  it('falls back to the first space for an unset, deleted or nested id', () => {
+    expect(resolveActiveSidebarSpaceId(null, spaces)).toBe('first')
+    expect(resolveActiveSidebarSpaceId('deleted', spaces)).toBe('first')
+    expect(resolveActiveSidebarSpaceId('child', spaces)).toBe('first')
+  })
+
+  it('is null when there are no spaces', () => {
+    expect(resolveActiveSidebarSpaceId(null, [])).toBeNull()
+  })
+})
+
+describe('isSpacelessRepo', () => {
+  const known = new Set(['work'])
+
+  it('is true for an ungrouped repo or one whose group is gone', () => {
+    expect(isSpacelessRepo({ projectGroupId: null }, known)).toBe(true)
+    expect(isSpacelessRepo({ projectGroupId: undefined }, known)).toBe(true)
+    expect(isSpacelessRepo({ projectGroupId: 'deleted' }, known)).toBe(true)
+  })
+
+  it('is false for a repo in a known group', () => {
+    expect(isSpacelessRepo({ projectGroupId: 'work' }, known)).toBe(false)
+  })
+})
+
+describe('listSpacelessRepoIdsOnHost', () => {
+  it('lists ungrouped and orphaned repos on that host, in store order', () => {
+    const repoList = [
+      makeRepo('loose'),
+      makeRepo('grouped', 'work'),
+      { ...makeRepo('remote'), connectionId: 'devbox' },
+      makeRepo('orphan', 'deleted-group')
+    ]
+
+    expect(listSpacelessRepoIdsOnHost(repoList, groups, LOCAL_EXECUTION_HOST_ID)).toEqual([
+      'loose',
+      'orphan'
+    ])
   })
 })

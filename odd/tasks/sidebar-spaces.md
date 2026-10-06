@@ -91,6 +91,18 @@ Arc's spaces.
     All button. Creating the first space adopts the ungrouped projects, and `+`
     activates the new space.
   - Check: scope and switcher tests, and `pnpm tc`.
+  - Code is complete. The scope layer keeps `null` as "no narrowing", so upstream
+    tests with groups don't change. A new hook,
+    `use-sidebar-active-space-normalization.ts`, mounted in the app shell, settles an
+    unset, deleted or nested id on the first space, but only after `persistedUIReady`,
+    so it never overwrites the saved space.
+  - Spaceless repos (ungrouped, or in a deleted group) join every space's scope.
+  - The first space adopts the spaceless repos on its own host
+    (`listSpacelessRepoIdsOnHost`), so an SSH repo stays spaceless rather than
+    crossing hosts.
+  - **Verification pending.**
+  - Known edge: a saved space on a remote host whose groups load after the local ones
+    can be replaced by the first local space.
 - [ ] **6. Reveal follows the space**
   - When ⌖ is clicked or `revealWorkspaceFilters` runs for a workspace outside the
     active space, switch to that workspace's space.

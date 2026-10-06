@@ -2,6 +2,7 @@ import type { FolderWorkspace } from '../../../../shared/folder-workspace-types'
 import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
+import { getRepoExecutionHostId, type ExecutionHostId } from '../../../../shared/execution-host'
 import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
 import type { AppState } from '@/store/types'
 
@@ -53,9 +54,11 @@ export function resolveSidebarSpaceScope(args: {
     }
   }
 
+  const knownGroupIds = new Set(projectGroups.map((group) => group.id))
   const repoIds = new Set<string>()
   for (const repo of repos) {
-    if (repo.projectGroupId && groupIds.has(repo.projectGroupId)) {
+    // Why spaceless repos join every space: there is no All view, so this keeps them reachable.
+    if (isSpacelessRepo(repo, knownGroupIds) || groupIds.has(repo.projectGroupId ?? '')) {
       repoIds.add(repo.id)
     }
   }
@@ -123,4 +126,35 @@ export function listSidebarSpaces(projectGroups: readonly ProjectGroup[]): Proje
   return projectGroups
     .filter((group) => group.parentGroupId === null)
     .sort((a, b) => a.tabOrder - b.tabOrder)
+}
+
+/** The space the switcher shows as active: the stored one if it is still a space, else the first. */
+export function resolveActiveSidebarSpaceId(
+  activeGroupId: string | null,
+  projectGroups: readonly ProjectGroup[]
+): string | null {
+  const spaces = listSidebarSpaces(projectGroups)
+  return spaces.find((space) => space.id === activeGroupId)?.id ?? spaces[0]?.id ?? null
+}
+
+/** A repo with no group, or whose group was deleted, belongs to no space. */
+export function isSpacelessRepo(
+  repo: Pick<Repo, 'projectGroupId'>,
+  knownGroupIds: ReadonlySet<string>
+): boolean {
+  return !repo.projectGroupId || !knownGroupIds.has(repo.projectGroupId)
+}
+
+/** Spaceless repos on one host, in store order: what the first space adopts when it is created. */
+export function listSpacelessRepoIdsOnHost(
+  repos: readonly Repo[],
+  projectGroups: readonly ProjectGroup[],
+  hostId: ExecutionHostId
+): string[] {
+  const knownGroupIds = new Set(projectGroups.map((group) => group.id))
+  return repos
+    .filter(
+      (repo) => isSpacelessRepo(repo, knownGroupIds) && getRepoExecutionHostId(repo) === hostId
+    )
+    .map((repo) => repo.id)
 }

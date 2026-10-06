@@ -104,12 +104,14 @@ function makeAgentStatus(tabId: string, state: AgentStatusEntry['state']): Agent
 
 const setActiveGroupId = vi.fn()
 const createProjectGroup = vi.fn()
+const moveProjectToGroup = vi.fn()
 
 function seedStore(state: Partial<ReturnType<typeof useAppStore.getState>>): void {
   act(() => {
     useAppStore.setState({
       setActiveSidebarSpaceGroupId: setActiveGroupId,
       createProjectGroup,
+      moveProjectToGroup,
       ...state
     })
   })
@@ -124,6 +126,7 @@ describe('SidebarSpaceSwitcher', () => {
     useAppStore.setState(initialState, true)
     resetAgentStatusEpochClockForTests()
     createProjectGroup.mockResolvedValue(makeGroup('created'))
+    moveProjectToGroup.mockResolvedValue(true)
   })
 
   afterEach(() => {
@@ -139,7 +142,7 @@ describe('SidebarSpaceSwitcher', () => {
     expect(spaceButtons().map((button) => button.getAttribute('aria-label'))).toEqual(['New space'])
   })
 
-  it('lists All, then each top-level group in tab order, then the new-space button', () => {
+  it('lists each top-level group in tab order, then the new-space button', () => {
     seedStore({
       projectGroups: [
         makeGroup('personal', { name: 'Personal', tabOrder: 2 }),
@@ -150,12 +153,11 @@ describe('SidebarSpaceSwitcher', () => {
     const { container } = render(<SidebarSpaceSwitcher />)
 
     expect(spaceButtons().map((button) => button.getAttribute('aria-label'))).toEqual([
-      'All',
       'Work',
       'Personal',
       'New space'
     ])
-    expect(container.querySelectorAll('svg.lucide-layers')).toHaveLength(1)
+    expect(container.querySelectorAll('svg.lucide-layers')).toHaveLength(0)
     expect(container.querySelectorAll('svg.lucide-code')).toHaveLength(2)
     expect(container.querySelectorAll('svg.lucide-plus')).toHaveLength(1)
   })
@@ -165,21 +167,23 @@ describe('SidebarSpaceSwitcher', () => {
     render(<SidebarSpaceSwitcher />)
 
     expect(screen.getAllByTestId('tooltip').map((tooltip) => tooltip.textContent)).toEqual([
-      'All',
       'Work',
       'New space'
     ])
   })
 
-  it('switches to a space, and back to All, through the store setter', async () => {
+  it('switches spaces through the store setter', async () => {
     seedStore({
-      projectGroups: [makeGroup('work', { name: 'Work' })],
+      projectGroups: [
+        makeGroup('work', { name: 'Work', tabOrder: 0 }),
+        makeGroup('personal', { name: 'Personal', tabOrder: 1 })
+      ],
       activeSidebarSpaceGroupId: 'work'
     })
     render(<SidebarSpaceSwitcher />)
 
-    await userEvent.click(screen.getByRole('button', { name: 'All' }))
-    expect(setActiveGroupId).toHaveBeenLastCalledWith(null)
+    await userEvent.click(screen.getByRole('button', { name: 'Personal' }))
+    expect(setActiveGroupId).toHaveBeenLastCalledWith('personal')
 
     await userEvent.click(screen.getByRole('button', { name: 'Work' }))
     expect(setActiveGroupId).toHaveBeenLastCalledWith('work')
@@ -197,7 +201,6 @@ describe('SidebarSpaceSwitcher', () => {
 
     expect(screen.getByRole('button', { name: 'Personal' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Work' })).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('button', { name: 'New space' })).not.toHaveAttribute('aria-pressed')
   })
 
@@ -205,21 +208,25 @@ describe('SidebarSpaceSwitcher', () => {
     ['no active space', null],
     ['a deleted group', 'gone'],
     ['a nested group', 'nested']
-  ])('treats All as active for %s', (_label, activeId) => {
+  ])('treats the first space as active for %s', (_label, activeId) => {
     seedStore({
       projectGroups: [
-        makeGroup('work', { name: 'Work' }),
+        makeGroup('work', { name: 'Work', tabOrder: 0 }),
+        makeGroup('personal', { name: 'Personal', tabOrder: 1 }),
         makeGroup('nested', { name: 'Nested', parentGroupId: 'work' })
       ],
       activeSidebarSpaceGroupId: activeId
     })
     render(<SidebarSpaceSwitcher />)
 
-    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: 'Work' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'Work' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Personal' })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
   })
 
-  it('creates a space from the dialog, then shows All', async () => {
+  it('creates a space from the dialog and switches to it', async () => {
     seedStore({ projectGroups: [makeGroup('work', { name: 'Work' })] })
     render(<SidebarSpaceSwitcher />)
 
@@ -236,8 +243,32 @@ describe('SidebarSpaceSwitcher', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(createProjectGroup).toHaveBeenCalledWith('Side projects'))
-    await waitFor(() => expect(setActiveGroupId).toHaveBeenCalledWith(null))
+    await waitFor(() => expect(setActiveGroupId).toHaveBeenCalledWith('created'))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(moveProjectToGroup).not.toHaveBeenCalled()
+  })
+
+  it('moves every spaceless project on its host into the first space', async () => {
+    seedStore({
+      projectGroups: [],
+      repos: [
+        makeRepo('loose', null),
+        makeRepo('orphan', 'deleted-group'),
+        { ...makeRepo('remote', null), connectionId: 'devbox' }
+      ]
+    })
+    render(<SidebarSpaceSwitcher />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'New space' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.type(within(dialog).getByRole('textbox'), 'Action Black')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => expect(setActiveGroupId).toHaveBeenCalledWith('created'))
+    expect(moveProjectToGroup.mock.calls).toEqual([
+      ['loose', 'created'],
+      ['orphan', 'created']
+    ])
   })
 
   it('keeps the active space when the group could not be created', async () => {
@@ -371,7 +402,7 @@ describe('SidebarSpaceSwitcher', () => {
       expect(screen.getByRole('button', { name: 'Work' })).toBeInTheDocument()
     })
 
-    it('never puts a dot on All, whether or not it is active', () => {
+    it('ignores spaceless projects, which every space already shows', () => {
       seedStore({
         projectGroups: spaces,
         activeSidebarSpaceGroupId: 'work',
@@ -381,14 +412,6 @@ describe('SidebarSpaceSwitcher', () => {
       const { container } = render(<SidebarSpaceSwitcher />)
 
       expect(container.querySelector('[data-attention]')).toBeNull()
-      expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
-    })
-
-    it('does not light All for work that belongs to a space', () => {
-      seedWorkAttention('unread', 'personal')
-      render(<SidebarSpaceSwitcher />)
-
-      expect(dotOf(screen.getByRole('button', { name: 'All' }))).toBeNull()
     })
 
     it('never puts a dot on the new-space button', () => {

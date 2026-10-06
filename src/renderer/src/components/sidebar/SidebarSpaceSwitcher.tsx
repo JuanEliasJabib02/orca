@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react'
-import { Code, Layers, Plus } from 'lucide-react'
+import { Code, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ShortcutKeyCombo } from '@/components/ShortcutKeyCombo'
@@ -7,7 +7,12 @@ import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
 import { ProjectGroupNameDialog } from './ProjectGroupNameDialog'
 import type { SidebarSpaceAttention } from './sidebar-space-attention'
-import { listSidebarSpaces } from './sidebar-space-scope'
+import { getProjectGroupHostId } from '@/store/slices/project-group-owner-routing'
+import {
+  listSidebarSpaces,
+  listSpacelessRepoIdsOnHost,
+  resolveActiveSidebarSpaceId
+} from './sidebar-space-scope'
 import { useSidebarSpaceAttention } from './use-sidebar-space-attention'
 
 type SpaceSwitcherButtonProps = {
@@ -99,35 +104,38 @@ export function SidebarSpaceSwitcher(): React.JSX.Element {
   const activeGroupId = useAppStore((state) => state.activeSidebarSpaceGroupId)
   const setActiveGroupId = useAppStore((state) => state.setActiveSidebarSpaceGroupId)
   const createProjectGroup = useAppStore((state) => state.createProjectGroup)
+  const moveProjectToGroup = useAppStore((state) => state.moveProjectToGroup)
   const attentionBySpaceId = useSidebarSpaceAttention()
   const [newSpaceDialogOpen, setNewSpaceDialogOpen] = useState(false)
 
   const spaces = useMemo(() => listSidebarSpaces(projectGroups), [projectGroups])
-  // Why: mirrors resolveSidebarSpaceScope, which treats a deleted or nested id as All.
-  const activeSpaceId = spaces.some((space) => space.id === activeGroupId) ? activeGroupId : null
+  const activeSpaceId = resolveActiveSidebarSpaceId(activeGroupId, projectGroups)
 
   const handleCreateSpace = useCallback(
     async (name: string) => {
+      const isFirstSpace = spaces.length === 0
       const group = await createProjectGroup(name)
-      if (group) {
-        // Why: All shows the new, empty group header so projects can be moved into it.
-        setActiveGroupId(null)
+      if (!group) {
+        return
       }
+      if (isFirstSpace) {
+        // Why: the projects from before spaces existed move into the first one, so none start spaceless.
+        const state = useAppStore.getState()
+        for (const repoId of listSpacelessRepoIdsOnHost(
+          state.repos,
+          state.projectGroups,
+          getProjectGroupHostId(group)
+        )) {
+          await moveProjectToGroup(repoId, group.id)
+        }
+      }
+      setActiveGroupId(group.id)
     },
-    [createProjectGroup, setActiveGroupId]
+    [createProjectGroup, moveProjectToGroup, setActiveGroupId, spaces.length]
   )
 
   return (
     <div className="flex min-w-0 flex-1 items-center justify-center-safe gap-1 overflow-x-clip px-1">
-      {spaces.length > 0 ? (
-        <SpaceSwitcherButton
-          label={translate('auto.components.sidebar.SidebarSpaceSwitcher.all', 'All')}
-          pressed={activeSpaceId === null}
-          onClick={() => setActiveGroupId(null)}
-        >
-          <Layers className="size-3.5" />
-        </SpaceSwitcherButton>
-      ) : null}
       {spaces.map((space) => (
         <SpaceSwitcherButton
           key={space.id}
