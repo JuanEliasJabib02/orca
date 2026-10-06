@@ -13,7 +13,10 @@ type SpaceFilingState = Pick<
  * Files a just-added project into the active space; a spaceless one would show in every space.
  * Takes the state instead of reading the store so the repo slice can call it without a cycle.
  */
-export function fileNewRepoIntoActiveSidebarSpace(repo: Repo, state: SpaceFilingState): void {
+export async function fileNewRepoIntoActiveSidebarSpace(
+  repo: Repo,
+  state: SpaceFilingState
+): Promise<void> {
   // Why the fallback: Add Project tests mock the store with partial state.
   const projectGroups = state.projectGroups ?? []
   const spaceId = resolveActiveSidebarSpaceId(state.activeSidebarSpaceGroupId, projectGroups)
@@ -26,5 +29,5 @@ export function fileNewRepoIntoActiveSidebarSpace(repo: Repo, state: SpaceFiling
   ) {
     return
   }
-  void state.moveProjectToGroup(repo.id, space.id)
+  await state.moveProjectToGroup(repo.id, space.id)
 }

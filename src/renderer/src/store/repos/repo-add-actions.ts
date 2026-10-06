@@ -24,7 +24,7 @@ import {
 import { mergeProjectCompatibilityForHostRepoChange } from './repo-catalog-identity'
 import { warnIfProjectKnownInAnotherProfile } from '../projects/project-profile-presence'
 import { warnIfProjectCrossesWslFilesystemBoundary } from '../projects/project-wsl-filesystem-boundary-advisory'
-import { fileNewRepoIntoActiveSidebarSpace } from '@/components/sidebar/sidebar-space-new-project'
+import { applyNewProjectDefaults } from '@/components/sidebar/new-project-defaults'
 
 export function createRepoAddActions(
   set: Parameters<StateCreator<AppState>>[0],
@@ -119,8 +119,8 @@ export function createRepoAddActions(
             description: repo.displayName
           })
         } else {
-          // Why after the set(): moveProjectToGroup only finds a repo that is already in state.
-          fileNewRepoIntoActiveSidebarSpace(repo, get())
+          // Why after the set(): moveProjectToGroup and updateRepo only find a repo already in state.
+          void applyNewProjectDefaults(repo, get())
           toast.success(
             isGitRepoKind(repo)
               ? translate('auto.store.slices.repos.8bb3ad7935', 'Project added')

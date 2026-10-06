@@ -5,7 +5,8 @@ import {
   installReposRuntimeRoutingHarness,
   localRepo,
   projectGroupsMoveProject,
-  reposAdd
+  reposAdd,
+  reposUpdate
 } from './repos-runtime-routing-fixture'
 
 vi.mock('sonner', () => ({
@@ -34,7 +35,7 @@ function makeSpace(id: string, tabOrder: number): ProjectGroup {
   }
 }
 
-describe('adding a project while a sidebar space is active', () => {
+describe('new project defaults on add', () => {
   it('files the new project into the active space', async () => {
     reposAdd.mockResolvedValue({ repo: localRepo })
     projectGroupsMoveProject.mockResolvedValue({ ...localRepo, projectGroupId: 'arctic-grey' })
@@ -69,12 +70,29 @@ describe('adding a project while a sidebar space is active', () => {
     expect(projectGroupsMoveProject).not.toHaveBeenCalled()
   })
 
-  it('does nothing while there are no spaces', async () => {
+  it('does not file anything while there are no spaces', async () => {
     reposAdd.mockResolvedValue({ repo: localRepo })
     const store = createTestStore()
 
     await store.getState().addRepoPath(localRepo.path)
 
     expect(projectGroupsMoveProject).not.toHaveBeenCalled()
+  })
+
+  it('turns Spotlight on for a new local git project', async () => {
+    reposAdd.mockResolvedValue({ repo: localRepo })
+    reposUpdate.mockResolvedValue({ ...localRepo, spotlightTestingEnabled: true })
+    const store = createTestStore()
+
+    await store.getState().addRepoPath(localRepo.path)
+
+    await vi.waitFor(() =>
+      expect(reposUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          repoId: localRepo.id,
+          updates: { spotlightTestingEnabled: true }
+        })
+      )
+    )
   })
 })

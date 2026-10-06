@@ -43,9 +43,10 @@ describe('repo add/catalog races', () => {
 
     await store.getState().addRepoPath(localRepo.path)
 
+    // Orca Pro Max turns Spotlight on for every new local git project.
     expect(store.getState().repos).toEqual([
       runtimeSibling,
-      { ...localRepo, executionHostId: 'local' }
+      { ...localRepo, executionHostId: 'local', spotlightTestingEnabled: true }
     ])
   })
 
@@ -76,6 +77,8 @@ describe('repo add/catalog races', () => {
     resolveAdd({ repo: localRepo })
     await pendingAdd
 
-    expect(store.getState().repos).toEqual([{ ...localRepo, executionHostId: 'local' }])
+    expect(store.getState().repos).toEqual([
+      { ...localRepo, executionHostId: 'local', spotlightTestingEnabled: true }
+    ])
   })
 })

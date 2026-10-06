@@ -47,36 +47,36 @@ describe('fileNewRepoIntoActiveSidebarSpace', () => {
     }
   })
 
-  it('moves a new local project into the active space', () => {
-    fileNewRepoIntoActiveSidebarSpace(makeRepo(), state)
+  it('moves a new local project into the active space', async () => {
+    await fileNewRepoIntoActiveSidebarSpace(makeRepo(), state)
 
     expect(moveProjectToGroup).toHaveBeenCalledWith('new-repo', 'arctic-grey')
   })
 
-  it('uses the first space when none is stored yet', () => {
+  it('uses the first space when none is stored yet', async () => {
     state = { ...state, activeSidebarSpaceGroupId: null }
 
-    fileNewRepoIntoActiveSidebarSpace(makeRepo(), state)
+    await fileNewRepoIntoActiveSidebarSpace(makeRepo(), state)
 
     expect(moveProjectToGroup).toHaveBeenCalledWith('new-repo', 'action-black')
   })
 
-  it('leaves a project that already has a group where it is', () => {
-    fileNewRepoIntoActiveSidebarSpace(makeRepo({ projectGroupId: 'action-black' }), state)
+  it('leaves a project that already has a group where it is', async () => {
+    await fileNewRepoIntoActiveSidebarSpace(makeRepo({ projectGroupId: 'action-black' }), state)
 
     expect(moveProjectToGroup).not.toHaveBeenCalled()
   })
 
-  it('does not move a project from another host into a local space', () => {
-    fileNewRepoIntoActiveSidebarSpace(makeRepo({ connectionId: 'devbox' }), state)
+  it('does not move a project from another host into a local space', async () => {
+    await fileNewRepoIntoActiveSidebarSpace(makeRepo({ connectionId: 'devbox' }), state)
 
     expect(moveProjectToGroup).not.toHaveBeenCalled()
   })
 
-  it('does nothing while there are no spaces', () => {
+  it('does nothing while there are no spaces', async () => {
     state = { ...state, projectGroups: [], activeSidebarSpaceGroupId: null }
 
-    fileNewRepoIntoActiveSidebarSpace(makeRepo(), state)
+    await fileNewRepoIntoActiveSidebarSpace(makeRepo(), state)
 
     expect(moveProjectToGroup).not.toHaveBeenCalled()
   })
