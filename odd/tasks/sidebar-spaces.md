@@ -73,7 +73,8 @@ Arc's spaces.
     16 files / 154 tests pass.
   - Upstream-merge risk: the Ctrl+Tab helpers moved to `recent-tab-switcher-chord.ts`
     to keep `window-shortcut-policy.ts` under max-lines.
-  - Tooltip chip still pending. It will be wired once task 4 lands.
+  - Tooltip chip done afterwards. It uses `formatShortcutKeyComboDetails`, so it follows
+    remaps. Verification pending.
   - Unrelated failures: `browser-manager-tab-identity.test.ts` fails, but it imports
     none of this; to check at the end. Two spotlight tests fail at HEAD.
 - [ ] **4. Attention badge per space** (code done, `cf89e844dc`)

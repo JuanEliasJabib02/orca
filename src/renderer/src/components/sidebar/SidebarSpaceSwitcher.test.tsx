@@ -166,10 +166,9 @@ describe('SidebarSpaceSwitcher', () => {
     seedStore({ projectGroups: [makeGroup('work', { name: 'Work' })] })
     render(<SidebarSpaceSwitcher />)
 
-    expect(screen.getAllByTestId('tooltip').map((tooltip) => tooltip.textContent)).toEqual([
-      'Work',
-      'New space'
-    ])
+    const tooltips = screen.getAllByTestId('tooltip').map((tooltip) => tooltip.textContent)
+    // Why the F1 suffix: the first space shows its effective key chip after the name.
+    expect(tooltips).toEqual(['WorkF1', 'New space'])
   })
 
   it('switches spaces through the store setter', async () => {
@@ -340,9 +339,11 @@ describe('SidebarSpaceSwitcher', () => {
 
         const button = screen.getByRole('button', { name: `Work · ${stateLabel}` })
         expect(dotOf(button)).toHaveAttribute('data-attention', expectedKind)
-        expect(screen.getAllByTestId('tooltip').map((tooltip) => tooltip.textContent)).toContain(
-          `Work · ${stateLabel}`
-        )
+        expect(
+          screen
+            .getAllByTestId('tooltip')
+            .some((tooltip) => tooltip.textContent?.startsWith(`Work · ${stateLabel}`))
+        ).toBe(true)
         expect(dotOf(screen.getByRole('button', { name: 'Personal' }))).toBeNull()
       }
     )

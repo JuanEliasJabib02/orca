@@ -4,7 +4,9 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ShortcutKeyCombo } from '@/components/ShortcutKeyCombo'
 import { translate } from '@/i18n/i18n'
+import { formatShortcutKeyComboDetails } from '@/hooks/useShortcutLabel'
 import { useAppStore } from '@/store'
+import { getSidebarSpaceKeybindingActionId } from '../../../../shared/keybindings'
 import { ProjectGroupNameDialog } from './ProjectGroupNameDialog'
 import type { SidebarSpaceAttention } from './sidebar-space-attention'
 import { getProjectGroupHostId } from '@/store/slices/project-group-owner-routing'
@@ -99,12 +101,22 @@ function SpaceSwitcherButton({
   )
 }
 
+// Why the effective binding: the F-key chip must follow a remap in Settings, or it would lie.
+function getSpaceShortcutKeys(
+  index: number,
+  keybindings: Parameters<typeof formatShortcutKeyComboDetails>[1]
+): string[] | undefined {
+  const actionId = getSidebarSpaceKeybindingActionId(index)
+  return actionId ? formatShortcutKeyComboDetails(actionId, keybindings)[0]?.keys : undefined
+}
+
 export function SidebarSpaceSwitcher(): React.JSX.Element {
   const projectGroups = useAppStore((state) => state.projectGroups)
   const activeGroupId = useAppStore((state) => state.activeSidebarSpaceGroupId)
   const setActiveGroupId = useAppStore((state) => state.setActiveSidebarSpaceGroupId)
   const createProjectGroup = useAppStore((state) => state.createProjectGroup)
   const moveProjectToGroup = useAppStore((state) => state.moveProjectToGroup)
+  const keybindings = useAppStore((state) => state.keybindings)
   const attentionBySpaceId = useSidebarSpaceAttention()
   const [newSpaceDialogOpen, setNewSpaceDialogOpen] = useState(false)
 
@@ -136,10 +148,11 @@ export function SidebarSpaceSwitcher(): React.JSX.Element {
 
   return (
     <div className="flex min-w-0 flex-1 items-center justify-center-safe gap-1 overflow-x-clip px-1">
-      {spaces.map((space) => (
+      {spaces.map((space, index) => (
         <SpaceSwitcherButton
           key={space.id}
           label={space.name}
+          shortcutKeys={getSpaceShortcutKeys(index, keybindings)}
           pressed={activeSpaceId === space.id}
           attention={activeSpaceId === space.id ? null : (attentionBySpaceId.get(space.id) ?? null)}
           onClick={() => setActiveGroupId(space.id)}
