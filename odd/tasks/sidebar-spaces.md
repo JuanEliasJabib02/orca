@@ -62,7 +62,7 @@ Arc's spaces.
     `shadcn/no-restyle` rejects them on `<Button>`. `+` leaves you on All so the new
     empty group is visible. A failed create is silent, like the other
     `createProjectGroup` callers. Commit `b903442442`.
-- [x] **3. F1/F2/F3 keybindings**
+- [x] **3. F1/F2/F3 keybindings** (`f37685b75d`)
   - Three global keybinding definitions with `allowBareKeybindings`, wired to set
     the active space. The tooltips show the effective binding label.
   - Check: keybinding tests and `pnpm tc`.
@@ -76,7 +76,7 @@ Arc's spaces.
   - Tooltip chip still pending. It will be wired once task 4 lands.
   - Unrelated failures: `browser-manager-tab-identity.test.ts` fails, but it imports
     none of this; to check at the end. Two spotlight tests fail at HEAD.
-- [ ] **4. Attention badge per space**
+- [ ] **4. Attention badge per space** (code done, `cf89e844dc`)
   - A pure rollup from live agent status (`permission`) and unread
     (`isUnread` + `unreadTerminalTabs`) to group ids, rendered as a dot on
     inactive spaces.
@@ -86,7 +86,7 @@ Arc's spaces.
     outside the dimmed wrapper. Permission uses `bg-agent-question` and unread uses
     `bg-foreground`. **Verification pending:** Juan asked for no test/tc runs until the
     whole feature is done.
-- [ ] **5. Every project lives in a space (drop All)**
+- [ ] **5. Every project lives in a space (drop All)** (code done, `fce741f9dd`)
   - Change the scope rules to match the "No All space" decision above, and remove the
     All button. Creating the first space adopts the ungrouped projects, and `+`
     activates the new space.
@@ -103,10 +103,16 @@ Arc's spaces.
   - **Verification pending.**
   - Known edge: a saved space on a remote host whose groups load after the local ones
     can be replaced by the first local space.
-- [ ] **6. Reveal follows the space**
+- [ ] **6. Reveal follows the space** (code done)
   - When ⌖ is clicked or `revealWorkspaceFilters` runs for a workspace outside the
     active space, switch to that workspace's space.
   - Check: unit tests and `pnpm tc`.
+  - Code is complete. `findSidebarSpaceToReveal` is a pure function in
+    `sidebar-space-scope.ts`. `use-reveal-requests.ts` switches the space before the
+    filter logic, in both the pending-row path (Cmd+J, notifications) and the ⌖ path.
+  - There is no confirmation for a space switch. When a switch happens, the filter
+    dialog is skipped, because `visibleWorktrees` still reflects the old space.
+  - **Verification pending.**
 - [ ] **7. New projects join the active space**
   - A project added while a space is active goes into that group.
   - Check: unit test and `pnpm tc`.

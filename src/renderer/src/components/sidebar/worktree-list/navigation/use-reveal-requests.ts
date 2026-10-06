@@ -14,6 +14,7 @@ import { getWorktreeHostIdentity } from '../../../../../../shared/worktree/host-
 import { folderWorkspaceKey } from '../../../../../../shared/workspace-scope'
 import type { WorktreeGroupBy } from '../grouping/row-types'
 import { getKnownSidebarWorktreeById } from './folder-reveal'
+import { findSidebarSpaceToReveal } from '../../sidebar-space-scope'
 
 function workspacePassesFilters(
   worktree: Worktree,
@@ -56,6 +57,10 @@ export function useSidebarRevealRequests(args: {
     revealWorkspaceFilters
   } = args
   const setGroupBy = useAppStore((s) => s.setGroupBy)
+  const activeSidebarSpaceGroupId = useAppStore((s) => s.activeSidebarSpaceGroupId)
+  const projectGroups = useAppStore((s) => s.projectGroups)
+  const repos = useAppStore((s) => s.repos)
+  const setActiveSidebarSpaceGroupId = useAppStore((s) => s.setActiveSidebarSpaceGroupId)
   const pendingRevealSidebarRow = useAppStore((s) => s.pendingRevealSidebarRow)
   const revealSidebarRow = useAppStore((s) => s.revealSidebarRow)
   const revealWorktreeInSidebar = useAppStore((s) => s.revealWorktreeInSidebar)
@@ -65,6 +70,30 @@ export function useSidebarRevealRequests(args: {
   useLayoutEffect(() => {
     latestArgs.current = args
   })
+
+  // Why no confirmation, unlike filters: a space is a context, so switching to it hides nothing for good.
+  const switchSpaceToReveal = useCallback(
+    (worktree: Worktree): boolean => {
+      const spaceId = findSidebarSpaceToReveal(worktree, {
+        activeGroupId: activeSidebarSpaceGroupId,
+        projectGroups,
+        repos,
+        folderWorkspaces
+      })
+      if (!spaceId) {
+        return false
+      }
+      setActiveSidebarSpaceGroupId(spaceId)
+      return true
+    },
+    [
+      activeSidebarSpaceGroupId,
+      folderWorkspaces,
+      projectGroups,
+      repos,
+      setActiveSidebarSpaceGroupId
+    ]
+  )
 
   useEffect(() => {
     if (!pendingRevealSidebarRow) {
@@ -79,7 +108,7 @@ export function useSidebarRevealRequests(args: {
       setGroupBy('repo')
       return
     }
-    if (!renderedSidebarRowKeys.has(rowKey) && hasFilters) {
+    if (!renderedSidebarRowKeys.has(rowKey)) {
       const target = getKnownSidebarWorktreeById(
         rowKey,
         worktreeMap,
@@ -87,13 +116,14 @@ export function useSidebarRevealRequests(args: {
         worktrees,
         currentSidebarExecutionHostId
       )
-      if (target) {
+      if (target && !switchSpaceToReveal(target) && hasFilters) {
         revealWorkspaceFilters(target)
       }
     }
   }, [
     groupBy,
     hasFilters,
+    switchSpaceToReveal,
     currentSidebarExecutionHostId,
     folderWorkspaces,
     pendingRevealSidebarRow,
@@ -134,8 +164,11 @@ export function useSidebarRevealRequests(args: {
       if (!activeWorktree || activeWorktree.isArchived) {
         return
       }
+      // Why skip the filter check after a switch: visibleWorktrees still reflects the old space.
+      const switchedSpace = switchSpaceToReveal(activeWorktree)
       // Collapsed groups hide rows without excluding their workspaces from the filter results.
       if (
+        !switchedSpace &&
         hasFilters &&
         !workspacePassesFilters(activeWorktree, visibleWorktrees, visibleFolderWorkspaces)
       ) {
@@ -194,6 +227,7 @@ export function useSidebarRevealRequests(args: {
       currentSidebarExecutionHostId,
       folderWorkspaces,
       revealSidebarRow,
+      switchSpaceToReveal,
       visibleWorktrees,
       visibleFolderWorkspaces,
       revealWorktreeInSidebar,

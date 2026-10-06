@@ -158,3 +158,50 @@ export function listSpacelessRepoIdsOnHost(
     )
     .map((repo) => repo.id)
 }
+
+function findTopLevelGroupId(
+  groupId: string,
+  projectGroups: readonly Pick<ProjectGroup, 'id' | 'parentGroupId'>[]
+): string | null {
+  const groupById = new Map(projectGroups.map((group) => [group.id, group]))
+  const visited = new Set<string>()
+  let current = groupById.get(groupId)
+  while (current && !visited.has(current.id)) {
+    if (current.parentGroupId === null) {
+      return current.id
+    }
+    visited.add(current.id)
+    current = groupById.get(current.parentGroupId)
+  }
+  return null
+}
+
+/**
+ * The space to switch to so `worktree` can render, or null when the active space already shows it,
+ * no space is active, or it belongs to no space.
+ */
+export function findSidebarSpaceToReveal(
+  worktree: Pick<Worktree, 'id' | 'repoId'>,
+  sources: {
+    activeGroupId: string | null | undefined
+    projectGroups: readonly ProjectGroup[]
+    repos: readonly Repo[]
+    folderWorkspaces: readonly FolderWorkspace[]
+  }
+): string | null {
+  // Why the early return: also covers partial store mocks that never set the space fields.
+  if (!sources.activeGroupId) {
+    return null
+  }
+  const scope = resolveSidebarSpaceScope({ ...sources, activeGroupId: sources.activeGroupId })
+  if (!scope || isWorktreeInSidebarSpace(worktree, scope)) {
+    return null
+  }
+  const workspaceScope = parseWorkspaceKey(worktree.id)
+  const groupId =
+    workspaceScope?.type === 'folder'
+      ? sources.folderWorkspaces.find((fw) => fw.id === workspaceScope.folderWorkspaceId)
+          ?.projectGroupId
+      : sources.repos.find((repo) => repo.id === worktree.repoId)?.projectGroupId
+  return groupId ? findTopLevelGroupId(groupId, sources.projectGroups) : null
+}

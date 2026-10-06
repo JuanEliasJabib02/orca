@@ -6,6 +6,7 @@ import type { Repo } from '../../../../shared/repo-types'
 import {
   filterFolderWorkspacesToSidebarSpace,
   filterProjectGroupsToSidebarSpace,
+  findSidebarSpaceToReveal,
   isWorktreeInSidebarSpace,
   isSpacelessRepo,
   listSidebarSpaces,
@@ -263,5 +264,33 @@ describe('listSpacelessRepoIdsOnHost', () => {
       'loose',
       'orphan'
     ])
+  })
+})
+
+describe('findSidebarSpaceToReveal', () => {
+  function find(worktree: { id: string; repoId: string }, activeGroupId: string | null) {
+    return findSidebarSpaceToReveal(worktree, {
+      activeGroupId,
+      projectGroups: groups,
+      repos,
+      folderWorkspaces
+    })
+  }
+
+  it('names the top-level space of a workspace the active space hides', () => {
+    expect(find({ id: 'wt-1', repoId: 'repo-personal' }, 'work')).toBe('personal')
+    expect(find({ id: 'wt-2', repoId: 'repo-legacy' }, 'personal')).toBe('work')
+    expect(
+      find({ id: 'folder:folder-work', repoId: 'folder-workspace:work-client' }, 'personal')
+    ).toBe('work')
+  })
+
+  it('returns null when the active space already shows the workspace', () => {
+    expect(find({ id: 'wt-1', repoId: 'repo-client' }, 'work')).toBeNull()
+    expect(find({ id: 'wt-3', repoId: 'repo-ungrouped' }, 'personal')).toBeNull()
+  })
+
+  it('returns null when no space is active', () => {
+    expect(find({ id: 'wt-1', repoId: 'repo-personal' }, null)).toBeNull()
   })
 })

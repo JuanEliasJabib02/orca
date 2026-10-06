@@ -10,16 +10,27 @@ import {
 import { folderWorkspaceKey } from '../../../../../../shared/workspace-scope'
 import { useSidebarRevealRequests } from './use-reveal-requests'
 import type { Worktree } from '../../../../../../shared/worktree/types'
+import type { ProjectGroup } from '../../../../../../shared/project-group-types'
+import type { Repo } from '../../../../../../shared/repo-types'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
-const state = vi.hoisted(() => ({
-  setGroupBy: vi.fn(),
-  pendingRevealSidebarRow: null,
-  revealSidebarRow: vi.fn(),
-  revealWorktreeInSidebar: vi.fn(),
-  setContextualToursBlockingSurfaceVisible: vi.fn()
-}))
+const state = vi.hoisted(() => {
+  const space: {
+    activeSidebarSpaceGroupId: string | null
+    projectGroups: ProjectGroup[]
+    repos: Repo[]
+  } = { activeSidebarSpaceGroupId: null, projectGroups: [], repos: [] }
+  return {
+    setGroupBy: vi.fn(),
+    pendingRevealSidebarRow: null,
+    revealSidebarRow: vi.fn(),
+    revealWorktreeInSidebar: vi.fn(),
+    setContextualToursBlockingSurfaceVisible: vi.fn(),
+    setActiveSidebarSpaceGroupId: vi.fn(),
+    ...space
+  }
+})
 vi.mock('@/store', () => ({
   useAppStore: (selector: (value: typeof state) => unknown) => selector(state)
 }))
@@ -54,6 +65,9 @@ async function click(label: string): Promise<void> {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  state.activeSidebarSpaceGroupId = null
+  state.projectGroups = []
+  state.repos = []
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -237,4 +251,60 @@ describe('revealing a filtered workspace', () => {
       })
     }
   )
+})
+
+function makeSpace(id: string): ProjectGroup {
+  return {
+    id,
+    name: id,
+    parentPath: null,
+    parentGroupId: null,
+    createdFrom: 'manual',
+    tabOrder: 0,
+    isCollapsed: false,
+    color: null,
+    createdAt: 0,
+    updatedAt: 0
+  }
+}
+
+describe('revealing a workspace that lives in another space', () => {
+  beforeEach(() => {
+    state.activeSidebarSpaceGroupId = 'work'
+    state.projectGroups = [makeSpace('work'), makeSpace('personal')]
+    state.repos = [
+      {
+        id: 'repo-1',
+        path: '/repo',
+        displayName: 'repo',
+        badgeColor: '#000000',
+        addedAt: 0,
+        projectGroupId: 'personal'
+      }
+    ]
+  })
+
+  it('switches to its space and reveals it without asking about filters', async () => {
+    await render()
+    await act(async () => requestScrollToCurrentWorkspaceReveal())
+
+    expect(state.setActiveSidebarSpaceGroupId).toHaveBeenCalledWith('personal')
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(args.revealWorkspaceFilters).not.toHaveBeenCalled()
+    expect(state.revealWorktreeInSidebar).toHaveBeenCalledWith(
+      'wt-1',
+      expect.objectContaining({ highlight: true })
+    )
+  })
+
+  it('stays in the current space when that space already holds the workspace', async () => {
+    state.activeSidebarSpaceGroupId = 'personal'
+    await render()
+    await act(async () => requestScrollToCurrentWorkspaceReveal())
+
+    expect(state.setActiveSidebarSpaceGroupId).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain(
+      'Revealing it will adjust only the filters hiding it.'
+    )
+  })
 })
