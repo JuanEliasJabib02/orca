@@ -16,6 +16,7 @@ import {
   getSettingsFocusedExecutionHostId
 } from '../../../../../../shared/execution-host'
 import { isDefaultBranchWorkspace } from '../../default-branch-workspace'
+import { resolveSidebarSpaceScope } from '../../sidebar-space-scope'
 import { getFolderWorkspaceExecutionHostIdForRows } from './host-filtering'
 import {
   getPairedDeviceIdsByEnvironment,
@@ -35,6 +36,10 @@ export type SidebarWorktreeFilters = ReturnType<typeof useSidebarWorktreeFilters
 export function useSidebarWorktreeFilters() {
   const showSleepingWorkspaces = useAppStore((s) => s.showSleepingWorkspaces)
   const filterRepoIds = useAppStore((s) => s.filterRepoIds)
+  const activeSidebarSpaceGroupId = useAppStore((s) => s.activeSidebarSpaceGroupId)
+  const projectGroups = useAppStore((s) => s.projectGroups)
+  const repos = useAppStore((s) => s.repos)
+  const folderWorkspaces = useAppStore((s) => s.folderWorkspaces)
   const hideDefaultBranchWorkspace = useAppStore((s) => s.hideDefaultBranchWorkspace)
   const hideAutomationGeneratedWorkspaces = useAppStore((s) => s.hideAutomationGeneratedWorkspaces)
   const hideCliCreatedWorkspaces = useAppStore((s) => s.hideCliCreatedWorkspaces)
@@ -143,11 +148,24 @@ export function useSidebarWorktreeFilters() {
     }
   }, [])
 
+  const spaceScope = useMemo(
+    () =>
+      resolveSidebarSpaceScope({
+        activeGroupId: activeSidebarSpaceGroupId,
+        projectGroups,
+        repos,
+        folderWorkspaces
+      }),
+    [activeSidebarSpaceGroupId, projectGroups, repos, folderWorkspaces]
+  )
+
   // Why: count hideDefaultBranchWorkspace as a filter so the Clear Filters escape hatch stays reachable when it alone empties the list.
+  // spaceScope rides along for the row pipeline but is deliberately absent from sidebarHasActiveFilters and Clear Filters: a space is a context, not a filter.
   const filterState = useMemo(
     () => ({
       showSleepingWorkspaces,
       filterRepoIds,
+      spaceScope,
       hideDefaultBranchWorkspace,
       hideAutomationGeneratedWorkspaces,
       hideCliCreatedWorkspaces,
@@ -160,6 +178,7 @@ export function useSidebarWorktreeFilters() {
     [
       showSleepingWorkspaces,
       filterRepoIds,
+      spaceScope,
       hideDefaultBranchWorkspace,
       hideAutomationGeneratedWorkspaces,
       hideCliCreatedWorkspaces,

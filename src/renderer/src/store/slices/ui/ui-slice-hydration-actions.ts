@@ -229,6 +229,9 @@ export function createUiHydrationActions(set: UISliceSet, _get: UISliceGet): Par
                   validRepoHostIdentities
                 ),
           setupGuideSidebarDismissed: ui.setupGuideSidebarDismissed === true,
+          // Why: a hand-edited non-string degrades to All; a deleted group id is handled at scope resolution.
+          activeSidebarSpaceGroupId:
+            typeof ui.activeSidebarSpaceGroupId === 'string' ? ui.activeSidebarSpaceGroupId : null,
           setupGuideBrowserMilestoneMigrated: ui.setupGuideBrowserMilestoneMigrated === true,
           setupGuideBrowserMilestoneLegacyComplete:
             ui.setupGuideBrowserMilestoneLegacyComplete === true,

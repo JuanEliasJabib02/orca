@@ -172,6 +172,15 @@ export function createUiSurfaceActions(set: UISliceSet, _get: UISliceGet): Parti
       }),
     clearPendingRevealWorktreeId: () => set({ pendingRevealWorktree: null }),
     clearPendingRevealSidebarRow: () => set({ pendingRevealSidebarRow: null }),
+    activeSidebarSpaceGroupId: null,
+    setActiveSidebarSpaceGroupId: (groupId) =>
+      set((s) => {
+        if (s.activeSidebarSpaceGroupId === groupId) {
+          return s
+        }
+        window.api.ui.set({ activeSidebarSpaceGroupId: groupId }).catch(console.error)
+        return { activeSidebarSpaceGroupId: groupId }
+      }),
     scrollToDiffCommentId: null,
     setScrollToDiffCommentId: (id) => set({ scrollToDiffCommentId: id })
   }

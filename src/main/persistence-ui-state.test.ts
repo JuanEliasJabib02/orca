@@ -92,6 +92,20 @@ describe('Store', () => {
     expect(ui.dismissedUpdateVersion).toBeNull()
   })
 
+  it('round-trips the active sidebar space and treats absent as All', async () => {
+    const store = await createStore()
+    expect(store.getUI().activeSidebarSpaceGroupId ?? null).toBeNull()
+
+    store.updateUI({ activeSidebarSpaceGroupId: 'group-1' })
+    store.flush()
+    const reloaded = await createStore()
+    expect(reloaded.getUI().activeSidebarSpaceGroupId).toBe('group-1')
+
+    reloaded.updateUI({ activeSidebarSpaceGroupId: null })
+    reloaded.flush()
+    expect((await createStore()).getUI().activeSidebarSpaceGroupId ?? null).toBeNull()
+  })
+
   it('round-trips and normalizes the host-qualified manual repo order', async () => {
     const store = await createStore()
     store.updateUI({

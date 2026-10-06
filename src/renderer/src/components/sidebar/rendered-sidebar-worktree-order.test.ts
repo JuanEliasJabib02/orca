@@ -191,6 +191,33 @@ describe('closed-sidebar Cmd+1-9 ordering (#9497)', () => {
     expect(getVisibleWorktreeIds()).toContain(folderWorkspaceKey(folderWorkspace.id))
   })
 
+  it('numbers only the active space, folder workspaces included', () => {
+    const work = makeProjectGroup('group-work', { tabOrder: 0 })
+    const personal = makeProjectGroup('group-personal', { tabOrder: 1 })
+    const workRepo = makeRepo('repo1', { projectGroupId: work.id })
+    const personalRepo = makeRepo('repo-personal', { projectGroupId: personal.id })
+    const storeOverrides: Partial<AppState> = {
+      projectGroups: [work, personal],
+      repos: [workRepo, personalRepo],
+      worktreesByRepo: {
+        repo1: [makeMainWorktree('wt-work')],
+        'repo-personal': [makeMainWorktree('wt-personal', { repoId: 'repo-personal' })]
+      },
+      folderWorkspaces: [
+        makeFolderWorkspace('fw-work', work.id),
+        makeFolderWorkspace('fw-personal', personal.id)
+      ]
+    }
+
+    seedStore([], storeOverrides)
+    expect(getVisibleWorktreeIds()).toEqual(
+      expect.arrayContaining(['wt-work', 'wt-personal', 'folder:fw-work', 'folder:fw-personal'])
+    )
+
+    seedStore([], { ...storeOverrides, activeSidebarSpaceGroupId: personal.id })
+    expect([...getVisibleWorktreeIds()].sort()).toEqual(['folder:fw-personal', 'wt-personal'])
+  })
+
   it('numbers a workspace created while nothing was published', () => {
     // A retained-cache fix cannot surface this: it can only prune ids it already had.
     seedStore([makeMainWorktree('wt-main')])

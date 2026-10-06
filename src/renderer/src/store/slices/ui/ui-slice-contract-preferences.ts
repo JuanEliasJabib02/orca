@@ -143,6 +143,9 @@ export type UISliceSurfaces = {
   revealSidebarRow: UISliceCore['revealSidebarRow']
   clearPendingRevealWorktreeId: () => void
   clearPendingRevealSidebarRow: () => void
+  /** Top-level project group the sidebar is scoped to; null = All. */
+  activeSidebarSpaceGroupId: string | null
+  setActiveSidebarSpaceGroupId: (groupId: string | null) => void
   // Why: cleared by the diff decorator after it reveals the line, so the same id can be requested again without a stale value.
   scrollToDiffCommentId: string | null
   setScrollToDiffCommentId: (id: string | null) => void

@@ -12,6 +12,7 @@ import {
   getPairedDeviceIdsByEnvironment
 } from './workspace-creator-visibility'
 import { getStructuredChatWorktreeIds } from './visible-worktree-activity-inputs'
+import { resolveSidebarSpaceScope } from './sidebar-space-scope'
 import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
 
 type UseVisibleWorkspaceKanbanWorktreeIdsParams = {
@@ -47,6 +48,20 @@ export function useVisibleWorkspaceKanbanWorktreeIds({
   const visibleWorkspaceHostIds = useAppStore((s) => s.visibleWorkspaceHostIds)
   const settings = useAppStore((s) => s.settings)
   const filterRepoIds = useAppStore((s) => s.filterRepoIds)
+  const activeSidebarSpaceGroupId = useAppStore((s) => s.activeSidebarSpaceGroupId)
+  const projectGroups = useAppStore((s) => s.projectGroups)
+  const repos = useAppStore((s) => s.repos)
+  const folderWorkspaces = useAppStore((s) => s.folderWorkspaces)
+  const spaceScope = useMemo(
+    () =>
+      resolveSidebarSpaceScope({
+        activeGroupId: activeSidebarSpaceGroupId,
+        projectGroups,
+        repos,
+        folderWorkspaces
+      }),
+    [activeSidebarSpaceGroupId, projectGroups, repos, folderWorkspaces]
+  )
   const tabsByWorktree = useAppStore((s) => (!showSleepingWorkspaces ? s.tabsByWorktree : null))
   const ptyIdsByTabId = useAppStore((s) => (!showSleepingWorkspaces ? s.ptyIdsByTabId : null))
   const browserTabsByWorktree = useAppStore((s) =>
@@ -81,6 +96,7 @@ export function useVisibleWorkspaceKanbanWorktreeIds({
     return new Set(
       computeVisibleWorktrees(worktreesByRepo, sortedIds, {
         filterRepoIds,
+        spaceScope,
         showSleepingWorkspaces,
         tabsByWorktree,
         ptyIdsByTabId,
@@ -110,6 +126,7 @@ export function useVisibleWorkspaceKanbanWorktreeIds({
     allWorktrees,
     browserTabsByWorktree,
     filterRepoIds,
+    spaceScope,
     hideDefaultBranchWorkspace,
     hideAutomationGeneratedWorkspaces,
     hideCliCreatedWorkspaces,

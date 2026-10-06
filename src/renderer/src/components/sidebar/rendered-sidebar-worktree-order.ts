@@ -14,6 +14,11 @@ import { orderHostSectionOptions } from './host-section-order'
 import { buildSidebarHostOptions } from './sidebar-host-options'
 import { getLogicalRepoOrderRankById } from './project-header-drop'
 import { getRenderedWorktreesInSidebarOrder } from './worktree-sidebar-row-preference'
+import {
+  filterFolderWorkspacesToSidebarSpace,
+  filterProjectGroupsToSidebarSpace,
+  resolveSidebarSpaceScopeFromState
+} from './sidebar-space-scope'
 import { selectWorktreeListReviewCacheInputs } from './worktree-list/listing/review-cache-inputs'
 import {
   filterFolderWorkspacesForVisibleHosts,
@@ -47,6 +52,8 @@ export function computeRenderedSidebarWorktrees(
     state.workspaceHostScope
   )
   const projectGroups = state.projectGroups ?? []
+  // Why: folder workspaces enter the order here, not via visibleWorktrees, so the space must narrow them too.
+  const spaceScope = resolveSidebarSpaceScopeFromState(state)
   const { prCache } = selectWorktreeListReviewCacheInputs(
     state,
     state.groupBy,
@@ -66,18 +73,24 @@ export function computeRenderedSidebarWorktrees(
     getWorktreeMapFromState(state),
     true,
     state.settings,
-    filterProjectGroupsForVisibleHosts(projectGroups, visibleHostIdSet, defaultHostId),
+    filterProjectGroupsToSidebarSpace(
+      filterProjectGroupsForVisibleHosts(projectGroups, visibleHostIdSet, defaultHostId),
+      spaceScope
+    ),
     // Why empty: placeholder/imported/inbox/pending inputs never emit item or folder-workspace rows, the only two the order reads.
     EMPTY_REPO_ID_SET,
     EMPTY_IMPORTED_BY_REPO,
     EMPTY_INBOX_BY_REPO,
     EMPTY_PENDING_CREATIONS,
     { projects: projection.projects, projectHostSetups: projection.setups },
-    filterFolderWorkspacesForVisibleHosts(
-      state.folderWorkspaces,
-      projectGroups,
-      visibleHostIdSet,
-      defaultHostId
+    filterFolderWorkspacesToSidebarSpace(
+      filterFolderWorkspacesForVisibleHosts(
+        state.folderWorkspaces,
+        projectGroups,
+        visibleHostIdSet,
+        defaultHostId
+      ),
+      spaceScope
     ),
     // Why no hostLabelById: it only feeds display-only host context labels, never row order.
     undefined,

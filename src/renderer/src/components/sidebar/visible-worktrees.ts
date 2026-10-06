@@ -51,6 +51,7 @@ import { isWorkspaceFromOtherDevice } from './workspace-creator-visibility'
 import { isDefaultBranchWorkspace } from './default-branch-workspace'
 import { getLineageAncestorIndex, getSortedWorktreeRankIndex } from './visible-worktree-indexes'
 import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
+import { isWorktreeInSidebarSpace, type SidebarSpaceScope } from './sidebar-space-scope'
 
 /**
  * Whether the "Hide sleeping" sweep must keep this row (#8873).
@@ -66,6 +67,8 @@ import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualif
  */
 export type VisibleWorktreeOptions = {
   filterRepoIds: readonly string[]
+  /** Active sidebar space; null or absent = All. Not a filter, so Clear Filters never touches it. */
+  spaceScope?: SidebarSpaceScope | null
   showSleepingWorkspaces: boolean
   tabsByWorktree: Record<string, Pick<TerminalTab, 'id'>[]> | null
   ptyIdsByTabId: Record<string, string[]> | null
@@ -143,6 +146,11 @@ export function computeVisibleWorktrees(
   if (opts.filterRepoIds.length > 0) {
     const selectedRepoIds = new Set(opts.filterRepoIds)
     all = all.filter((w) => selectedRepoIds.has(w.repoId))
+  }
+
+  const { spaceScope } = opts
+  if (spaceScope) {
+    all = all.filter((w) => isWorktreeInSidebarSpace(w, spaceScope))
   }
 
   if (!opts.showSleepingWorkspaces) {

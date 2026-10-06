@@ -8,6 +8,7 @@ import {
   getPairedDeviceIdsByEnvironment
 } from './workspace-creator-visibility'
 import type { VisibleWorktreeOptions } from './visible-worktrees'
+import { resolveSidebarSpaceScopeFromState } from './sidebar-space-scope'
 
 /**
  * Read the store into the filter inputs `computeVisibleWorktrees` decides from.
@@ -22,6 +23,7 @@ export function buildVisibleWorktreeOptionsFromState(
 ): VisibleWorktreeOptions {
   return {
     filterRepoIds: state.filterRepoIds,
+    spaceScope: resolveSidebarSpaceScopeFromState(state),
     showSleepingWorkspaces: state.showSleepingWorkspaces,
     tabsByWorktree: state.tabsByWorktree,
     ptyIdsByTabId: state.ptyIdsByTabId,

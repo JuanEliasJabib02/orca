@@ -7,6 +7,7 @@ import { LOCAL_EXECUTION_HOST_ID } from '../../../../../../shared/execution-host
 import { getWorktreeHostIdentity } from '../../../../../../shared/worktree/host-qualified-identity'
 import { makeRepo, makeWorktree } from '../../../worktree-jump-palette-test-fixtures'
 import { useVisibleSidebarWorktrees } from './use-visible-worktrees'
+import type { SidebarWorktreeFilters } from './use-filters'
 import type * as visibleWorktreesModule from '../../visible-worktrees'
 
 const computeVisibleWorktreesCalls = { count: 0 }
@@ -46,6 +47,7 @@ describe('useVisibleSidebarWorktrees', () => {
         filterState: {
           showSleepingWorkspaces: true,
           filterRepoIds: [],
+          spaceScope: null,
           hideDefaultBranchWorkspace: false,
           hideAutomationGeneratedWorkspaces: false,
           hideCliCreatedWorkspaces: false,
@@ -70,6 +72,55 @@ describe('useVisibleSidebarWorktrees', () => {
     ])
   })
 
+  it('narrows the visible set to the active sidebar space and refreshes when it changes', () => {
+    const inSpace = makeWorktree('in-space', 'In space')
+    const outOfSpace = makeWorktree('out-of-space', 'Out of space', { repoId: 'repo-2' })
+    const repo = makeRepo()
+    useAppStore.setState({
+      worktreesByRepo: { [repo.id]: [inSpace], 'repo-2': [outOfSpace] }
+    })
+    const filterState = (spaceRepoIds: string[] | null): SidebarWorktreeFilters['filterState'] => ({
+      showSleepingWorkspaces: true,
+      filterRepoIds: [],
+      spaceScope: spaceRepoIds && {
+        groupIds: new Set(['group-1']),
+        repoIds: new Set(spaceRepoIds),
+        folderWorkspaceIds: new Set()
+      },
+      hideDefaultBranchWorkspace: false,
+      hideAutomationGeneratedWorkspaces: false,
+      hideCliCreatedWorkspaces: false,
+      hideDetachedHeadWorkspaces: false,
+      hideWorkspacesFromOtherDevices: false,
+      alwaysShowDefaultBranchWorkspace: true,
+      visibleWorkspaceHostIds: null,
+      workspaceHostScope: 'all'
+    })
+    const argsFor = (
+      state: SidebarWorktreeFilters['filterState']
+    ): Parameters<typeof useVisibleSidebarWorktrees>[0] => ({
+      filterState: state,
+      sortBy: 'recent',
+      sortedIds: [inSpace.id, outOfSpace.id],
+      repoMap: new Map([[repo.id, repo]]),
+      worktreeLineageById: {},
+      defaultHostId: LOCAL_EXECUTION_HOST_ID,
+      agentSendTargetWorktreeId: null
+    })
+
+    const { result, rerender } = renderHook(
+      (state: SidebarWorktreeFilters['filterState']) => useVisibleSidebarWorktrees(argsFor(state)),
+      { initialProps: filterState([repo.id]) }
+    )
+    expect(result.current.visibleWorktrees.map((worktree) => worktree.id)).toEqual([inSpace.id])
+
+    rerender(filterState(null))
+    expect(result.current.visibleWorktrees.map((worktree) => worktree.id)).toEqual([
+      inSpace.id,
+      outOfSpace.id
+    ])
+  })
+
   it('does not expand one host-filtered collision into both rows', () => {
     const local = makeWorktree('shared', 'Local workspace', { hostId: 'local' })
     const ssh = makeWorktree('shared', 'SSH workspace', { hostId: 'ssh:box' })
@@ -81,6 +132,7 @@ describe('useVisibleSidebarWorktrees', () => {
         filterState: {
           showSleepingWorkspaces: true,
           filterRepoIds: [],
+          spaceScope: null,
           hideDefaultBranchWorkspace: false,
           hideAutomationGeneratedWorkspaces: false,
           hideCliCreatedWorkspaces: false,
@@ -108,10 +160,11 @@ describe('useVisibleSidebarWorktrees', () => {
     const worktree = makeWorktree('alpha', 'Alpha workspace', { hostId: 'local' })
     useAppStore.setState({ worktreesByRepo: { [repo.id]: [worktree] } })
 
-    const baseArgs = {
+    const baseArgs: Parameters<typeof useVisibleSidebarWorktrees>[0] = {
       filterState: {
         showSleepingWorkspaces: true,
         filterRepoIds: [],
+        spaceScope: null,
         hideDefaultBranchWorkspace: false,
         hideAutomationGeneratedWorkspaces: false,
         hideCliCreatedWorkspaces: false,
@@ -127,7 +180,7 @@ describe('useVisibleSidebarWorktrees', () => {
       worktreeLineageById: {},
       defaultHostId: LOCAL_EXECUTION_HOST_ID,
       agentSendTargetWorktreeId: null
-    } as Parameters<typeof useVisibleSidebarWorktrees>[0]
+    }
     // Why the extra `settings`: it is the pre-fix memo key. Passing it keeps
     // this test red against the old hook, which re-keyed the whole scan on the
     // settings object identity.
@@ -171,6 +224,7 @@ describe('useVisibleSidebarWorktrees', () => {
         filterState: {
           showSleepingWorkspaces: true,
           filterRepoIds: [],
+          spaceScope: null,
           hideDefaultBranchWorkspace: false,
           hideAutomationGeneratedWorkspaces: false,
           hideCliCreatedWorkspaces: false,

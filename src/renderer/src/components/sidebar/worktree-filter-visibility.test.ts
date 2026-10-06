@@ -76,4 +76,34 @@ describe('worktreePassesSidebarFilters', () => {
     expect(worktreePassesSidebarFilters(TWIN_ID, 'ssh:beta')).toBe(true)
     expect(worktreePassesSidebarFilters(TWIN_ID, 'local')).toBe(false)
   })
+
+  it('hides a workspace whose project lives outside the active sidebar space', () => {
+    const stateWithRepoIn = (repoGroupId: string): unknown =>
+      Object.assign({}, stateWithLocalScopedTwins(), {
+        workspaceHostScope: 'all',
+        visibleWorkspaceHostIds: null,
+        projectGroups: [
+          { id: 'work', parentGroupId: null },
+          { id: 'personal', parentGroupId: null }
+        ],
+        folderWorkspaces: [],
+        repos: [
+          {
+            id: 'repo-1',
+            path: '/projects/app',
+            displayName: 'app',
+            badgeColor: '',
+            addedAt: 1,
+            projectGroupId: repoGroupId
+          }
+        ],
+        activeSidebarSpaceGroupId: 'work'
+      })
+
+    mocks.getState.mockReturnValue(stateWithRepoIn('personal'))
+    expect(worktreePassesSidebarFilters(TWIN_ID)).toBe(false)
+
+    mocks.getState.mockReturnValue(stateWithRepoIn('work'))
+    expect(worktreePassesSidebarFilters(TWIN_ID)).toBe(true)
+  })
 })

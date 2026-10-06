@@ -77,6 +77,8 @@ export type PersistedUIState = {
   explorerDisplayRootByWorktree?: Record<string, string>
   showDotfilesByWorktree?: Record<string, boolean>
   filterRepoIds: string[]
+  /** Top-level project group the sidebar is narrowed to (a "space"); absent or null = All. */
+  activeSidebarSpaceGroupId?: string | null
   /** Agents-view host scope; deliberately separate from visibleWorkspaceHostIds so a monitoring surface never inherits nav filters silently. `null` = all hosts. */
   agentsVisibleHostIds?: VisibleWorkspaceHostIds
   /** Agents-view project filter; empty = all projects. Separate from filterRepoIds (workspace nav). */
