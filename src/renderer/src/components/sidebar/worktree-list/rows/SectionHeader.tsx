@@ -42,6 +42,8 @@ import {
 } from './header-event-guards'
 import type { WorktreeSidebarHeaderDrag } from '../drag/use-header-drag'
 import { getWorktreeOptionId } from './option-dom'
+import { TaskSectionHeader } from './TaskSectionHeader'
+import { TaskSpotlightButton } from './TaskSpotlightButton'
 
 export type SectionHeaderRowContext = {
   groupBy: WorktreeGroupBy
@@ -175,7 +177,11 @@ export function renderWorktreeSectionHeaderRow(args: {
   // Why: repo/project/status/pinned share compact section chrome; flat "All" stays a simple label.
   const showHeaderCollapseAffordance =
     row.count > 0 &&
-    (isRepoHeader || isProjectGroupHeader || headerWorkspaceStatus !== null || isPinnedHeader)
+    (isRepoHeader ||
+      isProjectGroupHeader ||
+      headerWorkspaceStatus !== null ||
+      isPinnedHeader ||
+      row.task !== undefined)
   return (
     <div
       key={vItem.key}
@@ -336,6 +342,12 @@ export function renderWorktreeSectionHeaderRow(args: {
               <RepoForkIndicator upstream={row.repo?.upstream} />
               <FolderPathStatusIndicator status={projectGroupPathStatus} />
               {isRepoHeader ? <RepoScanUnavailableIndicator repo={row.repo!} /> : null}
+              {row.task ? (
+                <TaskSectionHeader
+                  task={row.task}
+                  actions={row.task.taskKey ? <TaskSpotlightButton task={row.task} /> : undefined}
+                />
+              ) : null}
             </div>
           </div>
         </div>

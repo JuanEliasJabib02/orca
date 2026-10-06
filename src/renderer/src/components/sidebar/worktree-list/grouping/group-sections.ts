@@ -30,6 +30,7 @@ import type {
   WorktreeGroupBy
 } from './row-types'
 import { orderMainWorktreeFirst } from './section-order'
+import { buildTaskSectionHeader } from './task-sections'
 
 /** Everything section emission reads that stays fixed for one buildRows call. */
 export type SectionAppendContext = {
@@ -50,6 +51,8 @@ export type SectionAppendContext = {
   worktreeMap: Map<string, Worktree>
   nestLineage: boolean
   cyclicLineageIds: ReadonlySet<string>
+  /** Task mode only: every visible worktree per task lane, pinned ones included. */
+  taskWorktreesByLaneKey?: ReadonlyMap<string, readonly Worktree[]>
 }
 
 export function appendOrderedGroups(
@@ -91,61 +94,69 @@ export function appendOrderedGroups(
             repo,
             projectGroupDepth
           }
-        : groupBy === 'workspace-status'
-          ? (() => {
-              const workspaceStatus =
-                getWorkspaceStatusFromGroupKey(key, workspaceStatuses) ??
-                workspaceStatuses[0]?.id ??
-                'in-progress'
-              const definition = workspaceStatuses.find((status) => status.id === workspaceStatus)
-              const meta = getWorkspaceStatusVisualMeta(definition ?? workspaceStatus)
-              return {
-                type: 'header' as const,
-                key,
-                label: definition?.label ?? workspaceStatus,
-                count: group.items.length + folderPairs.length,
-                tone: meta.tone,
-                icon: meta.icon,
-                hostWorktreeCounts: getLaneHostWorktreeCounts(
-                  group.items,
-                  folderPairs,
-                  repoMap,
-                  defaultHostId
-                ),
-                hostWorktreeIds: getLaneHostWorktreeIds(
-                  group.items,
-                  folderPairs,
-                  repoMap,
-                  defaultHostId
-                ),
-                worktreeIds: group.items.map((worktree) => worktree.id)
-              }
-            })()
-          : (() => {
-              const prGroup = key.replace(/^pr:/, '') as PRGroupKey
-              const meta = PR_GROUP_META[prGroup]
-              return {
-                type: 'header' as const,
-                key,
-                label: meta.label,
-                count: group.items.length + folderPairs.length,
-                tone: meta.tone,
-                icon: meta.icon,
-                hostWorktreeCounts: getLaneHostWorktreeCounts(
-                  group.items,
-                  folderPairs,
-                  repoMap,
-                  defaultHostId
-                ),
-                hostWorktreeIds: getLaneHostWorktreeIds(
-                  group.items,
-                  folderPairs,
-                  repoMap,
-                  defaultHostId
-                ),
-                worktreeIds: group.items.map((worktree) => worktree.id)
-              }
-            })()
+        : groupBy === 'task'
+          ? buildTaskSectionHeader({
+              key,
+              group,
+              taskWorktrees: ctx.taskWorktreesByLaneKey?.get(key) ?? group.items,
+              repoMap,
+              defaultHostId
+            })
+          : groupBy === 'workspace-status'
+            ? (() => {
+                const workspaceStatus =
+                  getWorkspaceStatusFromGroupKey(key, workspaceStatuses) ??
+                  workspaceStatuses[0]?.id ??
+                  'in-progress'
+                const definition = workspaceStatuses.find((status) => status.id === workspaceStatus)
+                const meta = getWorkspaceStatusVisualMeta(definition ?? workspaceStatus)
+                return {
+                  type: 'header' as const,
+                  key,
+                  label: definition?.label ?? workspaceStatus,
+                  count: group.items.length + folderPairs.length,
+                  tone: meta.tone,
+                  icon: meta.icon,
+                  hostWorktreeCounts: getLaneHostWorktreeCounts(
+                    group.items,
+                    folderPairs,
+                    repoMap,
+                    defaultHostId
+                  ),
+                  hostWorktreeIds: getLaneHostWorktreeIds(
+                    group.items,
+                    folderPairs,
+                    repoMap,
+                    defaultHostId
+                  ),
+                  worktreeIds: group.items.map((worktree) => worktree.id)
+                }
+              })()
+            : (() => {
+                const prGroup = key.replace(/^pr:/, '') as PRGroupKey
+                const meta = PR_GROUP_META[prGroup]
+                return {
+                  type: 'header' as const,
+                  key,
+                  label: meta.label,
+                  count: group.items.length + folderPairs.length,
+                  tone: meta.tone,
+                  icon: meta.icon,
+                  hostWorktreeCounts: getLaneHostWorktreeCounts(
+                    group.items,
+                    folderPairs,
+                    repoMap,
+                    defaultHostId
+                  ),
+                  hostWorktreeIds: getLaneHostWorktreeIds(
+                    group.items,
+                    folderPairs,
+                    repoMap,
+                    defaultHostId
+                  ),
+                  worktreeIds: group.items.map((worktree) => worktree.id)
+                }
+              })()
 
     result.push(header)
     if (!isCollapsed) {

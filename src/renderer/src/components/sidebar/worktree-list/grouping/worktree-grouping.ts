@@ -27,6 +27,8 @@ import type {
   WorktreeGroupBy
 } from './row-types'
 import { getManualOrderAnchorRepo, sortProjectEntries } from './section-order'
+import { getTaskLaneLabel, sortTaskGroupEntries } from './task-sections'
+import { getWorktreeTaskLaneKey } from './worktree-task-key'
 
 /** Lane label for a lane a folder workspace opened before any worktree did. */
 function getLaneLabelForKey(
@@ -40,6 +42,9 @@ function getLaneLabelForKey(
   }
   if (groupBy === 'pr-status') {
     return PR_GROUP_META[key.replace(/^pr:/, '') as PRGroupKey].label
+  }
+  if (groupBy === 'task') {
+    return getTaskLaneLabel(key)
   }
   return key
 }
@@ -93,6 +98,9 @@ export function buildOrderedGroups(args: {
       key = getWorkspaceStatusGroupKey(workspaceStatus)
       label =
         workspaceStatuses.find((status) => status.id === workspaceStatus)?.label ?? workspaceStatus
+    } else if (groupBy === 'task') {
+      key = getWorktreeTaskLaneKey(w)
+      label = getTaskLaneLabel(key)
     } else {
       const prGroup = getPRGroupKey(w, repoMap, prCache, settings)
       key = getPRLaneKey(prGroup)
@@ -212,6 +220,10 @@ export function buildOrderedGroups(args: {
       if (group) {
         orderedGroups.push([key, group])
       }
+    }
+  } else if (groupBy === 'task') {
+    for (const entry of sortTaskGroupEntries(grouped)) {
+      orderedGroups.push(entry)
     }
   } else if (groupBy === 'workspace-status') {
     // Why: status grouping is opt-in while the board drawer remains the wider

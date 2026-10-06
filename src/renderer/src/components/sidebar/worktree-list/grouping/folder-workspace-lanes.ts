@@ -7,6 +7,7 @@ import {
 } from '../../../../../../shared/workspace-statuses'
 import { ALL_GROUP_KEY, getPRLaneKey } from './group-keys'
 import type { WorktreeGroupBy } from './row-types'
+import { getFolderWorkspaceTaskLaneKey } from './worktree-task-key'
 
 /** A folder workspace paired with the project group that owns it. The pair is
  *  carried through grouping because FolderWorkspaceRow needs a non-optional
@@ -60,6 +61,8 @@ export function getFolderWorkspaceLaneKey(
       // never resolve a PR. getPRGroupKey returns this same lane for any
       // worktree without one, so the two stay consistent.
       return getPRLaneKey('in-progress')
+    case 'task':
+      return getFolderWorkspaceTaskLaneKey(pair.folderWorkspace)
     case 'none':
       return ALL_GROUP_KEY
   }

@@ -44,6 +44,7 @@ import type {
 } from './row-types'
 import { getRenderedNaturalAnchorRepoIds, withRepoSectionDisplayLabels } from './section-order'
 import { buildOrderedGroups } from './worktree-grouping'
+import { groupWorktreesByTaskLane } from './task-sections'
 
 export function buildRows(
   groupBy: WorktreeGroupBy,
@@ -229,7 +230,9 @@ export function buildRows(
     lineageById,
     worktreeMap,
     nestLineage,
-    cyclicLineageIds
+    cyclicLineageIds,
+    // Why all worktrees: whole-task actions must reach members the Pinned section took.
+    taskWorktreesByLaneKey: groupBy === 'task' ? groupWorktreesByTaskLane(worktrees) : undefined
   }
 
   if (groupBy !== 'repo' || projectGroups.length === 0) {

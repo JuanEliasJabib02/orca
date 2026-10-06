@@ -180,6 +180,16 @@ describe('closed-sidebar Cmd+1-9 ordering (#9497)', () => {
     expect(getVisibleWorktreeIds()).toEqual([])
   })
 
+  it('numbers Group by → Task sections in their rendered order', () => {
+    const older = makeWorktree('wt-older', { branch: 'refs/heads/ax-1', lastActivityAt: 1 })
+    const newer = makeWorktree('wt-newer', { branch: 'refs/heads/feat/ax_2', lastActivityAt: 5 })
+    const untracked = makeWorktree('wt-untracked', { branch: 'refs/heads/main', lastActivityAt: 9 })
+    seedStore([untracked, older, newer], { groupBy: 'task' })
+
+    // Most recently active task first; the keyless workspace sits in the trailing No task section.
+    expect(getVisibleWorktreeIds()).toEqual(['wt-newer', 'wt-older', 'wt-untracked'])
+  })
+
   it('numbers folder workspaces, which the flat fallback omitted entirely', () => {
     const group = makeProjectGroup('group-1')
     const folderWorkspace = makeFolderWorkspace('fw-1', group.id)

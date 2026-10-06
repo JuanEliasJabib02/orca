@@ -4,6 +4,7 @@ import type {
 } from '../../../../shared/ui-chrome-types'
 import { TASK_WORKTREE_CARD_PROPERTIES } from '../../../../shared/constants'
 import { translate } from '@/i18n/i18n'
+import type { WorktreeGroupBy } from './worktree-list/grouping/row-types'
 
 export const GROUP_BY_OPTIONS = [
   {
@@ -29,8 +30,14 @@ export const GROUP_BY_OPTIONS = [
     get label() {
       return translate('auto.components.sidebar.SidebarWorkspaceOptionsMenu.2170d553cf', 'Project')
     }
+  },
+  {
+    id: 'task',
+    get label() {
+      return translate('auto.components.sidebar.SidebarWorkspaceOptionsMenu.groupByTask', 'Task')
+    }
   }
-] as const
+] as const satisfies readonly { id: WorktreeGroupBy; label: string }[]
 
 export const CARD_LAYOUT_OPTIONS = [
   {

@@ -51,4 +51,23 @@ describe('SidebarGroupByToggle', () => {
     expect(noneButton).not.toBeUndefined()
     expect(setGroupBy).toHaveBeenCalledWith('none')
   })
+
+  it('offers Task after the existing modes and commits it', async () => {
+    const setGroupBy = vi.fn()
+    const container = await renderGroupByToggle({ groupBy: 'repo', setGroupBy })
+    const buttons = [...container.querySelectorAll('button')]
+
+    expect(buttons.map((button) => button.textContent)).toEqual([
+      'None',
+      'Status',
+      'PR',
+      'Project',
+      'Task'
+    ])
+    await act(async () => {
+      buttons[4]?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    })
+
+    expect(setGroupBy).toHaveBeenCalledWith('task')
+  })
 })
