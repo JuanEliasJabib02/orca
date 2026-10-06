@@ -93,11 +93,12 @@ export type SpotlightSlice = {
   hydrateSpotlightState: () => Promise<void>
   applySpotlightChanged: (event: SpotlightChangedEvent) => void
   /** `force` overrides a `root-diverged` block on takeover, discarding the
-   *  root's outside changes to hand it to this workspace. */
+   *  root's outside changes to hand it to this workspace. `quiet` drops only the
+   *  success toast, for batch callers that report one summary themselves. */
   activateSpotlight: (
     repoId: string,
     worktreeId: string,
-    opts?: { force?: boolean }
+    opts?: { force?: boolean; quiet?: boolean }
   ) => Promise<SpotlightOpResult>
   /** `silent` suppresses repeat error toasts — used by the auto-sync watcher
    *  so a persistent failure doesn't toast on every file change. */
@@ -106,8 +107,12 @@ export type SpotlightSlice = {
    *  the holder workspace's snapshot. */
   forceSyncSpotlight: (repoId: string) => Promise<SpotlightOpResult>
   /** `force` discards tracked work made directly in the root after activation
-   *  (the `root-diverged` escape hatch, mirroring `forceSyncSpotlight`). */
-  deactivateSpotlight: (repoId: string, opts?: { force?: boolean }) => Promise<SpotlightOpResult>
+   *  (the `root-diverged` escape hatch, mirroring `forceSyncSpotlight`). `quiet`
+   *  drops only the plain success toast; failures and the detached warning stay. */
+  deactivateSpotlight: (
+    repoId: string,
+    opts?: { force?: boolean; quiet?: boolean }
+  ) => Promise<SpotlightOpResult>
 }
 
 export const createSpotlightSlice: StateCreator<AppState, [], [], SpotlightSlice> = (set, get) => {
@@ -168,6 +173,9 @@ export const createSpotlightSlice: StateCreator<AppState, [], [], SpotlightSlice
       // when a terminal actually exists to feed it.
       const { openSpotlightTerminalTab } = await import('@/lib/open-spotlight-terminal-tab')
       const opened = openSpotlightTerminalTab({ repoId, reveal: false })
+      if (opts?.quiet) {
+        return result
+      }
       if (opened.ok) {
         toast.success(
           translate(
@@ -264,9 +272,14 @@ export const createSpotlightSlice: StateCreator<AppState, [], [], SpotlightSlice
           }
         )
       } else if (result.ok) {
-        toast.success(
-          translate('auto.store.slices.spotlight.released', 'Spotlight off — project root restored')
-        )
+        if (!opts?.quiet) {
+          toast.success(
+            translate(
+              'auto.store.slices.spotlight.released',
+              'Spotlight off — project root restored'
+            )
+          )
+        }
       } else {
         reportSpotlightError(
           translate('auto.store.slices.spotlight.deactivateFailed', 'Failed to turn off Spotlight'),
