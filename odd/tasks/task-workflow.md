@@ -38,24 +38,24 @@ Builds on `odd/tasks/sidebar-spaces.md`, on the same branch.
 
 ## Tasks
 
-- [ ] **1. Composer project picker filtered by the active space** (coder 1)
+- [x] **1. Composer project picker filtered by the active space** (coder 1, `7bf8ecc7d0`)
   - Check: unit tests for the filter and the picker sections.
-- [ ] **2. Multi-repo worktree creation with `--add-dir`** (coder 1, after task 1)
+- [x] **2. Multi-repo worktree creation with `--add-dir`** (coder 1, `7bf8ecc7d0`; state `9de9c79ce5`)
   - Create the companions first and await their real paths. Then create the primary
     with the agent and `--add-dir=<path>` args, placed before the prompt; check the
     variadic risk.
   - Per-repo base branch, setup and hooks-trust decisions.
   - Check: unit tests for the orchestration and the args.
-- [ ] **3. Group by Task + Group by remembered per space** (coder 2)
+- [x] **3. Group by Task + Group by remembered per space** (coder 2, `80d6f7e5c7`; state `9de9c79ce5`; regex tightened: no-separator keys need 2+ digits)
   - Check: grouping unit tests, persistence, and the menu option.
-- [ ] **4. Spotlight the whole task from its header** (after task 3)
+- [x] **4. Spotlight the whole task from its header** (coder 5, `47a59bcf05`)
   - Check: unit tests for the batch activate and deactivate, and partial failure.
 - [x] **5. Active space name as the sidebar title** (coder 3)
   - Check: component test.
   - Done: `SidebarHeader.tsx`, 22 tests. The title shows the space name under any
     grouping, with the full name in `title`. With no spaces it keeps the old label.
     The Agents view label is unchanged.
-- [ ] **6. Muted project name on cards outside Project grouping** (coder 4)
+- [x] **6. Muted project name on cards outside Project grouping** (coder 4, `c704ac87ee`; own line under the title, `opacity-70`)
   - Check: component test.
 
 - [x] **7. Spotlight testing on by default for new projects** (main session, Juan asked
@@ -72,3 +72,18 @@ Builds on `odd/tasks/sidebar-spaces.md`, on the same branch.
 Coders run only their own test files and `oxlint` on their own files. No `pnpm tc`,
 no full suite, no gate: Juan's CPU. The main session runs `pnpm tc` once at the end,
 then commits each task.
+
+## Verification (2026-10-06)
+
+- Full `pnpm tc` is clean with everything combined.
+- One run over the touched areas passes: 99 test files / 894 tests (changed tests
+  plus the sidebar `worktree-list`, `new-workspace`, `composer-state`, switcher,
+  header and order tests).
+- `check:code-quality:changed`: back to the 60 earlier fork findings. The one new
+  finding, the existing `as UISlice` cast now inside a changed block, got a SAFETY
+  disable.
+
+Open, left for Juan:
+- `--add-dir` doesn't reach chat-view sessions, which ignore launch args.
+- Companions don't copy linked work items.
+- No per-repo progress text while companions are being created.
