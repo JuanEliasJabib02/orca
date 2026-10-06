@@ -1083,7 +1083,10 @@
         "5f3d2c8a1b": "Failed to resolve MR base.",
         "dropPartiallyAttached": "{{failureCount}} of {{count}} items could not be attached.",
         "dropPartiallyAttached_one": "{{failureCount}} of {{count}} item could not be attached.",
-        "dropPartiallyAttached_other": "{{failureCount}} of {{count}} items could not be attached."
+        "dropPartiallyAttached_other": "{{failureCount}} of {{count}} items could not be attached.",
+        "companionSetupSkipped": "Setup did not run in {{names}}: it needs a setup decision or script approval.",
+        "companionCreateFailed": "Some companion worktrees were not created",
+        "companionSetupSkippedTitle": "Companion worktrees created without setup"
       },
       "useGlobalFileDrop": {
         "38c9f034ff": "Failed to upload dropped files.",
@@ -5580,6 +5583,7 @@
           "backToAll": "All hosts"
         },
         "SidebarWorkspaceOptionsMenu": {
+          "groupByTask": "Task",
           "hosts": "Hosts",
           "showSection": "Show",
           "allHostsDetail": "Show every host",
@@ -6119,6 +6123,8 @@
           "list": {
             "groups": {
               "0ed04075b8": "All",
+              "noTask": "No task",
+              "taskWithTitle": "{{value0}} · {{value1}}",
               "4aeefc5996": "Pinned",
               "682ed5d551": "Closed",
               "7c2f009786": "In progress",
@@ -6501,6 +6507,16 @@
           "agentLogs": "Agents in every workspace can read the server logs: .orca/spotlight.log (env var ORCA_SPOTLIGHT_LOG).",
           "syncBroken": "Spotlight sync is failing:",
           "lastSynced": "Last synced {{when}}."
+        },
+        "TaskSpotlightButton": {
+          "updating": "Updating Spotlight…",
+          "active": "Spotlight on for this task. Click to turn it off in every project.",
+          "activate": "Spotlight this task: mirror its workspaces onto their project roots for testing.",
+          "skipped": "Skipped, Spotlight is off for: {{names}}",
+          "allOn": "Spotlight on for {{task}}",
+          "allOff": "Spotlight off for {{task}}",
+          "partialOn": "Spotlight on for {{succeeded}} of {{total}} projects",
+          "partialOff": "Spotlight off for {{succeeded}} of {{total}} projects"
         },
         "RepoScanUnavailableIndicator": {
           "title": "Worktree scan failed for {{value0}}",
@@ -14161,7 +14177,13 @@
             "label": "Project",
             "browse": "Browse projects",
             "listLabel": "Projects",
-            "noProjects": "No projects yet."
+            "noProjects": "No projects yet.",
+            "otherSpaces": "Other spaces",
+            "emptySpace": "No projects in this space."
+          },
+          "ComposerCompanionReposField": {
+            "label": "Also create in",
+            "agentAccess": "Give the agent access to these worktrees"
           },
           "RunTargetCombobox": {
             "listLabel": "Run targets",

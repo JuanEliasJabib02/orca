@@ -61,6 +61,14 @@ export const RightSidebarTabParam = z.custom<StaticRightSidebarTab | `plugin:${s
 
 export const AgentActivityDisplayMode = z.enum(['compact', 'full'])
 
+export const WorktreeGroupByParam = z.enum([
+  'none',
+  'workspace-status',
+  'repo',
+  'pr-status',
+  'task'
+])
+
 export const StatusBarItem = z.enum(STATUS_BAR_ITEMS)
 
 export const WorkspaceStatusDefinition = z.object({
@@ -120,7 +128,7 @@ export const UiUpdateFields = z
     rightSidebarWidth: z.number().finite().optional(),
     markdownTocPanelWidth: z.number().finite().optional(),
     combinedDiffFileTreeWidth: z.number().finite().optional(),
-    groupBy: z.enum(['none', 'workspace-status', 'repo', 'pr-status']).optional(),
+    groupBy: WorktreeGroupByParam.optional(),
     showWorkspaceLineage: z.boolean().optional(),
     sortBy: z.enum(['name', 'smart', 'recent', 'repo', 'manual']).optional(),
     projectOrderBy: z.enum(['manual', 'recent']).optional(),
@@ -219,6 +227,8 @@ export const UiUpdateFields = z
     // whole-payload rejection for paired clients while unlisted.
     setupGuideSidebarDismissed: z.boolean().optional(),
     activeSidebarSpaceGroupId: NullableString.optional(),
+    groupByBySpaceId: z.record(z.string(), WorktreeGroupByParam).optional(),
+    composerCompanionRepoIdsByRepoId: z.record(z.string(), StringArray).optional(),
     setupGuideBrowserMilestoneMigrated: z.boolean().optional(),
     setupGuideBrowserMilestoneLegacyComplete: z.boolean().optional(),
     browserImportHintHidden: z.boolean().optional(),

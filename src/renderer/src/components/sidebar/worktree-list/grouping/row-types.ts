@@ -5,7 +5,7 @@ import type { Repo } from '../../../../../../shared/repo-types'
 import type { DetectedWorktree, Worktree } from '../../../../../../shared/worktree/types'
 import type { ExecutionHostId } from '../../../../../../shared/execution-host'
 
-export type WorktreeGroupBy = 'none' | 'workspace-status' | 'repo' | 'pr-status'
+export type WorktreeGroupBy = 'none' | 'workspace-status' | 'repo' | 'pr-status' | 'task'
 export type PinnedWorktreeDisplayPolicy = 'single-location' | 'duplicate-in-groups'
 
 export function getPinnedWorktreeDisplayPolicy(
@@ -28,7 +28,23 @@ export type GroupHeaderRow = {
   hostWorktreeCounts?: ReadonlyMap<ExecutionHostId, number>
   hostWorktreeIds?: ReadonlyMap<ExecutionHostId, readonly string[]>
   worktreeIds?: readonly string[]
+  /** Set only on Group by → Task headers. */
+  task?: TaskSectionInfo
 }
+
+/** One task section's identity and members, for header actions that act on the whole task. */
+export type TaskSectionInfo = {
+  /** Normalized key such as `AX-3448`; null for the trailing "No task" section. */
+  taskKey: string | null
+  /** Title of the linked Jira item carrying this key, when any worktree has one. */
+  title: string | null
+  /** Every visible worktree with this key across repos and hosts, pinned ones included. */
+  worktrees: readonly TaskSectionWorktree[]
+  /** Folder workspaces in the section; they have no repo. */
+  folderWorkspaceIds: readonly string[]
+}
+
+export type TaskSectionWorktree = { worktreeId: string; repoId: string }
 
 export type WorktreeRow = {
   type: 'item'

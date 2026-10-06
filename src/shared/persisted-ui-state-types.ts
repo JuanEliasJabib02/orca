@@ -38,7 +38,7 @@ export type PersistedUIState = {
   rightSidebarWidth: number
   markdownTocPanelWidth?: number
   combinedDiffFileTreeWidth?: number
-  groupBy: 'none' | 'workspace-status' | 'repo' | 'pr-status'
+  groupBy: 'none' | 'workspace-status' | 'repo' | 'pr-status' | 'task'
   sortBy: 'name' | 'smart' | 'recent' | 'repo' | 'manual'
   /** Project header ordering in `groupBy: 'repo'`, independent of `sortBy`: 'manual' uses persisted order + header drag, 'recent' by latest visible activity. */
   projectOrderBy: ProjectOrderBy
@@ -79,6 +79,10 @@ export type PersistedUIState = {
   filterRepoIds: string[]
   /** Top-level project group the sidebar is narrowed to (a "space"); absent or null = All. */
   activeSidebarSpaceGroupId?: string | null
+  /** Group by each space last used, keyed by space (top-level project group) id; `groupBy` stays the effective value. */
+  groupByBySpaceId?: Record<string, PersistedUIState['groupBy']>
+  /** "Also create in" companions the new-workspace composer last used, keyed by primary repo id. */
+  composerCompanionRepoIdsByRepoId?: Record<string, string[]>
   /** Agents-view host scope; deliberately separate from visibleWorkspaceHostIds so a monitoring surface never inherits nav filters silently. `null` = all hosts. */
   agentsVisibleHostIds?: VisibleWorkspaceHostIds
   /** Agents-view project filter; empty = all projects. Separate from filterRepoIds (workspace nav). */

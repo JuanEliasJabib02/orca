@@ -27,7 +27,7 @@ export type UISlicePreferences = {
   /** Which list the sidebar body shows. Navigator-only; does not change the active view. */
   sidebarBody: 'workspaces' | 'agents'
   setSidebarBody: (body: UISlicePreferences['sidebarBody']) => void
-  groupBy: 'none' | 'workspace-status' | 'repo' | 'pr-status'
+  groupBy: 'none' | 'workspace-status' | 'repo' | 'pr-status' | 'task'
   setGroupBy: (g: UISlicePreferences['groupBy']) => void
   sortBy: 'name' | 'smart' | 'recent' | 'repo' | 'manual'
   setSortBy: (s: UISlicePreferences['sortBy']) => void
@@ -145,7 +145,13 @@ export type UISliceSurfaces = {
   clearPendingRevealSidebarRow: () => void
   /** Top-level project group the sidebar is scoped to; null = All. */
   activeSidebarSpaceGroupId: string | null
+  /** Switching applies the entering space's remembered Group by. */
   setActiveSidebarSpaceGroupId: (groupId: string | null) => void
+  /** Group by each space last used, keyed by space id; `groupBy` stays the effective value. */
+  groupByBySpaceId: Record<string, UISlicePreferences['groupBy']>
+  /** "Also create in" companions remembered per primary repo; ids may outlive their repos. */
+  composerCompanionRepoIdsByRepoId: Record<string, string[]>
+  setComposerCompanionRepoIds: (primaryRepoId: string, companionRepoIds: readonly string[]) => void
   // Why: cleared by the diff decorator after it reveals the line, so the same id can be requested again without a stale value.
   scrollToDiffCommentId: string | null
   setScrollToDiffCommentId: (id: string | null) => void

@@ -7,7 +7,8 @@ export function normalizeGroupBy(groupBy: unknown): PersistedState['ui']['groupB
     groupBy === 'none' ||
     groupBy === 'workspace-status' ||
     groupBy === 'repo' ||
-    groupBy === 'pr-status'
+    groupBy === 'pr-status' ||
+    groupBy === 'task'
   ) {
     return groupBy
   }

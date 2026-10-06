@@ -44,13 +44,7 @@ export function createUiPreferenceActions(set: UISliceSet, get: UISliceGet): Par
     sidebarBody: 'workspaces',
     setSidebarBody: (body) => set({ sidebarBody: body }),
 
-    groupBy: 'repo',
-    // Why: group keys are mode-specific, so clear collapsed state on mode switch — stale keys are meaningless and accumulate.
-    setGroupBy: (g) => {
-      window.api.ui.set({ groupBy: g, collapsedGroups: [] }).catch(console.error)
-      set({ groupBy: g, collapsedGroups: new Set<string>() })
-    },
-
+    // Why no groupBy here: it is remembered per space, see ui-slice-sidebar-space-group-by-actions.ts.
     sortBy: 'recent',
     setSortBy: (s) => set({ sortBy: s }),
 

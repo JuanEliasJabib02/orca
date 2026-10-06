@@ -614,6 +614,12 @@ describe('client UI RPC methods', () => {
     ['setupGuideSidebarDismissed', { setupGuideSidebarDismissed: true }],
     ['activeSidebarSpaceGroupId', { activeSidebarSpaceGroupId: 'group-1' }],
     ['activeSidebarSpaceGroupId null', { activeSidebarSpaceGroupId: null }],
+    [
+      'composerCompanionRepoIdsByRepoId',
+      { composerCompanionRepoIdsByRepoId: { experience: ['backend', 'admin'] } }
+    ],
+    ['groupBy task', { groupBy: 'task' }],
+    ['groupByBySpaceId', { groupByBySpaceId: { 'group-1': 'task', 'group-2': 'repo' } }],
     ['setupGuideBrowserMilestoneMigrated', { setupGuideBrowserMilestoneMigrated: true }],
     [
       'setupGuideBrowserMilestoneLegacyComplete',

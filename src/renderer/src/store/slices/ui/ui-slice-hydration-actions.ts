@@ -63,6 +63,8 @@ import {
 } from './ui-slice-hydration-sanitizers'
 import { hydrateAgentReadState, sanitizeTaskResumeState } from './ui-slice-hydration-values'
 import { hydrateStatusBarItems } from './ui-slice-hydration-status-bar-items'
+import { sanitizeComposerCompanionRepoIds } from './ui-slice-composer-companion-actions'
+import { sanitizeGroupByBySpaceId } from './ui-slice-sidebar-space-group-by-actions'
 
 const MAX_LEFT_SIDEBAR_WIDTH = 500
 const MAX_RIGHT_SIDEBAR_WIDTH = 4000
@@ -232,6 +234,10 @@ export function createUiHydrationActions(set: UISliceSet, _get: UISliceGet): Par
           // Why: a hand-edited non-string degrades to All; a deleted group id is handled at scope resolution.
           activeSidebarSpaceGroupId:
             typeof ui.activeSidebarSpaceGroupId === 'string' ? ui.activeSidebarSpaceGroupId : null,
+          groupByBySpaceId: sanitizeGroupByBySpaceId(ui.groupByBySpaceId),
+          composerCompanionRepoIdsByRepoId: sanitizeComposerCompanionRepoIds(
+            ui.composerCompanionRepoIdsByRepoId
+          ),
           setupGuideBrowserMilestoneMigrated: ui.setupGuideBrowserMilestoneMigrated === true,
           setupGuideBrowserMilestoneLegacyComplete:
             ui.setupGuideBrowserMilestoneLegacyComplete === true,

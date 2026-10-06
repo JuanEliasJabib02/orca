@@ -14,6 +14,8 @@ import { createUiSurfaceActions } from './ui/ui-slice-surface-actions'
 import { createUiPersistenceActions } from './ui/ui-slice-persistence-actions'
 import { createUiHydrationActions } from './ui/ui-slice-hydration-actions'
 import { createUiUpdateActions } from './ui/ui-slice-update-actions'
+import { createUiComposerCompanionActions } from './ui/ui-slice-composer-companion-actions'
+import { createUiSidebarSpaceGroupByActions } from './ui/ui-slice-sidebar-space-group-by-actions'
 
 export type {
   AgentSendPopoverTargetMode,
@@ -26,6 +28,7 @@ export type {
 } from './ui/ui-slice-contract'
 
 export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get) =>
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the spread creators together implement every UISlice member; the cast only bridges the spread's widened type.
   ({
     ...createUiAgentActions(set, get),
     ...createUiTaskActions(set, get),
@@ -39,5 +42,7 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get)
     ...createUiSurfaceActions(set, get),
     ...createUiPersistenceActions(set, get),
     ...createUiHydrationActions(set, get),
-    ...createUiUpdateActions(set, get)
+    ...createUiUpdateActions(set, get),
+    ...createUiComposerCompanionActions(set, get),
+    ...createUiSidebarSpaceGroupByActions(set, get)
   }) as UISlice
