@@ -113,6 +113,13 @@ Arc's spaces.
   - There is no confirmation for a space switch. When a switch happens, the filter
     dialog is skipped, because `visibleWorktrees` still reflects the old space.
   - **Verification pending.**
-- [ ] **7. New projects join the active space**
+- [ ] **7. New projects join the active space** (code done)
   - A project added while a space is active goes into that group.
   - Check: unit test and `pnpm tc`.
+  - Code is complete. `sidebar-space-new-project.ts` is called from
+    `upsertAddedRepoWithProjectHostSetup`, the shared path for the Add Project, clone,
+    create and non-git folder flows, and only for projects that weren't already
+    present. A project on a different host than the space stays spaceless.
+  - Not covered: `orca repo add` from the CLI, and the nested import in "group" mode,
+    which creates its own top-level group and so a new space.
+  - **Verification pending.**

@@ -7,6 +7,7 @@ import {
 import type { Repo } from '../../../../shared/repo-types'
 import { useAppStore } from '@/store'
 import { getRepoHostIdentity } from '@/store/slices/repo-host-identity'
+import { fileNewRepoIntoActiveSidebarSpace } from './sidebar-space-new-project'
 
 type AddedRepoOwner = {
   runtimeEnvironmentId?: string | null
@@ -50,5 +51,8 @@ export function upsertAddedRepoWithProjectHostSetup(
     projects: projection.projects,
     projectHostSetups: projection.setups
   })
+  if (!alreadyPresent) {
+    fileNewRepoIntoActiveSidebarSpace(ownedRepo)
+  }
   return { alreadyPresent, repo: ownedRepo }
 }
