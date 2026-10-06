@@ -5,11 +5,11 @@ import {
   createCompanionWorktrees,
   prepareCompanionWorktrees,
   resolveCompanionRepos,
+  summarizeCompanionOutcomes,
   type CompanionCreationDeps,
   type CompanionPrimarySubmit,
   type CompanionWorktreeRequest
 } from './multi-repo-worktree-creation'
-import { summarizeCompanionOutcomes } from './companion-outcome-summary'
 
 const toastMocks = vi.hoisted(() => ({ error: vi.fn(), warning: vi.fn() }))
 vi.mock('sonner', () => ({ toast: toastMocks }))
@@ -45,12 +45,6 @@ function makeDeps(
     askRepoIds?: string[]
     /** The branch git actually lands on, per repo, e.g. a suffixed pin. */
     branchByRepoId?: Record<string, string>
-    /** The refs each repo has; a repo missing here has none. */
-    refsByRepoId?: Record<string, string[]>
-    /** Repos whose ref lookup throws, as an unreachable host would. */
-    uncheckableRepoIds?: string[]
-    /** What the primary's picker shows as its detected default. */
-    detectedDefaultBaseRef?: string | null | Error
   } = {}
 ): {
   deps: CompanionCreationDeps
@@ -74,18 +68,6 @@ function makeDeps(
         ? { decision: 'skip' as const, needsUserDecision: true }
         : { decision: 'run' as const, needsUserDecision: false }
     ),
-    resolveDefaultBaseRef: vi.fn(async () => {
-      if (options.detectedDefaultBaseRef instanceof Error) {
-        throw options.detectedDefaultBaseRef
-      }
-      return options.detectedDefaultBaseRef ?? null
-    }),
-    hasBaseRef: vi.fn(async (target: Repo, baseRef: string) => {
-      if (options.uncheckableRepoIds?.includes(target.id)) {
-        throw new Error(`ssh down for ${target.id}`)
-      }
-      return options.refsByRepoId?.[target.id]?.includes(baseRef) ?? false
-    }),
     seedTerminals: vi.fn((result: CreateWorktreeResult) => {
       seeded.push(result.worktree.id)
     })
@@ -262,93 +244,6 @@ describe('createCompanionWorktrees', () => {
     })
     expect(result.outcomes[0]).toMatchObject({ expectedBranch: 'feature/AX-3448' })
   })
-
-  it("branches every companion that has the primary's base from it", async () => {
-    const { deps, calls } = makeDeps({
-      refsByRepoId: { backend: ['origin/develop'], admin: ['origin/develop', 'origin/main'] }
-    })
-    const result = await createCompanionWorktrees({
-      companions: [repo('backend'), repo('admin')],
-      naming,
-      branchNameOverride: undefined,
-      baseBranch: 'origin/develop',
-      isCancelled: () => false,
-      deps
-    })
-    expect(calls.map((call) => call.request.baseBranch)).toEqual([
-      'origin/develop',
-      'origin/develop'
-    ])
-    expect(deps.hasBaseRef).toHaveBeenCalledWith(repo('admin'), 'origin/develop')
-    expect(result.outcomes.every((outcome) => !('baseFallback' in outcome))).toBe(true)
-  })
-
-  it('falls back to the default base of a repo without that ref, and records why', async () => {
-    const { deps, calls } = makeDeps({ refsByRepoId: { backend: ['origin/develop'] } })
-    const result = await createCompanionWorktrees({
-      companions: [repo('backend'), repo('reset')],
-      naming,
-      branchNameOverride: undefined,
-      baseBranch: 'origin/develop',
-      isCancelled: () => false,
-      deps
-    })
-    expect(calls[0]?.request.baseBranch).toBe('origin/develop')
-    expect(calls[1]?.request).not.toHaveProperty('baseBranch')
-    expect(result.outcomes[1]).toMatchObject({
-      status: 'created',
-      baseFallback: { requested: 'origin/develop', reason: 'missing' }
-    })
-  })
-
-  it('falls back instead of failing when the ref check cannot run', async () => {
-    const { deps, calls } = makeDeps({ uncheckableRepoIds: ['admin'] })
-    const result = await createCompanionWorktrees({
-      companions: [repo('admin')],
-      naming,
-      branchNameOverride: undefined,
-      baseBranch: 'origin/develop',
-      isCancelled: () => false,
-      deps
-    })
-    expect(calls[0]?.request).not.toHaveProperty('baseBranch')
-    expect(result.outcomes[0]).toMatchObject({
-      status: 'created',
-      baseFallback: { requested: 'origin/develop', reason: 'unchecked' }
-    })
-  })
-
-  it('leaves every companion on its own default when the primary has no base', async () => {
-    const { deps, calls } = makeDeps()
-    const result = await createCompanionWorktrees({
-      companions: [repo('backend')],
-      naming,
-      branchNameOverride: undefined,
-      isCancelled: () => false,
-      deps
-    })
-    expect(deps.hasBaseRef).not.toHaveBeenCalled()
-    expect(calls[0]?.request).not.toHaveProperty('baseBranch')
-    expect(result.outcomes[0]).not.toHaveProperty('baseFallback')
-  })
-
-  it('creates nothing when the dismissal lands while the base check runs', async () => {
-    const { deps, calls } = makeDeps({ refsByRepoId: { backend: ['origin/develop'] } })
-    let cancelled = false
-    vi.mocked(deps.hasBaseRef).mockImplementationOnce(async () => {
-      cancelled = true
-      return true
-    })
-    await createCompanionWorktrees({
-      companions: [repo('backend')],
-      naming,
-      branchNameOverride: undefined,
-      baseBranch: 'origin/develop',
-      isCancelled: () => cancelled,
-      deps
-    })
-    expect(calls).toEqual([])
-  })
 })
 
 describe('resolveCompanionRepos', () => {
@@ -440,36 +335,6 @@ describe('summarizeCompanionOutcomes', () => {
     expect(summary?.title).toBe('Some companion worktrees were not created')
     expect(summary?.description).toBe('backend: boom\nadmin is on b-2 instead of b')
   })
-
-  it('warns about companions created from their own default base, with the reason', () => {
-    const summary = summarizeCompanionOutcomes([
-      {
-        status: 'created',
-        repo: repo('reset'),
-        worktreeId: 'reset::wt',
-        path: '/w/reset',
-        branch: 'b',
-        baseFallback: { requested: 'origin/develop', reason: 'missing' },
-        setupNeedsUserDecision: false
-      },
-      {
-        status: 'created',
-        repo: repo('admin'),
-        worktreeId: 'admin::wt',
-        path: '/w/admin',
-        branch: 'b',
-        baseFallback: { requested: 'origin/develop', reason: 'unchecked' },
-        setupNeedsUserDecision: false
-      }
-    ])
-    expect(summary).toEqual({
-      kind: 'warning',
-      title: 'Some companion worktrees were created from their default base',
-      description:
-        'reset: no origin/develop, created from its default base\n' +
-        'admin: could not check origin/develop, created from its default base'
-    })
-  })
 })
 
 describe('prepareCompanionWorktrees', () => {
@@ -485,8 +350,6 @@ describe('prepareCompanionWorktrees', () => {
       nameWasGenerated: false,
       effectiveBranchNameOverride: undefined,
       pendingFirstAgentMessageRename: false,
-      submitBaseBranch: undefined,
-      submitBaseIsPullRequestHead: false,
       ...overrides
     }
   }
@@ -643,91 +506,5 @@ describe('prepareCompanionWorktrees', () => {
       'Some companion worktrees are on a different branch',
       { description: 'admin is on feature/AX-3448-2 instead of feature/AX-3448' }
     )
-  })
-
-  async function prepareWithBase(
-    deps: CompanionCreationDeps,
-    overrides: { primaryRepo?: Repo; submitBaseBranch?: string; prHead?: boolean } = {}
-  ) {
-    return prepareCompanionWorktrees({
-      submit: { repoIds: ['backend', 'reset'], grantAgentAccess: true },
-      repos,
-      primaryRepo: overrides.primaryRepo ?? primary,
-      primary: primarySubmit({
-        submitBaseBranch: overrides.submitBaseBranch,
-        submitBaseIsPullRequestHead: overrides.prHead ?? false
-      }),
-      agentCanReachCompanions: true,
-      launchReadsAgentArgs: true,
-      isCancelled: () => false,
-      deps
-    })
-  }
-
-  it('branches companions from the explicit Create From selection', async () => {
-    const { deps, calls } = makeDeps({
-      refsByRepoId: { backend: ['origin/develop'], reset: ['origin/develop'] },
-      detectedDefaultBaseRef: 'origin/master'
-    })
-    await prepareWithBase(deps, { submitBaseBranch: 'origin/develop' })
-    expect(deps.resolveDefaultBaseRef).not.toHaveBeenCalled()
-    expect(calls.map((call) => call.request.baseBranch)).toEqual([
-      'origin/develop',
-      'origin/develop'
-    ])
-    expect(toastMocks.warning).not.toHaveBeenCalled()
-  })
-
-  it("uses the primary's default, not a pull request head, when the start point is a PR", async () => {
-    const { deps, calls } = makeDeps({
-      refsByRepoId: { backend: ['develop'], reset: ['develop'] },
-      detectedDefaultBaseRef: 'origin/master'
-    })
-    await prepareWithBase(deps, {
-      primaryRepo: repo('experience', { worktreeBaseRef: 'develop' }),
-      submitBaseBranch: 'pull/42/head',
-      prHead: true
-    })
-    expect(calls.map((call) => call.request.baseBranch)).toEqual(['develop', 'develop'])
-    expect(toastMocks.warning).not.toHaveBeenCalled()
-  })
-
-  it("branches companions from the primary's configured default when nothing is selected", async () => {
-    const { deps, calls } = makeDeps({
-      refsByRepoId: { backend: ['develop'], reset: ['develop'] },
-      detectedDefaultBaseRef: 'origin/master'
-    })
-    await prepareWithBase(deps, { primaryRepo: repo('experience', { worktreeBaseRef: 'develop' }) })
-    expect(deps.resolveDefaultBaseRef).not.toHaveBeenCalled()
-    expect(calls.map((call) => call.request.baseBranch)).toEqual(['develop', 'develop'])
-  })
-
-  it("branches companions from the primary's detected default when nothing is configured", async () => {
-    const { deps, calls } = makeDeps({
-      refsByRepoId: { backend: ['origin/master'], reset: ['origin/master'] },
-      detectedDefaultBaseRef: 'origin/master'
-    })
-    await prepareWithBase(deps)
-    expect(deps.resolveDefaultBaseRef).toHaveBeenCalledWith(primary)
-    expect(calls.map((call) => call.request.baseBranch)).toEqual(['origin/master', 'origin/master'])
-  })
-
-  it('lists a companion without the base in the summary toast', async () => {
-    const { deps, calls } = makeDeps({ refsByRepoId: { backend: ['origin/develop'] } })
-    await prepareWithBase(deps, { submitBaseBranch: 'origin/develop' })
-    expect(calls[1]?.request).not.toHaveProperty('baseBranch')
-    expect(toastMocks.warning).toHaveBeenCalledWith(
-      'Some companion worktrees were created from their default base',
-      { description: 'reset: no origin/develop, created from its default base' }
-    )
-  })
-
-  it('keeps companions on their own defaults when the primary default cannot be read', async () => {
-    const { deps, calls } = makeDeps({ detectedDefaultBaseRef: new Error('ssh down') })
-    const plan = await prepareWithBase(deps)
-    expect(deps.hasBaseRef).not.toHaveBeenCalled()
-    expect(calls.every((call) => !('baseBranch' in call.request))).toBe(true)
-    expect(plan.createdCompanions).toHaveLength(2)
-    expect(toastMocks.warning).not.toHaveBeenCalled()
   })
 })

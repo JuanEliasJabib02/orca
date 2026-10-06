@@ -255,7 +255,6 @@ export function useQuickSubmitPreparation(input: QuickSubmitPreparationInput) {
         linkedLinearIssueOrganizationUrlKey,
         effectiveBranchNameOverride,
         submitBaseBranch,
-        submitBaseIsPullRequestHead: smartGitHubResolution.kind === 'pr-start-point',
         createDisplayName,
         pendingFirstAgentMessageRename,
         trimmedNote

@@ -1091,9 +1091,6 @@
         "companionSetupSkippedTitle": "Companion worktrees created without setup",
         "companionBranchMismatchTitle": "Some companion worktrees are on a different branch",
         "companionBranchMismatch": "{{name}} is on {{branch}} instead of {{expected}}",
-        "companionBaseFallbackTitle": "Some companion worktrees were created from their default base",
-        "companionBaseMissing": "{{name}}: no {{base}}, created from its default base",
-        "companionBaseUnchecked": "{{name}}: could not check {{base}}, created from its default base",
         "companionsLeftTitle": "The main worktree failed after its companions were created",
         "companionsLeftDescription": "These companion worktrees still exist: {{companions}}. Remove them if you no longer need them."
       },
