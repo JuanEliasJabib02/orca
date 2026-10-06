@@ -11,6 +11,7 @@ import {
 } from './WorktreeCardMeta'
 import { WorktreeCardPortsDetails, WorktreeCardPortsTrigger } from './WorktreeCardPorts'
 import type { WorktreeCardController } from './use-worktree-card-controller'
+import { getWorktreeCardProjectLabel } from './worktree-card-project-label'
 import { canHoldSpotlight } from './WorktreeCardSpotlightControls'
 
 export function buildWorktreeCardPresentation(card: WorktreeCardController) {
@@ -26,6 +27,8 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
     newCardStyle,
     compactCards,
     isFolder,
+    groupBy,
+    projectGroups,
     detachedHeadDisplay,
     branch,
     identityDisplay,
@@ -78,6 +81,18 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
     showRepoIdentityInTitle && !!repo && !hideRepoBadge && !isFolder && !showPinnedRepoIcon
   const showRepoBadgeInMetaRow =
     !showRepoIdentityInTitle && !!repo && !hideRepoBadge && !showPinnedRepoIcon
+  const projectLabel = getWorktreeCardProjectLabel({
+    groupBy,
+    affiliateListMode,
+    repo,
+    worktreeRepoId: worktree.repoId,
+    projectGroups
+  })
+  // Why: compact/new titles already truncate, so the name takes its own muted line below instead of an inline suffix.
+  const belowTitleProjectLabel = showRepoIdentityInTitle ? projectLabel : null
+  // Why: Default cards already name the project in the meta-row repo pill; this fills only where no pill renders.
+  const metaRowProjectLabel =
+    !showRepoIdentityInTitle && !showRepoBadgeInMetaRow ? projectLabel : null
   const showHostContextBadge = !compactCards && !!hostContextLabel
   // The active root wears an amber left bar so "Spotlight running here" reads at a glance.
   const spotlightActive = Boolean(card.spotlight)
@@ -110,6 +125,7 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
   // Why: grouped views can hide the repo badge; don't reserve a blank metadata lane unless there's real content.
   const hasDetailedMetaRowContent = Boolean(
     (showRepoBadgeInMetaRow && repo) ||
+    metaRowProjectLabel !== null ||
     showHostContextBadge ||
     folderMetaRowContent ||
     showBranch ||
@@ -271,13 +287,19 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
     <div className="ml-auto flex shrink-0 items-center gap-1 pr-1.5">{detailsAndPorts}</div>
   ) : null
   const hasSecondaryCardContent =
-    hasMetaRow || !!remoteBranchConflict || showInlineAgentList || showLineageChildChip
+    hasMetaRow ||
+    belowTitleProjectLabel !== null ||
+    !!remoteBranchConflict ||
+    showInlineAgentList ||
+    showLineageChildChip
   const titleOnlyCard = !hasSecondaryCardContent
 
   return {
     showPinnedRepoIcon,
     showInlineRepoBadge,
     showRepoBadgeInMetaRow,
+    belowTitleProjectLabel,
+    metaRowProjectLabel,
     showHostContextBadge,
     showIdentityInNewCard,
     showDetachedHeadInMetaRow,

@@ -44,6 +44,7 @@ export function useWorktreeCardFoundation({
   const agentActivityDisplayMode =
     useAppStore((s) => s.agentActivityDisplayMode) ?? DEFAULT_AGENT_ACTIVITY_DISPLAY_MODE
   const projectGroups = useAppStore((s) => s.projectGroups)
+  const groupBy = useAppStore((s) => s.groupBy)
   const newCardStyle = settings?.experimentalNewWorktreeCardStyle === true
   const compactCards = !newCardStyle && settings?.compactWorktreeCards === true
   const handleEditIssue = useCallback(
@@ -217,6 +218,7 @@ export function useWorktreeCardFoundation({
     cardProps,
     agentActivityDisplayMode,
     projectGroups,
+    groupBy,
     newCardStyle,
     compactCards,
     handleEditIssue,

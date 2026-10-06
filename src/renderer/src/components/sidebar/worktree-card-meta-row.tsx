@@ -10,6 +10,7 @@ import { CONFLICT_OPERATION_LABELS } from './WorktreeCardHelpers'
 import { TruncatedSidebarLabel } from './truncated-sidebar-label'
 import { getDirectoryName } from './worktree-card-model'
 import type { WorktreeCardPresentation } from './worktree-card-presentation'
+import { WorktreeCardProjectLabel } from './worktree-card-project-label'
 import type { WorktreeCardController } from './use-worktree-card-controller'
 
 export function WorktreeCardMetaRow({
@@ -34,6 +35,7 @@ export function WorktreeCardMetaRow({
   } = card
   const {
     showRepoBadgeInMetaRow,
+    metaRowProjectLabel,
     showHostContextBadge,
     showIdentityInNewCard,
     hasHoverDetails,
@@ -54,6 +56,14 @@ export function WorktreeCardMetaRow({
               {repo.displayName}
             </span>
           </div>
+        )}
+
+        {metaRowProjectLabel !== null && (
+          <WorktreeCardProjectLabel
+            label={metaRowProjectLabel}
+            tooltipEnabled={!hasHoverDetails}
+            className="max-w-[45%]"
+          />
         )}
 
         {showHostContextBadge && <WorktreeHostContextBadge label={hostContextLabel!} />}

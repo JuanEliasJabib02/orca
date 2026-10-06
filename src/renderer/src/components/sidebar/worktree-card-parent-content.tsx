@@ -6,6 +6,7 @@ import { WorktreeCardMetaRow } from './worktree-card-meta-row'
 import { WorktreeCardDetailsHover } from './WorktreeCardMeta'
 import { WorktreeCardPortsDetails } from './WorktreeCardPorts'
 import type { WorktreeCardPresentation } from './worktree-card-presentation'
+import { WorktreeCardProjectLabel } from './worktree-card-project-label'
 import { WorktreeCardSecondaryRows } from './worktree-card-secondary-rows'
 import { WorktreeCardStatusSlot } from './WorktreeCardStatusSlot'
 import type { WorktreeCardController } from './use-worktree-card-controller'
@@ -61,7 +62,8 @@ export function WorktreeCardParentContent({
     showUnreadQuickAction,
     hasHoverDetails,
     hoverBranchName,
-    hoverWorkspaceTitle
+    hoverWorkspaceTitle,
+    belowTitleProjectLabel
   } = presentation
 
   const identityContent = (
@@ -70,6 +72,14 @@ export function WorktreeCardParentContent({
       data-worktree-card-hover-trigger=""
     >
       <WorktreeCardHeader card={card} presentation={presentation} />
+      {belowTitleProjectLabel !== null && (
+        // Why: invisible, not unmounted, while renaming so the row keeps its measured height.
+        <WorktreeCardProjectLabel
+          label={belowTitleProjectLabel}
+          tooltipEnabled={!hasHoverDetails}
+          className={cn('-mt-1', titleRenaming && 'invisible')}
+        />
+      )}
       {presentation.hasMetaRow && <WorktreeCardMetaRow card={card} presentation={presentation} />}
     </div>
   )
