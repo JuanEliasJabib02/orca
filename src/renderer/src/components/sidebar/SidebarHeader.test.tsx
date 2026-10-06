@@ -3,6 +3,7 @@
 import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ProjectGroup } from '../../../../shared/project-group-types'
 import SidebarHeader from './SidebarHeader'
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -22,6 +23,8 @@ const mocks = vi.hoisted(() => {
 type MockState = {
   repos: { id: string }[]
   groupBy: string
+  projectGroups: ProjectGroup[]
+  activeSidebarSpaceGroupId: string | null
   sidebarBody: 'workspaces' | 'agents'
   sidebarWidth: number
   setSidebarBody: (body: 'workspaces' | 'agents') => void
@@ -101,6 +104,35 @@ function headerButton(label: string): HTMLButtonElement {
   return button
 }
 
+function makeSpace(id: string, name: string, tabOrder: number): ProjectGroup {
+  return {
+    id,
+    name,
+    parentPath: null,
+    parentGroupId: null,
+    createdFrom: 'manual',
+    tabOrder,
+    isCollapsed: false,
+    color: null,
+    createdAt: 0,
+    updatedAt: 0
+  }
+}
+
+function sectionTitle(): HTMLElement {
+  const title = container.querySelector<HTMLElement>('[data-sidebar-section-title]')
+  if (!title) {
+    throw new Error('Sidebar section title not rendered')
+  }
+  return title
+}
+
+function renderHeader(): void {
+  act(() => {
+    root.render(<SidebarHeader onWorkspaceBoardMenuOpenChange={vi.fn()} />)
+  })
+}
+
 function createButton(): HTMLButtonElement {
   return headerButton('New workspace')
 }
@@ -112,6 +144,8 @@ beforeEach(() => {
   mockState = {
     repos: [],
     groupBy: 'repo',
+    projectGroups: [],
+    activeSidebarSpaceGroupId: null,
     sidebarBody: 'workspaces',
     sidebarWidth: 280,
     setSidebarBody: vi.fn(),
@@ -268,6 +302,75 @@ describe('SidebarHeader', () => {
     expect(container.querySelector('[data-sidebar-section-title="workspaces"]')?.textContent).toBe(
       'Workspaces'
     )
+  })
+
+  describe('space title', () => {
+    beforeEach(() => {
+      mockState.projectGroups = [makeSpace('work', 'Work', 1), makeSpace('home', 'Home', 0)]
+    })
+
+    it('shows the active space name with the full name in the title attribute', () => {
+      mockState.activeSidebarSpaceGroupId = 'work'
+      renderHeader()
+
+      expect(sectionTitle().textContent).toBe('Work')
+      expect(sectionTitle().getAttribute('title')).toBe('Work')
+    })
+
+    it('shows the space name whatever the grouping, and tracks a switch', () => {
+      mockState.groupBy = 'workspace-status'
+      mockState.activeSidebarSpaceGroupId = 'work'
+      renderHeader()
+      expect(sectionTitle().textContent).toBe('Work')
+
+      mockState.activeSidebarSpaceGroupId = 'home'
+      renderHeader()
+      expect(sectionTitle().textContent).toBe('Home')
+    })
+
+    it('falls back to the first space when the active id is unset', () => {
+      renderHeader()
+
+      expect(sectionTitle().textContent).toBe('Home')
+    })
+
+    it('falls back to the first space when the active id is no longer a space', () => {
+      mockState.activeSidebarSpaceGroupId = 'deleted'
+      renderHeader()
+
+      expect(sectionTitle().textContent).toBe('Home')
+    })
+
+    it('ignores nested groups when picking the space', () => {
+      mockState.projectGroups = [
+        { ...makeSpace('nested', 'Nested', 0), parentGroupId: 'work' },
+        makeSpace('work', 'Work', 1)
+      ]
+      mockState.activeSidebarSpaceGroupId = 'nested'
+      renderHeader()
+
+      expect(sectionTitle().textContent).toBe('Work')
+    })
+
+    it('keeps the original label in the agents view', () => {
+      mockState.activeSidebarSpaceGroupId = 'work'
+      mockState.sidebarBody = 'agents'
+      renderHeader()
+
+      expect(sectionTitle().textContent).toBe('Projects')
+      expect(sectionTitle().hasAttribute('title')).toBe(false)
+    })
+
+    it('keeps the original label and no title attribute when no spaces exist', () => {
+      mockState.projectGroups = []
+      renderHeader()
+      expect(sectionTitle().textContent).toBe('Projects')
+      expect(sectionTitle().hasAttribute('title')).toBe(false)
+
+      mockState.groupBy = 'workspace-status'
+      renderHeader()
+      expect(sectionTitle().textContent).toBe('Workspaces')
+    })
   })
 
   it('drops both project actions in the agents view, which lists activity, not projects', () => {
