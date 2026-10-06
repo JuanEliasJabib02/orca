@@ -18,9 +18,10 @@ Arc's spaces.
   key. The group header in the list tells you where you are.
 - **Keys:** F1/F2/F3 switch to spaces 1/2/3. Juan's order: Action Black, Personal,
   Arctic Grey. Remappable like any Orca keybinding.
-- **Badge** on inactive spaces only: orange = an agent there is waiting for
-  permission or input. Plain dot = something finished that you haven't seen (the
-  same unread state as the sidebar and Dock).
+- **Badge** on inactive spaces only: one orange dot (`bg-agent-question`) for
+  anything that needs you there: an agent waiting for permission or input, or work
+  that finished unseen (the same unread state as the sidebar and Dock). Juan asked
+  for a single color, not two.
 - **No "All" space** (Juan, later the same day). Every project belongs to a space:
   - With at least one space, one is always active. An unset or invalid id resolves
     to the first space.

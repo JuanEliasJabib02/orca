@@ -29,12 +29,6 @@ type SpaceSwitcherButtonProps = {
   children: React.ReactNode
 }
 
-function getAttentionLabel(attention: SidebarSpaceAttention): string {
-  return attention === 'permission'
-    ? translate('auto.components.sidebar.SidebarSpaceSwitcher.needsPermission', 'Needs permission')
-    : translate('auto.components.sidebar.SidebarSpaceSwitcher.unread', 'Unread')
-}
-
 function SpaceSwitcherButton({
   label,
   pressed,
@@ -49,7 +43,10 @@ function SpaceSwitcherButton({
         '{{value0}} · {{value1}}',
         {
           value0: label,
-          value1: getAttentionLabel(attention)
+          value1: translate(
+            'auto.components.sidebar.SidebarSpaceSwitcher.needsAttention',
+            'Needs attention'
+          )
         }
       )
     : label
@@ -94,7 +91,7 @@ function SpaceSwitcherButton({
         <span
           aria-hidden="true"
           data-attention={attention}
-          className="pointer-events-none absolute top-0.5 right-0.5 size-1.5 rounded-full ring-2 ring-sidebar data-[attention=permission]:bg-agent-question data-[attention=unread]:bg-foreground"
+          className="pointer-events-none absolute top-0.5 right-0.5 size-1.5 rounded-full ring-2 ring-sidebar bg-agent-question"
         />
       ) : null}
     </span>

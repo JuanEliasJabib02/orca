@@ -328,9 +328,9 @@ describe('SidebarSpaceSwitcher', () => {
     })
 
     it.each([
-      ['unread', 'Unread', 'unread'],
-      ['unread-tab', 'Unread', 'unread'],
-      ['permission', 'Needs permission', 'permission']
+      ['unread', 'Needs attention', 'unread'],
+      ['unread-tab', 'Needs attention', 'unread'],
+      ['permission', 'Needs attention', 'permission']
     ] as const)(
       'marks an inactive space for %s and names the state in its label and tooltip',
       (source, stateLabel, expectedKind) => {
@@ -348,24 +348,24 @@ describe('SidebarSpaceSwitcher', () => {
       }
     )
 
-    it('uses the permission color for permission and a neutral foreground for unread', () => {
+    it('uses the same orange dot for every kind of attention', () => {
       seedWorkAttention('permission', 'personal')
       const { unmount } = render(<SidebarSpaceSwitcher />)
-      const permissionDot = dotOf(screen.getByRole('button', { name: 'Work · Needs permission' }))
-      expect(permissionDot).toHaveClass('data-[attention=permission]:bg-agent-question')
+      const permissionDot = dotOf(screen.getByRole('button', { name: 'Work · Needs attention' }))
+      expect(permissionDot).toHaveClass('bg-agent-question')
       unmount()
 
       seedWorkAttention('unread', 'personal')
       render(<SidebarSpaceSwitcher />)
-      const unreadDot = dotOf(screen.getByRole('button', { name: 'Work · Unread' }))
-      expect(unreadDot).toHaveClass('data-[attention=unread]:bg-foreground')
+      const unreadDot = dotOf(screen.getByRole('button', { name: 'Work · Needs attention' }))
+      expect(unreadDot).toHaveClass('bg-agent-question')
     })
 
     it('keeps the dot out of the dimmed wrapper so it stays at full strength', () => {
       seedWorkAttention('permission', 'personal')
       render(<SidebarSpaceSwitcher />)
 
-      const button = screen.getByRole('button', { name: 'Work · Needs permission' })
+      const button = screen.getByRole('button', { name: 'Work · Needs attention' })
       expect(button.closest('.opacity-40')).not.toBeNull()
       expect(dotOf(button)?.closest('.opacity-40')).toBeNull()
       expect(dotOf(button)).toHaveAttribute('aria-hidden', 'true')
@@ -390,13 +390,13 @@ describe('SidebarSpaceSwitcher', () => {
       act(() => useAppStore.setState({ activeSidebarSpaceGroupId: 'personal' }))
 
       expect(container.querySelectorAll('[data-attention]')).toHaveLength(1)
-      expect(screen.getByRole('button', { name: 'Work · Unread' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Work · Needs attention' })).toBeInTheDocument()
     })
 
     it('clears the dot when the agent is answered', () => {
       seedWorkAttention('permission', 'personal')
       render(<SidebarSpaceSwitcher />)
-      expect(screen.getByRole('button', { name: 'Work · Needs permission' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Work · Needs attention' })).toBeInTheDocument()
 
       act(() => useAppStore.setState({ agentStatusByPaneKey: {}, agentStatusEpoch: 2 }))
 
