@@ -584,12 +584,14 @@
           "unsupportedHost": "Spotlight testing is not available for this project host yet.",
           "activated": "Spotlight on — the project root now mirrors this workspace",
           "activateFailed": "Failed to start Spotlight",
+          "activateFailedInProject": "Failed to start Spotlight in {{project}}",
           "syncFailed": "Spotlight sync failed",
           "released": "Spotlight off — project root restored",
           "releasedDetached": "Spotlight off — project root left detached",
           "releasedDetachedInUse": "Its branch \"{{branch}}\" is checked out in another workspace, so the root could not switch back to it. Free that branch (or check out any branch in the root) to re-attach.",
           "releasedDetachedGone": "The root's original branch no longer exists, so it was left detached at its original commit.",
           "deactivateFailed": "Failed to turn off Spotlight",
+          "deactivateFailedInProject": "Failed to turn off Spotlight in {{project}}",
           "deactivateAnyway": "Turn off anyway",
           "activateAnyway": "Activate anyway",
           "activatedLogs": "Server logs are mirrored for agents at .orca/spotlight.log",
@@ -1086,7 +1088,11 @@
         "dropPartiallyAttached_other": "{{failureCount}} of {{count}} items could not be attached.",
         "companionSetupSkipped": "Setup did not run in {{names}}: it needs a setup decision or script approval.",
         "companionCreateFailed": "Some companion worktrees were not created",
-        "companionSetupSkippedTitle": "Companion worktrees created without setup"
+        "companionSetupSkippedTitle": "Companion worktrees created without setup",
+        "companionBranchMismatchTitle": "Some companion worktrees are on a different branch",
+        "companionBranchMismatch": "{{name}} is on {{branch}} instead of {{expected}}",
+        "companionsLeftTitle": "The main worktree failed after its companions were created",
+        "companionsLeftDescription": "These companion worktrees still exist: {{companions}}. Remove them if you no longer need them."
       },
       "useGlobalFileDrop": {
         "38c9f034ff": "Failed to upload dropped files.",

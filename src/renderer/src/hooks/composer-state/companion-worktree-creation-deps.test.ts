@@ -4,6 +4,7 @@ import type { CreateWorktreeResult } from '../../../../shared/worktree/create-ty
 import type { SetupRunPolicy } from '../../../../shared/orca-yaml-hook-types'
 import { getDefaultRepoHookSettings } from '../../../../shared/constants'
 import {
+  prepareStoreCompanionWorktrees,
   resolveCompanionSetup,
   STORE_COMPANION_CREATION_DEPS
 } from './companion-worktree-creation-deps'
@@ -13,18 +14,23 @@ const mocks = vi.hoisted(() => ({
   checkRuntimeHooks: vi.fn(),
   resolveHookTrustContent: vi.fn(),
   isHookScriptContentTrusted: vi.fn(),
-  ensureWorktreeHasInitialTerminal: vi.fn()
+  ensureWorktreeHasInitialTerminal: vi.fn(),
+  launchAppliesAgentArgs: vi.fn()
 }))
+const storeRepos = vi.hoisted(() => ({ current: [] as Repo[] }))
 
 vi.mock('@/store', () => ({
   useAppStore: {
     getState: () => ({
       createWorktree: mocks.createWorktree,
-      repos: [],
+      repos: storeRepos.current,
       settings: null,
       trustedOrcaHooks: {}
     })
   }
+}))
+vi.mock('@/components/right-sidebar/source-control-launch-agent-args-applicability', () => ({
+  sourceControlLaunchAppliesAgentArgs: mocks.launchAppliesAgentArgs
 }))
 vi.mock('@/runtime/runtime-hooks-client', () => ({
   checkRuntimeHooks: mocks.checkRuntimeHooks
@@ -63,6 +69,7 @@ beforeEach(() => {
   for (const mock of Object.values(mocks)) {
     mock.mockReset()
   }
+  storeRepos.current = []
 })
 
 describe('STORE_COMPANION_CREATION_DEPS.createWorktree', () => {
@@ -168,5 +175,55 @@ describe('resolveCompanionSetup', () => {
       decision: 'skip',
       needsUserDecision: false
     })
+  })
+})
+
+describe('prepareStoreCompanionWorktrees', () => {
+  const primary = repo({ id: 'experience', displayName: 'experience' })
+  const companion = repo(withPolicy('skip-by-default'))
+
+  async function prepare(launchHostId: 'local' | undefined) {
+    storeRepos.current = [primary, companion]
+    mocks.createWorktree.mockResolvedValue({
+      worktree: { id: 'admin::wt', path: '/worktrees/admin', branch: 'refs/heads/juan/ax-3448' }
+    })
+    return prepareStoreCompanionWorktrees({
+      submit: { repoIds: ['admin'], grantAgentAccess: true },
+      primaryRepo: primary,
+      primary: {
+        agent: 'claude',
+        workspaceName: 'ax-3448',
+        createDisplayName: undefined,
+        nameIsAutoManaged: false,
+        nameWasGenerated: false,
+        effectiveBranchNameOverride: undefined,
+        pendingFirstAgentMessageRename: false
+      },
+      agentCanReachCompanions: true,
+      launchHostId,
+      isCancelled: () => false
+    })
+  }
+
+  it('asks the launch route whether CLI args reach the primary agent', async () => {
+    mocks.launchAppliesAgentArgs.mockReturnValue(true)
+    const plan = await prepare('local')
+    expect(mocks.launchAppliesAgentArgs).toHaveBeenCalledWith({
+      agent: 'claude',
+      repoId: 'experience',
+      executionHostId: 'local'
+    })
+    expect(plan.addDirPaths).toEqual(['/worktrees/admin'])
+  })
+
+  it('withholds `--add-dir` from a route that drops CLI args, yet creates the companion', async () => {
+    mocks.launchAppliesAgentArgs.mockReturnValue(false)
+    const plan = await prepare(undefined)
+    expect(mocks.launchAppliesAgentArgs).toHaveBeenCalledWith({
+      agent: 'claude',
+      repoId: 'experience'
+    })
+    expect(plan.addDirPaths).toEqual([])
+    expect(plan.createdCompanions).toEqual([{ repoName: 'admin', branch: 'juan/ax-3448' }])
   })
 })

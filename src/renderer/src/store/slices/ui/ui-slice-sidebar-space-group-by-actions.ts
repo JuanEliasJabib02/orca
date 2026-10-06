@@ -49,7 +49,8 @@ function persistGroupByBySpaceId(groupByBySpaceId: Record<string, GroupBy>): voi
 
 /**
  * Group by is remembered per space while `groupBy` stays the one effective value every reader uses:
- * setting it records it for the active space, and switching spaces applies the new space's choice.
+ * setting it records it for the active space, and switching spaces applies the new space's choice
+ * without the collapsed-section reset a user-initiated change gets.
  */
 export function createUiSidebarSpaceGroupByActions(
   set: UISliceSet,
@@ -97,7 +98,9 @@ export function createUiSidebarSpaceGroupByActions(
       const next = get()
       const remembered = enteringSpaceId ? next.groupByBySpaceId[enteringSpaceId] : undefined
       if (remembered && remembered !== next.groupBy) {
-        next.setGroupBy(remembered)
+        // Why not setGroupBy: section keys are namespaced per mode, so nothing collapsed goes stale.
+        window.api.ui.set({ groupBy: remembered }).catch(console.error)
+        set({ groupBy: remembered })
       }
     }
   }

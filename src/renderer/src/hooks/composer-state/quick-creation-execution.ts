@@ -40,7 +40,6 @@ import { useAppStore } from '@/store'
 import { settleComposerSubmit } from '@/lib/composer-submit-cancellation'
 import { ensureHooksConfirmed } from '@/lib/ensure-hooks-confirmed'
 import { getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
-import { runBackgroundWorktreeCreation } from '@/lib/worktree-creation-flow'
 import { translate } from '@/i18n/i18n'
 import { resolveQuickCreateLinkedWorkItemPrompt } from '@/lib/linked-work-item-context'
 import { buildQuickComposerStartup } from './quick-startup-plan'
@@ -48,6 +47,7 @@ import { buildQuickCreationRequest } from './quick-creation-request'
 import type { PendingSmartGitHubSubmitResolution } from './source-selection-decisions'
 import { planAgentSessionLaunch } from '@/lib/agent-session-launch-plan'
 import { prepareStoreCompanionWorktrees } from './companion-worktree-creation-deps'
+import { launchPrimaryWorktree } from './primary-worktree-launch'
 
 export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
   const {
@@ -178,12 +178,16 @@ export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
         }
       }
 
+      const launchHostId = ephemeralVmRecipe
+        ? 'runtime:pending-ephemeral-vm'
+        : (workspaceRunContext?.hostId ?? selectedRepoExecutionHostId ?? undefined)
       // Why before the primary: its agent needs the companions' real paths for `--add-dir`.
       const companionPlan = await prepareStoreCompanionWorktrees({
         submit: companions,
         primaryRepo: selectedRepo,
         primary: prepared,
         agentCanReachCompanions: !ephemeralVmRecipe,
+        launchHostId,
         workspaceStatus: resolvedInitialWorkspaceStatus,
         telemetrySource,
         isCancelled: isSubmissionCancelled
@@ -214,9 +218,7 @@ export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
             workspace: {
               kind: selectedRepoIsGit ? 'git-worktree' : 'folder',
               repoId,
-              executionHostId: ephemeralVmRecipe
-                ? 'runtime:pending-ephemeral-vm'
-                : (workspaceRunContext?.hostId ?? selectedRepoExecutionHostId ?? undefined)
+              executionHostId: launchHostId
             },
             prompt: quickDraftPrompt ?? quickPrompt,
             promptDelivery,
@@ -271,21 +273,13 @@ export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
         suppressTerminalFocusOnCompletion: createMultiple
       })
 
-      if (isSubmissionCancelled()) {
-        return
-      }
-
-      if (persistDraft) {
-        clearNewWorkspaceDraft()
-      }
-
-      runBackgroundWorktreeCreation(request)
-
-      if (createMultiple) {
-        resetForNextCreate()
-      } else {
-        onCreated?.()
-      }
+      launchPrimaryWorktree({
+        request,
+        createdCompanions: companionPlan.createdCompanions,
+        isCancelled: isSubmissionCancelled,
+        clearDraft: persistDraft ? clearNewWorkspaceDraft : undefined,
+        afterLaunch: createMultiple ? resetForNextCreate : onCreated
+      })
     },
     [
       clearNewWorkspaceDraft,

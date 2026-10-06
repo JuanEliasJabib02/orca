@@ -323,6 +323,8 @@ export default function NewWorkspaceComposerCard(
           <ComposerCompanionReposField
             companions={props.companionRepos}
             quickAgent={props.quickAgent}
+            repoId={repoId}
+            executionHostId={selectedRepoExecutionHostId}
             disabled={sparseEditing}
           />
         ) : null}

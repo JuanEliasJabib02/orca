@@ -44,6 +44,8 @@ export type CompanionWorktreeOutcome =
       worktreeId: string
       path: string
       branch: string
+      /** The pinned branch this companion asked for, set only when it landed on another one. */
+      expectedBranch?: string
       setupNeedsUserDecision: boolean
     }
   | { status: 'failed'; repo: Repo; error: string }
@@ -61,7 +63,7 @@ type CompanionNaming = Omit<CompanionWorktreeRequest, 'setupDecision' | 'branchN
 /**
  * Creates each companion worktree in order, one at a time, so every repo gets the same branch:
  * an explicit name is pinned everywhere, otherwise the first created branch becomes the pin.
- * A failure is recorded and the rest still run.
+ * A failure is recorded and the rest still run; cancelling stops it only before a companion exists.
  */
 export async function createCompanionWorktrees(args: {
   companions: readonly Repo[]
@@ -72,16 +74,24 @@ export async function createCompanionWorktrees(args: {
 }): Promise<{ outcomes: CompanionWorktreeOutcome[]; branchName: string | undefined }> {
   let pinnedBranch = args.branchNameOverride
   const outcomes: CompanionWorktreeOutcome[] = []
+  // Why: once a companion exists the submit is committed; a late dismissal must not split it.
+  const cancelledBeforeAnyCompanion = (): boolean =>
+    args.isCancelled() && !outcomes.some((outcome) => outcome.status === 'created')
   for (const repo of args.companions) {
-    if (args.isCancelled()) {
+    if (cancelledBeforeAnyCompanion()) {
       break
     }
     try {
       const setup = await args.deps.resolveSetup(repo)
+      // Why re-check: resolveSetup can await a remote hooks read, long enough for a dismissal.
+      if (cancelledBeforeAnyCompanion()) {
+        break
+      }
+      const requestedBranch = pinnedBranch
       const result = await args.deps.createWorktree(repo, {
         ...args.naming,
         setupDecision: setup.decision,
-        ...(pinnedBranch ? { branchNameOverride: pinnedBranch } : {})
+        ...(requestedBranch ? { branchNameOverride: requestedBranch } : {})
       })
       const branch = stripBranchRef(result.worktree.branch)
       pinnedBranch ??= branch || undefined
@@ -91,6 +101,10 @@ export async function createCompanionWorktrees(args: {
         worktreeId: result.worktree.id,
         path: result.worktree.path,
         branch,
+        // Why: a pinned branch checked out elsewhere in that repo comes back suffixed (X-2).
+        ...(requestedBranch && branch !== requestedBranch
+          ? { expectedBranch: requestedBranch }
+          : {}),
         setupNeedsUserDecision: setup.needsUserDecision
       })
       args.deps.seedTerminals(result)
@@ -111,18 +125,52 @@ export type CompanionOutcomeSummary = {
   description: string
 }
 
-/** One toast for everything the user should know: failed repos first, then skipped setups. */
+function summaryTitle(hasFailures: boolean, hasOffBranch: boolean): string {
+  if (hasFailures) {
+    return translate(
+      'auto.hooks.useComposerState.companionCreateFailed',
+      'Some companion worktrees were not created'
+    )
+  }
+  if (hasOffBranch) {
+    return translate(
+      'auto.hooks.useComposerState.companionBranchMismatchTitle',
+      'Some companion worktrees are on a different branch'
+    )
+  }
+  return translate(
+    'auto.hooks.useComposerState.companionSetupSkippedTitle',
+    'Companion worktrees created without setup'
+  )
+}
+
+/**
+ * One toast for everything the user should know: failed repos first, then companions off the
+ * shared branch, then skipped setups.
+ */
 export function summarizeCompanionOutcomes(
   outcomes: readonly CompanionWorktreeOutcome[]
 ): CompanionOutcomeSummary | null {
   const failed = outcomes.flatMap((outcome) => (outcome.status === 'failed' ? [outcome] : []))
+  const offBranch = outcomes.flatMap((outcome) =>
+    outcome.status === 'created' && outcome.expectedBranch ? [outcome] : []
+  )
   const setupSkipped = outcomes.flatMap((outcome) =>
     outcome.status === 'created' && outcome.setupNeedsUserDecision ? [outcome.repo] : []
   )
-  if (failed.length === 0 && setupSkipped.length === 0) {
+  if (failed.length === 0 && offBranch.length === 0 && setupSkipped.length === 0) {
     return null
   }
   const lines = failed.map((outcome) => `${outcome.repo.displayName}: ${outcome.error}`)
+  for (const outcome of offBranch) {
+    lines.push(
+      translate(
+        'auto.hooks.useComposerState.companionBranchMismatch',
+        '{{name}} is on {{branch}} instead of {{expected}}',
+        { name: outcome.repo.displayName, branch: outcome.branch, expected: outcome.expectedBranch }
+      )
+    )
+  }
   if (setupSkipped.length > 0) {
     lines.push(
       translate(
@@ -134,16 +182,7 @@ export function summarizeCompanionOutcomes(
   }
   return {
     kind: failed.length > 0 ? 'error' : 'warning',
-    title:
-      failed.length > 0
-        ? translate(
-            'auto.hooks.useComposerState.companionCreateFailed',
-            'Some companion worktrees were not created'
-          )
-        : translate(
-            'auto.hooks.useComposerState.companionSetupSkippedTitle',
-            'Companion worktrees created without setup'
-          ),
+    title: summaryTitle(failed.length > 0, offBranch.length > 0),
     description: lines.join('\n')
   }
 }
@@ -174,11 +213,19 @@ export type CompanionPrimarySubmit = Pick<
   | 'pendingFirstAgentMessageRename'
 >
 
+/** A companion worktree that exists, named the way a cleanup notice shows it. */
+export type CreatedCompanionWorktree = {
+  repoName: string
+  branch: string
+}
+
 export type CompanionLaunchPlan = {
   /** Real companion worktree paths the primary agent gets via `--add-dir`. */
   addDirPaths: string[]
   branchNameOverride: string | undefined
   pendingFirstAgentMessageRename: boolean
+  /** Companions created for this submit; any at all commits the primary to follow them. */
+  createdCompanions: CreatedCompanionWorktree[]
 }
 
 /**
@@ -193,6 +240,8 @@ export async function prepareCompanionWorktrees(args: {
   primary: CompanionPrimarySubmit
   /** False when the agent runs somewhere the companion paths do not exist (an ephemeral VM). */
   agentCanReachCompanions: boolean
+  /** False when the primary's launch route reads no CLI args (a structured native chat). */
+  launchReadsAgentArgs: boolean
   workspaceStatus?: WorkspaceStatus
   telemetrySource?: WorkspaceSource
   isCancelled: () => boolean
@@ -202,7 +251,8 @@ export async function prepareCompanionWorktrees(args: {
   const unchanged: CompanionLaunchPlan = {
     addDirPaths: [],
     branchNameOverride: primary.effectiveBranchNameOverride,
-    pendingFirstAgentMessageRename: primary.pendingFirstAgentMessageRename
+    pendingFirstAgentMessageRename: primary.pendingFirstAgentMessageRename,
+    createdCompanions: []
   }
   const companions = args.submit
     ? resolveCompanionRepos(args.submit.repoIds, args.repos, args.primaryRepo)
@@ -235,13 +285,17 @@ export async function prepareCompanionWorktrees(args: {
   const grantAccess =
     args.submit?.grantAgentAccess === true &&
     args.agentCanReachCompanions &&
+    args.launchReadsAgentArgs &&
     agentSupportsAddDir(primary.agent)
+  const created = outcomes.flatMap((outcome) => (outcome.status === 'created' ? [outcome] : []))
   return {
-    addDirPaths: grantAccess
-      ? outcomes.flatMap((outcome) => (outcome.status === 'created' ? [outcome.path] : []))
-      : [],
+    addDirPaths: grantAccess ? created.map((outcome) => outcome.path) : [],
     branchNameOverride: branchName,
     // Why: a later rename from the first agent message would split the primary off the shared branch.
-    pendingFirstAgentMessageRename: branchName ? false : primary.pendingFirstAgentMessageRename
+    pendingFirstAgentMessageRename: branchName ? false : primary.pendingFirstAgentMessageRename,
+    createdCompanions: created.map((outcome) => ({
+      repoName: outcome.repo.displayName,
+      branch: outcome.branch
+    }))
   }
 }

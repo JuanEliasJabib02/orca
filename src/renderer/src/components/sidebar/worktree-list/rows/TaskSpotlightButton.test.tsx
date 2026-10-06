@@ -183,14 +183,20 @@ describe('TaskSpotlightButton', () => {
     expect(getButton(container)?.disabled).toBe(true)
     expect(getButton(container)?.getAttribute('aria-label')).toContain('Updating Spotlight')
     expect(activateSpotlight).toHaveBeenCalledTimes(1)
-    expect(activateSpotlight).toHaveBeenCalledWith('backend', 'be-1', { quiet: true })
+    expect(activateSpotlight).toHaveBeenCalledWith('backend', 'be-1', {
+      quiet: true,
+      projectName: 'backend'
+    })
 
     await act(async () => {
       finishFirst(OP_OK)
     })
 
     expect(activateSpotlight).toHaveBeenCalledTimes(2)
-    expect(activateSpotlight).toHaveBeenLastCalledWith('admin', 'ad-1', { quiet: true })
+    expect(activateSpotlight).toHaveBeenLastCalledWith('admin', 'ad-1', {
+      quiet: true,
+      projectName: 'admin'
+    })
     expect(getButton(container)?.disabled).toBe(false)
     expect(toast.success).toHaveBeenCalledTimes(1)
     expect(toast.success).toHaveBeenCalledWith('Spotlight on for AX-3448')
@@ -213,8 +219,8 @@ describe('TaskSpotlightButton', () => {
 
     expect(activateSpotlight).not.toHaveBeenCalled()
     expect(deactivateSpotlight.mock.calls).toEqual([
-      ['backend', { quiet: true }],
-      ['admin', { quiet: true }]
+      ['backend', { quiet: true, projectName: 'backend' }],
+      ['admin', { quiet: true, projectName: 'admin' }]
     ])
     expect(toast.success).toHaveBeenCalledWith('Spotlight off for AX-3448')
   })

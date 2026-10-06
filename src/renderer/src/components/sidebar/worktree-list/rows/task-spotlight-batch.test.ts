@@ -34,6 +34,8 @@ const { eligible: MEMBERS } = resolveTaskSpotlightMembers(
   REPOS
 )
 
+type OpOptions = { quiet?: boolean; projectName?: string }
+
 function makeActions(
   results: Partial<Record<string, SpotlightOpResult | Error>> = {}
 ): TaskSpotlightActions & { calls: string[] } {
@@ -47,13 +49,11 @@ function makeActions(
   }
   return {
     calls,
-    activateSpotlight: vi.fn(
-      async (repoId: string, worktreeId: string, opts?: { quiet?: boolean }) => {
-        calls.push(`on:${repoId}:${worktreeId}:${opts?.quiet}`)
-        return settle(repoId)
-      }
-    ),
-    deactivateSpotlight: vi.fn(async (repoId: string, opts?: { quiet?: boolean }) => {
+    activateSpotlight: vi.fn(async (repoId: string, worktreeId: string, opts?: OpOptions) => {
+      calls.push(`on:${repoId}:${worktreeId}:${opts?.quiet}`)
+      return settle(repoId)
+    }),
+    deactivateSpotlight: vi.fn(async (repoId: string, opts?: OpOptions) => {
       calls.push(`off:${repoId}:${opts?.quiet}`)
       return settle(repoId)
     })
@@ -135,8 +135,28 @@ describe('runTaskSpotlightBatch', () => {
 
     expect(actions.calls).toHaveLength(3)
     expect(result).toEqual({ mode: 'on', total: 3, succeeded: 2 })
-    expect(toast.error).toHaveBeenCalledWith('Failed to start Spotlight', {
+    expect(toast.error).toHaveBeenCalledWith('Failed to start Spotlight in admin', {
       description: 'ipc closed'
+    })
+  })
+
+  it('names each project so the store titles its failure toast with it', async () => {
+    const actions = makeActions()
+
+    await runTaskSpotlightBatch({ members: MEMBERS, spotlightByRepo: {}, actions })
+    await runTaskSpotlightBatch({
+      members: MEMBERS,
+      spotlightByRepo: holdersByRepo({ backend: 'be-1', admin: 'ad-1', docs: 'dc-1' }),
+      actions
+    })
+
+    expect(actions.activateSpotlight).toHaveBeenCalledWith('backend', 'be-1', {
+      quiet: true,
+      projectName: 'backend'
+    })
+    expect(actions.deactivateSpotlight).toHaveBeenCalledWith('docs', {
+      quiet: true,
+      projectName: 'docs'
     })
   })
 
@@ -164,7 +184,7 @@ describe('runTaskSpotlightBatch', () => {
 
     expect(actions.calls).toHaveLength(3)
     expect(result).toEqual({ mode: 'off', total: 3, succeeded: 1 })
-    expect(toast.error).toHaveBeenCalledWith('Failed to turn off Spotlight', {
+    expect(toast.error).toHaveBeenCalledWith('Failed to turn off Spotlight in backend', {
       description: 'boom'
     })
   })

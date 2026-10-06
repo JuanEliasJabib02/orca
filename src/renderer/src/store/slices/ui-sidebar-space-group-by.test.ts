@@ -68,16 +68,29 @@ describe('Group by remembered per space', () => {
     expect(store.getState().groupByBySpaceId).toEqual({ arctic: 'task', action: 'pr-status' })
   })
 
-  it('goes through setGroupBy on a switch, so stale collapsed sections are cleared', () => {
+  it('keeps collapsed sections when a switch applies a different Group by', () => {
     const store = createSpacesStore()
-    store.setState({ groupByBySpaceId: { action: 'workspace-status' } })
-    store.setState({ collapsedGroups: new Set(['repo:repo-1']) })
+    store.setState({ groupByBySpaceId: { arctic: 'repo', action: 'workspace-status' } })
+    store.setState({ collapsedGroups: new Set(['repo:repo-1', 'workspace-status:done']) })
 
     store.getState().setActiveSidebarSpaceGroupId('action')
-
     expect(store.getState().groupBy).toBe('workspace-status')
+    store.getState().setActiveSidebarSpaceGroupId('arctic')
+
+    expect(store.getState().groupBy).toBe('repo')
+    expect([...store.getState().collapsedGroups]).toEqual(['repo:repo-1', 'workspace-status:done'])
+    expect(setUI).toHaveBeenCalledWith({ groupBy: 'workspace-status' })
+    expect(setUI).not.toHaveBeenCalledWith(expect.objectContaining({ collapsedGroups: [] }))
+  })
+
+  it('still clears collapsed sections when the user changes Group by', () => {
+    const store = createSpacesStore()
+    store.setState({ collapsedGroups: new Set(['repo:repo-1']) })
+
+    store.getState().setGroupBy('task')
+
     expect([...store.getState().collapsedGroups]).toEqual([])
-    expect(setUI).toHaveBeenCalledWith({ groupBy: 'workspace-status', collapsedGroups: [] })
+    expect(setUI).toHaveBeenCalledWith({ groupBy: 'task', collapsedGroups: [] })
   })
 
   it('keeps collapsed sections when the entering space already shows the same Group by', () => {

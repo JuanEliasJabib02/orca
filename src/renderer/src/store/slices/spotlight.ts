@@ -75,6 +75,27 @@ function spotlightErrorDescription(error: SpotlightError): string {
   }
 }
 
+/** Names the project when the caller passes one, so a multi-repo batch's failures tell repos apart. */
+export function spotlightActivateFailedTitle(projectName?: string): string {
+  return projectName
+    ? translate(
+        'auto.store.slices.spotlight.activateFailedInProject',
+        'Failed to start Spotlight in {{project}}',
+        { project: projectName }
+      )
+    : translate('auto.store.slices.spotlight.activateFailed', 'Failed to start Spotlight')
+}
+
+export function spotlightDeactivateFailedTitle(projectName?: string): string {
+  return projectName
+    ? translate(
+        'auto.store.slices.spotlight.deactivateFailedInProject',
+        'Failed to turn off Spotlight in {{project}}',
+        { project: projectName }
+      )
+    : translate('auto.store.slices.spotlight.deactivateFailed', 'Failed to turn off Spotlight')
+}
+
 function reportSpotlightError(
   title: string,
   error: SpotlightError,
@@ -94,11 +115,12 @@ export type SpotlightSlice = {
   applySpotlightChanged: (event: SpotlightChangedEvent) => void
   /** `force` overrides a `root-diverged` block on takeover, discarding the
    *  root's outside changes to hand it to this workspace. `quiet` drops only the
-   *  success toast, for batch callers that report one summary themselves. */
+   *  success toast, for batch callers that report one summary themselves.
+   *  `projectName` puts the project in the failure toast's title. */
   activateSpotlight: (
     repoId: string,
     worktreeId: string,
-    opts?: { force?: boolean; quiet?: boolean }
+    opts?: { force?: boolean; quiet?: boolean; projectName?: string }
   ) => Promise<SpotlightOpResult>
   /** `silent` suppresses repeat error toasts — used by the auto-sync watcher
    *  so a persistent failure doesn't toast on every file change. */
@@ -108,10 +130,11 @@ export type SpotlightSlice = {
   forceSyncSpotlight: (repoId: string) => Promise<SpotlightOpResult>
   /** `force` discards tracked work made directly in the root after activation
    *  (the `root-diverged` escape hatch, mirroring `forceSyncSpotlight`). `quiet`
-   *  drops only the plain success toast; failures and the detached warning stay. */
+   *  drops only the plain success toast; failures and the detached warning stay.
+   *  `projectName` puts the project in the failure toast's title. */
   deactivateSpotlight: (
     repoId: string,
-    opts?: { force?: boolean; quiet?: boolean }
+    opts?: { force?: boolean; quiet?: boolean; projectName?: string }
   ) => Promise<SpotlightOpResult>
 }
 
@@ -154,15 +177,17 @@ export const createSpotlightSlice: StateCreator<AppState, [], [], SpotlightSlice
       const result = await window.api.spotlight.activate({ repoId, worktreeId, force: opts?.force })
       applyState(repoId, result.state)
       if (!result.ok) {
+        const projectName = opts?.projectName
         reportSpotlightError(
-          translate('auto.store.slices.spotlight.activateFailed', 'Failed to start Spotlight'),
+          spotlightActivateFailedTitle(projectName),
           result.error,
           // Takeover blocked by a diverged root: let the user discard the root's
           // outside changes and force this workspace in, in one click.
           result.error.code === 'root-diverged'
             ? {
                 label: translate('auto.store.slices.spotlight.activateAnyway', 'Activate anyway'),
-                onClick: () => void get().activateSpotlight(repoId, worktreeId, { force: true })
+                onClick: () =>
+                  void get().activateSpotlight(repoId, worktreeId, { force: true, projectName })
               }
             : undefined
         )
@@ -281,15 +306,16 @@ export const createSpotlightSlice: StateCreator<AppState, [], [], SpotlightSlice
           )
         }
       } else {
+        const projectName = opts?.projectName
         reportSpotlightError(
-          translate('auto.store.slices.spotlight.deactivateFailed', 'Failed to turn off Spotlight'),
+          spotlightDeactivateFailedTitle(projectName),
           result.error,
           // Same escape hatch sync offers: let the user discard the divergent
           // root work and complete the turn-off in one click.
           result.error.code === 'root-diverged'
             ? {
                 label: translate('auto.store.slices.spotlight.deactivateAnyway', 'Turn off anyway'),
-                onClick: () => void get().deactivateSpotlight(repoId, { force: true })
+                onClick: () => void get().deactivateSpotlight(repoId, { force: true, projectName })
               }
             : undefined
         )

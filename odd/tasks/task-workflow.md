@@ -87,3 +87,21 @@ Open, left for Juan:
 - `--add-dir` doesn't reach chat-view sessions, which ignore launch args.
 - Companions don't copy linked work items.
 - No per-repo progress text while companions are being created.
+
+## Strict review (2026-10-06, Opus + Sonnet)
+
+Verdict: APPROVED ✅, after one fix round.
+- Confirmed by both judges, then fixed:
+  - J-001: once a companion exists, a late dismissal completes the set; if the
+    primary then fails, a toast names the companions.
+  - J-002: on the chat-view route the access checkbox is hidden and no `--add-dir` is
+    built.
+- Fixed at Juan's request:
+  - J-003: batch Spotlight failure toasts name the project.
+  - J-004: companions on a suffixed branch are listed.
+  - J-007: a space switch keeps collapsed sections.
+  - J-008: re-check cancellation after the first setup read.
+- Left as info:
+  - J-005: separator keys still match words like `node-20`.
+  - J-006: no glue test for `--add-dir` in `buildQuickComposerStartup`.
+  - The primary's own branch suffix isn't checked.

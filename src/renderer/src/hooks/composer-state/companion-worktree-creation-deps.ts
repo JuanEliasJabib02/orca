@@ -1,6 +1,7 @@
 import type { Repo } from '../../../../shared/repo-types'
-import { getRepoExecutionHostId } from '../../../../shared/execution-host'
+import { getRepoExecutionHostId, type ExecutionHostId } from '../../../../shared/execution-host'
 import { useAppStore } from '@/store'
+import { sourceControlLaunchAppliesAgentArgs } from '@/components/right-sidebar/source-control-launch-agent-args-applicability'
 import { getSetupConfig } from '@/lib/new-workspace'
 import { getSettingsForRepoRuntimeOwner } from '@/lib/repo-runtime-owner'
 import { checkRuntimeHooks } from '@/runtime/runtime-hooks-client'
@@ -111,11 +112,24 @@ export const STORE_COMPANION_CREATION_DEPS: CompanionCreationDeps = {
 
 /** The composer's entry point: companions against the live store, then the primary's launch plan. */
 export function prepareStoreCompanionWorktrees(
-  args: Omit<Parameters<typeof prepareCompanionWorktrees>[0], 'repos' | 'deps'>
+  args: Omit<
+    Parameters<typeof prepareCompanionWorktrees>[0],
+    'repos' | 'deps' | 'launchReadsAgentArgs'
+  > & {
+    /** The host the primary's agent launch route is decided for. */
+    launchHostId: ExecutionHostId | undefined
+  }
 ): Promise<CompanionLaunchPlan> {
+  const { launchHostId, ...companionArgs } = args
   return prepareCompanionWorktrees({
-    ...args,
+    ...companionArgs,
     repos: useAppStore.getState().repos,
+    // Why: the rule that shows the composer's access checkbox; structured chat drops `--add-dir`.
+    launchReadsAgentArgs: sourceControlLaunchAppliesAgentArgs({
+      agent: args.primary.agent,
+      repoId: args.primaryRepo.id,
+      ...(launchHostId ? { executionHostId: launchHostId } : {})
+    }),
     deps: STORE_COMPANION_CREATION_DEPS
   })
 }

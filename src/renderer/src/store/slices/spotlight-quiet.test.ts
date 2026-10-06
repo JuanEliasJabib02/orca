@@ -118,3 +118,54 @@ describe('deactivateSpotlight quiet option', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 })
+
+describe('failure titles naming the project', () => {
+  const DIVERGED: SpotlightOpResult = {
+    ok: false,
+    error: { code: 'root-diverged', message: 'diverged' },
+    state: null
+  }
+
+  it('keeps the plain title for a single-repo call', async () => {
+    mockApi.spotlight.activate.mockResolvedValue(FAILED)
+    mockApi.spotlight.deactivate.mockResolvedValue(FAILED)
+
+    await createTestStore().getState().activateSpotlight('repo-1', 'wt-1')
+    await createTestStore().getState().deactivateSpotlight('repo-1')
+
+    expect(toast.error.mock.calls.map(([title]) => title)).toEqual([
+      'Failed to start Spotlight',
+      'Failed to turn off Spotlight'
+    ])
+  })
+
+  it('names the project on activate and again on the "Activate anyway" retry', async () => {
+    mockApi.spotlight.activate.mockResolvedValueOnce(DIVERGED)
+    mockApi.spotlight.activate.mockResolvedValue(FAILED)
+
+    await createTestStore()
+      .getState()
+      .activateSpotlight('repo-1', 'wt-1', { quiet: true, projectName: 'backend' })
+
+    expect(toast.error).toHaveBeenCalledWith(
+      'Failed to start Spotlight in backend',
+      expect.objectContaining({ action: expect.objectContaining({ label: 'Activate anyway' }) })
+    )
+    toast.error.mock.calls[0]?.[1]?.action?.onClick()
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2))
+    expect(toast.error.mock.calls[1]?.[0]).toBe('Failed to start Spotlight in backend')
+  })
+
+  it('names the project on deactivate and keeps "Turn off anyway"', async () => {
+    mockApi.spotlight.deactivate.mockResolvedValue(DIVERGED)
+
+    await createTestStore()
+      .getState()
+      .deactivateSpotlight('repo-1', { quiet: true, projectName: 'admin' })
+
+    expect(toast.error).toHaveBeenCalledWith(
+      'Failed to turn off Spotlight in admin',
+      expect.objectContaining({ action: expect.objectContaining({ label: 'Turn off anyway' }) })
+    )
+  })
+})

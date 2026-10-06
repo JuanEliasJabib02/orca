@@ -4,13 +4,18 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { RepoBadgeMark } from '@/components/repo/RepoBadgeLabel'
 import { translate } from '@/i18n/i18n'
+import { sourceControlLaunchAppliesAgentArgs } from '@/components/right-sidebar/source-control-launch-agent-args-applicability'
 import type { TuiAgent } from '../../../../shared/tui-agent'
+import type { ExecutionHostId } from '../../../../shared/execution-host'
 import { agentSupportsAddDir } from '../../../../shared/agent-add-dir-args'
 import type { ComposerCompanionRepos } from './use-composer-companion-repos'
 
 type ComposerCompanionReposFieldProps = {
   companions: ComposerCompanionRepos
   quickAgent: TuiAgent | null
+  /** The primary repo and its host: together they decide whether this launch reads CLI args. */
+  repoId: string
+  executionHostId?: ExecutionHostId | null
   disabled?: boolean
 }
 
@@ -21,6 +26,8 @@ type ComposerCompanionReposFieldProps = {
 export function ComposerCompanionReposField({
   companions,
   quickAgent,
+  repoId,
+  executionHostId,
   disabled = false
 }: ComposerCompanionReposFieldProps): React.JSX.Element | null {
   const labelId = React.useId()
@@ -29,7 +36,15 @@ export function ComposerCompanionReposField({
     return null
   }
   const selected = new Set(companions.selectedIds)
-  const showAgentAccess = selected.size > 0 && agentSupportsAddDir(quickAgent)
+  // Why per render: the route reads the live store, as the submit's grant does at create time.
+  const showAgentAccess =
+    selected.size > 0 &&
+    agentSupportsAddDir(quickAgent) &&
+    sourceControlLaunchAppliesAgentArgs({
+      agent: quickAgent,
+      repoId,
+      ...(executionHostId ? { executionHostId } : {})
+    })
   return (
     <fieldset disabled={disabled} className="min-w-0 space-y-1.5">
       <div id={labelId} className="text-xs font-medium text-muted-foreground">

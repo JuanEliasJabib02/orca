@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import React, { act } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Repo } from '../../../shared/repo-types'
 import type { ComposerCompanionRepos } from './new-workspace/use-composer-companion-repos'
 import { renderCard } from './NewWorkspaceComposerCard.test-fixture'
@@ -20,6 +20,11 @@ vi.mock('@/store', () => ({
       }),
     { getState: () => ({}) }
   )
+}))
+
+const launchAppliesAgentArgs = vi.hoisted(() => vi.fn(() => true))
+vi.mock('@/components/right-sidebar/source-control-launch-agent-args-applicability', () => ({
+  sourceControlLaunchAppliesAgentArgs: launchAppliesAgentArgs
 }))
 
 vi.mock('@/components/contextual-tours/use-contextual-tour', () => ({
@@ -84,6 +89,11 @@ function accessCheckbox(container: HTMLElement): HTMLElement | null {
   return container.querySelector('[role="checkbox"]')
 }
 
+beforeEach(() => {
+  launchAppliesAgentArgs.mockClear()
+  launchAppliesAgentArgs.mockReturnValue(true)
+})
+
 afterEach(() => {
   document.body.innerHTML = ''
 })
@@ -126,6 +136,23 @@ describe('NewWorkspaceComposerCard "Also create in" row', () => {
       checkbox?.click()
     })
     expect(model.setGrantAgentAccess).toHaveBeenCalledWith(false)
+  })
+
+  it('hides agent access when this launch would drop CLI args (structured chat)', async () => {
+    launchAppliesAgentArgs.mockReturnValue(false)
+    const container = await renderCard({
+      companionRepos: companions({ selectedIds: ['backend'] }),
+      quickAgent: 'claude',
+      selectedRepoExecutionHostId: 'local'
+    })
+
+    expect(accessCheckbox(container)).toBeNull()
+    expect(container.textContent).not.toContain('Give the agent access to these worktrees')
+    expect(launchAppliesAgentArgs).toHaveBeenCalledWith({
+      agent: 'claude',
+      repoId: 'repo-a',
+      executionHostId: 'local'
+    })
   })
 
   it('renders nothing when no companion is available', async () => {

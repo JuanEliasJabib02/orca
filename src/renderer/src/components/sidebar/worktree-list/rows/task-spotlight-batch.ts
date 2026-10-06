@@ -1,5 +1,9 @@
 import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
+import {
+  spotlightActivateFailedTitle,
+  spotlightDeactivateFailedTitle
+} from '@/store/slices/spotlight'
 import type { SpotlightOpResult } from '../../../../../../shared/spotlight'
 import {
   isTaskSpotlightHeld,
@@ -8,13 +12,15 @@ import {
   type TaskSpotlightMember
 } from './task-spotlight-members'
 
+type TaskSpotlightOpOptions = { quiet?: boolean; projectName?: string }
+
 export type TaskSpotlightActions = {
   activateSpotlight: (
     repoId: string,
     worktreeId: string,
-    opts?: { quiet?: boolean }
+    opts?: TaskSpotlightOpOptions
   ) => Promise<SpotlightOpResult>
-  deactivateSpotlight: (repoId: string, opts?: { quiet?: boolean }) => Promise<SpotlightOpResult>
+  deactivateSpotlight: (repoId: string, opts?: TaskSpotlightOpOptions) => Promise<SpotlightOpResult>
 }
 
 export type TaskSpotlightBatchResult = {
@@ -50,9 +56,10 @@ export async function runTaskSpotlightBatch(args: {
   if (isTaskSpotlightLit(members, spotlightByRepo)) {
     let succeeded = 0
     for (const { repo } of held) {
+      // Why projectName: a batch spans repos, so every failure toast must say which one failed.
       const ok = await runOp(
-        () => actions.deactivateSpotlight(repo.id, { quiet: true }),
-        translate('auto.store.slices.spotlight.deactivateFailed', 'Failed to turn off Spotlight')
+        () => actions.deactivateSpotlight(repo.id, { quiet: true, projectName: repo.displayName }),
+        spotlightDeactivateFailedTitle(repo.displayName)
       )
       succeeded += ok ? 1 : 0
     }
@@ -64,9 +71,14 @@ export async function runTaskSpotlightBatch(args: {
     if (held.includes(member)) {
       continue
     }
+    const { repo, worktree } = member
     const ok = await runOp(
-      () => actions.activateSpotlight(member.repo.id, member.worktree.id, { quiet: true }),
-      translate('auto.store.slices.spotlight.activateFailed', 'Failed to start Spotlight')
+      () =>
+        actions.activateSpotlight(repo.id, worktree.id, {
+          quiet: true,
+          projectName: repo.displayName
+        }),
+      spotlightActivateFailedTitle(repo.displayName)
     )
     succeeded += ok ? 1 : 0
   }
