@@ -6528,7 +6528,10 @@
           "newSpace": "New space",
           "newSpaceTitle": "New Space",
           "newSpaceDescription": "Creates a project group you can switch to from the bottom bar.",
-          "create": "Create"
+          "create": "Create",
+          "needsPermission": "Needs permission",
+          "unread": "Unread",
+          "labelWithState": "{{value0}} · {{value1}}"
         }
       },
       "shared": {

@@ -6,7 +6,13 @@ import { act, cleanup, render, screen, waitFor, within } from '@testing-library/
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppStore } from '@/store'
+import { resetAgentStatusEpochClockForTests } from '@/lib/agent-status-epoch-clock'
+import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
 import type { ProjectGroup } from '../../../../shared/project-group-types'
+import type { Repo } from '../../../../shared/repo-types'
+import { makePaneKey } from '../../../../shared/stable-pane-id'
+import type { TerminalTab } from '../../../../shared/terminal-tab-types'
+import type { Worktree } from '../../../../shared/worktree/types'
 import { SidebarSpaceSwitcher } from './SidebarSpaceSwitcher'
 
 // Why: tooltip content only mounts on hover; render it inline to assert the label text.
@@ -36,6 +42,66 @@ function makeGroup(id: string, overrides: Partial<ProjectGroup> = {}): ProjectGr
   }
 }
 
+function makeRepo(id: string, projectGroupId: string | null): Repo {
+  return {
+    id,
+    path: `/tmp/${id}`,
+    displayName: id,
+    badgeColor: '#000000',
+    addedAt: 0,
+    projectGroupId
+  }
+}
+
+function makeWorktree(id: string, repoId: string, overrides: Partial<Worktree> = {}): Worktree {
+  return {
+    id,
+    repoId,
+    path: `/tmp/${id}`,
+    branch: 'refs/heads/main',
+    head: 'abc123',
+    isBare: false,
+    isMainWorktree: false,
+    linkedIssue: null,
+    linkedPR: null,
+    linkedLinearIssue: null,
+    isArchived: false,
+    comment: '',
+    isUnread: false,
+    isPinned: false,
+    displayName: id,
+    sortOrder: 0,
+    lastActivityAt: 0,
+    ...overrides
+  }
+}
+
+function makeTab(id: string, worktreeId: string): TerminalTab {
+  return {
+    id,
+    ptyId: null,
+    worktreeId,
+    title: id,
+    customTitle: null,
+    color: null,
+    sortOrder: 0,
+    createdAt: 0
+  }
+}
+
+const LEAF_ID = '11111111-1111-4111-8111-111111111111'
+
+function makeAgentStatus(tabId: string, state: AgentStatusEntry['state']): AgentStatusEntry {
+  return {
+    state,
+    prompt: '',
+    updatedAt: Date.now(),
+    stateStartedAt: Date.now(),
+    stateHistory: [],
+    paneKey: makePaneKey(tabId, LEAF_ID)
+  }
+}
+
 const setActiveGroupId = vi.fn()
 const createProjectGroup = vi.fn()
 
@@ -56,6 +122,7 @@ function spaceButtons(): HTMLElement[] {
 describe('SidebarSpaceSwitcher', () => {
   beforeEach(() => {
     useAppStore.setState(initialState, true)
+    resetAgentStatusEpochClockForTests()
     createProjectGroup.mockResolvedValue(makeGroup('created'))
   })
 
@@ -189,5 +256,146 @@ describe('SidebarSpaceSwitcher', () => {
     await waitFor(() => expect(createProjectGroup).toHaveBeenCalledWith('Side projects'))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(setActiveGroupId).not.toHaveBeenCalled()
+  })
+  describe('attention dot', () => {
+    const spaces = [
+      makeGroup('work', { name: 'Work', tabOrder: 0 }),
+      makeGroup('personal', { name: 'Personal', tabOrder: 1 })
+    ]
+
+    function dotOf(button: HTMLElement): HTMLElement | null {
+      return button.closest('.relative')?.querySelector('[data-attention]') ?? null
+    }
+
+    function seedWorkAttention(
+      attention: 'unread' | 'permission' | 'unread-tab',
+      activeSpace: string | null
+    ): void {
+      const isUnread = attention === 'unread'
+      seedStore({
+        projectGroups: spaces,
+        activeSidebarSpaceGroupId: activeSpace,
+        repos: [makeRepo('r-work', 'work'), makeRepo('r-personal', 'personal')],
+        worktreesByRepo: {
+          'r-work': [makeWorktree('wt-work', 'r-work', { isUnread })],
+          'r-personal': [makeWorktree('wt-personal', 'r-personal')]
+        },
+        tabsByWorktree: { 'wt-work': [makeTab('tab-work', 'wt-work')] },
+        unreadTerminalTabs: attention === 'unread-tab' ? { 'tab-work': true } : {},
+        agentStatusByPaneKey:
+          attention === 'permission'
+            ? { [makePaneKey('tab-work', LEAF_ID)]: makeAgentStatus('tab-work', 'blocked') }
+            : {},
+        agentStatusEpoch: 1
+      })
+    }
+
+    it('shows nothing when no space needs attention', () => {
+      seedStore({ projectGroups: spaces, activeSidebarSpaceGroupId: 'personal' })
+      const { container } = render(<SidebarSpaceSwitcher />)
+
+      expect(container.querySelector('[data-attention]')).toBeNull()
+    })
+
+    it.each([
+      ['unread', 'Unread', 'unread'],
+      ['unread-tab', 'Unread', 'unread'],
+      ['permission', 'Needs permission', 'permission']
+    ] as const)(
+      'marks an inactive space for %s and names the state in its label and tooltip',
+      (source, stateLabel, expectedKind) => {
+        seedWorkAttention(source, 'personal')
+        render(<SidebarSpaceSwitcher />)
+
+        const button = screen.getByRole('button', { name: `Work · ${stateLabel}` })
+        expect(dotOf(button)).toHaveAttribute('data-attention', expectedKind)
+        expect(screen.getAllByTestId('tooltip').map((tooltip) => tooltip.textContent)).toContain(
+          `Work · ${stateLabel}`
+        )
+        expect(dotOf(screen.getByRole('button', { name: 'Personal' }))).toBeNull()
+      }
+    )
+
+    it('uses the permission color for permission and a neutral foreground for unread', () => {
+      seedWorkAttention('permission', 'personal')
+      const { unmount } = render(<SidebarSpaceSwitcher />)
+      const permissionDot = dotOf(screen.getByRole('button', { name: 'Work · Needs permission' }))
+      expect(permissionDot).toHaveClass('data-[attention=permission]:bg-agent-question')
+      unmount()
+
+      seedWorkAttention('unread', 'personal')
+      render(<SidebarSpaceSwitcher />)
+      const unreadDot = dotOf(screen.getByRole('button', { name: 'Work · Unread' }))
+      expect(unreadDot).toHaveClass('data-[attention=unread]:bg-foreground')
+    })
+
+    it('keeps the dot out of the dimmed wrapper so it stays at full strength', () => {
+      seedWorkAttention('permission', 'personal')
+      render(<SidebarSpaceSwitcher />)
+
+      const button = screen.getByRole('button', { name: 'Work · Needs permission' })
+      expect(button.closest('.opacity-40')).not.toBeNull()
+      expect(dotOf(button)?.closest('.opacity-40')).toBeNull()
+      expect(dotOf(button)).toHaveAttribute('aria-hidden', 'true')
+    })
+
+    it.each(['unread', 'permission'] as const)(
+      'hides the dot on the space you are viewing (%s)',
+      (source) => {
+        seedWorkAttention(source, 'work')
+        const { container } = render(<SidebarSpaceSwitcher />)
+
+        expect(screen.getByRole('button', { name: 'Work' })).toHaveAttribute('aria-pressed', 'true')
+        expect(container.querySelector('[data-attention]')).toBeNull()
+      }
+    )
+
+    it('shows the dot again once you switch away from that space', () => {
+      seedWorkAttention('unread', 'work')
+      const { container } = render(<SidebarSpaceSwitcher />)
+      expect(container.querySelector('[data-attention]')).toBeNull()
+
+      act(() => useAppStore.setState({ activeSidebarSpaceGroupId: 'personal' }))
+
+      expect(container.querySelectorAll('[data-attention]')).toHaveLength(1)
+      expect(screen.getByRole('button', { name: 'Work · Unread' })).toBeInTheDocument()
+    })
+
+    it('clears the dot when the agent is answered', () => {
+      seedWorkAttention('permission', 'personal')
+      render(<SidebarSpaceSwitcher />)
+      expect(screen.getByRole('button', { name: 'Work · Needs permission' })).toBeInTheDocument()
+
+      act(() => useAppStore.setState({ agentStatusByPaneKey: {}, agentStatusEpoch: 2 }))
+
+      expect(screen.getByRole('button', { name: 'Work' })).toBeInTheDocument()
+    })
+
+    it('never puts a dot on All, whether or not it is active', () => {
+      seedStore({
+        projectGroups: spaces,
+        activeSidebarSpaceGroupId: 'work',
+        repos: [makeRepo('r-loose', null)],
+        worktreesByRepo: { 'r-loose': [makeWorktree('wt-loose', 'r-loose', { isUnread: true })] }
+      })
+      const { container } = render(<SidebarSpaceSwitcher />)
+
+      expect(container.querySelector('[data-attention]')).toBeNull()
+      expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
+    })
+
+    it('does not light All for work that belongs to a space', () => {
+      seedWorkAttention('unread', 'personal')
+      render(<SidebarSpaceSwitcher />)
+
+      expect(dotOf(screen.getByRole('button', { name: 'All' }))).toBeNull()
+    })
+
+    it('never puts a dot on the new-space button', () => {
+      seedWorkAttention('permission', 'personal')
+      render(<SidebarSpaceSwitcher />)
+
+      expect(dotOf(screen.getByRole('button', { name: 'New space' }))).toBeNull()
+    })
   })
 })

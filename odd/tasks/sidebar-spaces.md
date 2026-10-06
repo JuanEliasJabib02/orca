@@ -81,6 +81,11 @@ Arc's spaces.
     (`isUnread` + `unreadTerminalTabs`) to group ids, rendered as a dot on
     inactive spaces.
   - Check: unit tests for the rollup, a component test, and `pnpm tc`.
+  - Code is complete: `sidebar-space-attention.ts` with 19 rollup tests,
+    `use-sidebar-space-attention.ts`, and the dot plus 8 switcher tests. The dot sits
+    outside the dimmed wrapper. Permission uses `bg-agent-question` and unread uses
+    `bg-foreground`. **Verification pending:** Juan asked for no test/tc runs until the
+    whole feature is done.
 - [ ] **5. Every project lives in a space (drop All)**
   - Change the scope rules to match the "No All space" decision above, and remove the
     All button. Creating the first space adopts the ungrouped projects, and `+`
