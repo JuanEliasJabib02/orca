@@ -614,4 +614,79 @@ describe('Store', () => {
     const reloaded = await createStore()
     expect(reloaded.getRepo('r1')!.issueSourcePreference).toBeUndefined()
   })
+
+  it('updateRepo persists a sanitized Spotlight server config across reloads', async () => {
+    const store = await createStore()
+    store.addRepo(makeRepo())
+
+    const updated = store.updateRepo('r1', {
+      spotlightServer: { local: ' pnpm local ', dev: '   ', port: 3002 }
+    })
+    expect(updated!.spotlightServer).toEqual({ local: 'pnpm local', port: 3002 })
+
+    store.flush()
+    const reloaded = await createStore()
+    expect(reloaded.getRepo('r1')!.spotlightServer).toEqual({ local: 'pnpm local', port: 3002 })
+  })
+
+  it('updateRepo clears the Spotlight server config on null or an empty config', async () => {
+    const store = await createStore()
+    store.addRepo(makeRepo({ spotlightServer: { dev: 'pnpm dev', port: 3000 } }))
+
+    store.updateRepo('r1', { spotlightServer: null })
+    expect(store.getRepo('r1')!.spotlightServer).toBeUndefined()
+
+    store.updateRepo('r1', { spotlightServer: { dev: 'pnpm dev' } })
+    store.updateRepo('r1', { spotlightServer: { dev: '  ', port: 0 } })
+    expect(store.getRepo('r1')!.spotlightServer).toBeUndefined()
+
+    store.flush()
+    const reloaded = await createStore()
+    expect(reloaded.getRepo('r1')!.spotlightServer).toBeUndefined()
+  })
+
+  it('updateRepo leaves the Spotlight server config alone when the key is absent or undefined', async () => {
+    const store = await createStore()
+    store.addRepo(makeRepo({ spotlightServer: { dev: 'pnpm dev' } }))
+
+    store.updateRepo('r1', { displayName: 'renamed' })
+    store.updateRepo('r1', { spotlightServer: undefined })
+    store.updateRepo('r1', { spotlightServer: 'pnpm dev' as never })
+
+    expect(store.getRepo('r1')!.spotlightServer).toEqual({ dev: 'pnpm dev' })
+  })
+
+  it('updateRepo drops a Spotlight server config set on folder and SSH repos but still clears', async () => {
+    const store = await createStore()
+    store.addRepo(makeRepo({ id: 'folder', kind: 'folder' }))
+    store.addRepo(makeRepo({ id: 'ssh', connectionId: 'server', executionHostId: 'ssh:server' }))
+
+    for (const id of ['folder', 'ssh']) {
+      const updated = store.updateRepo(id, { spotlightServer: { dev: 'pnpm dev' } })
+      expect(updated).not.toBeNull()
+      expect(updated!.spotlightServer).toBeUndefined()
+    }
+
+    // A config stored before the repo became folder/SSH can still be removed.
+    store.addRepo(
+      makeRepo({ id: 'legacy', kind: 'folder', spotlightServer: { dev: 'pnpm dev', port: 3000 } })
+    )
+    expect(store.updateRepo('legacy', { spotlightServer: null })!.spotlightServer).toBeUndefined()
+  })
+
+  it('getRepo does not expose a malformed persisted Spotlight server config', async () => {
+    writeDataFile({
+      ...getDefaultPersistedState(testState.dir),
+      repos: [
+        makeRepo({
+          spotlightServer: { dev: ' pnpm dev ', prod: 7, port: 70000 } as never
+        })
+      ]
+    })
+
+    const store = await createStore()
+
+    expect(store.getRepo('r1')!.spotlightServer).toEqual({ dev: 'pnpm dev' })
+    expect(store.getRepos()[0]!.spotlightServer).toEqual({ dev: 'pnpm dev' })
+  })
 })

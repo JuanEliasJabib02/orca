@@ -1,6 +1,5 @@
 import type { ProjectHostSetup, ProjectHostSetupUpdateArgs } from '../../../shared/project-types'
 import type { Repo } from '../../../shared/repo-types'
-import type { GhAccountBinding } from '../../../shared/github/account-binding'
 import type { SpotlightRepoState } from '../../../shared/spotlight'
 import {
   removeRepoFromHostWorkspaceSessions,
@@ -191,40 +190,7 @@ export class RepoLifecycleOperations {
 
   updateRepo(
     id: string,
-    updates: Partial<
-      Pick<
-        Repo,
-        | 'displayName'
-        | 'badgeColor'
-        | 'repoIcon'
-        | 'upstream'
-        | 'gitRemoteIdentity'
-        | 'hookSettings'
-        | 'worktreeBaseRef'
-        | 'worktreeBasePath'
-        | 'kind'
-        | 'folderUpgradeGitRootPath'
-        | 'executionHostId'
-        | 'symlinkPaths'
-        | 'issueSourcePreference'
-        | 'forkSyncMode'
-        | 'externalWorktreeVisibilityPromptDismissedAt'
-        | 'externalWorktreeInboxBaselinePaths'
-        | 'importedExternalWorktreePaths'
-        | 'customWorktreeVisibilitySources'
-        | 'worktreeVisibilitySourcePreferences'
-        | 'projectGroupId'
-        | 'projectGroupOrder'
-        | 'spotlightTestingEnabled'
-        | 'projectHostSetupMethod'
-      >
-    > & {
-      externalWorktreeVisibility?: Repo['externalWorktreeVisibility'] | null
-      agentWorktreeVisibility?: Repo['agentWorktreeVisibility'] | null
-      sourceControlAi?: Repo['sourceControlAi'] | null
-      externalWorktreeDiscoverySuppressedAt?: Repo['externalWorktreeDiscoverySuppressedAt'] | null
-      ghAccount?: GhAccountBinding | null
-    },
+    updates: Parameters<RepoUpdatePersistenceOperations['updateRepo']>[1],
     hostId?: ExecutionHostId
   ): Repo | null {
     return getRepoUpdateOperations(this).updateRepo(id, updates, hostId)

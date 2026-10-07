@@ -3,6 +3,7 @@ import { normalizeRepoSourceControlAiOverrides } from '../source-control-ai'
 import { normalizeRepoBadgeColor } from '../repo-badge-color'
 import { sanitizeRepoIcon } from '../repo-icon'
 import { normalizeGhAccountBinding } from '../github/account-binding'
+import { normalizeSpotlightServerUpdate } from '../spotlight-server-command'
 import {
   normalizeCustomWorktreeVisibilitySources,
   normalizeWorktreeVisibilitySourcePreferences
@@ -88,7 +89,12 @@ export function createRepoUpdateSchema<T extends Readonly<Record<string, z.ZodTy
       projectGroupId: OptionalString.nullable().optional(),
       projectGroupOrder: OptionalFiniteNumber,
       sourceControlAi: RepoSourceControlAiOverrides,
-      spotlightTestingEnabled: z.boolean().optional()
+      spotlightTestingEnabled: z.boolean().optional(),
+      // Why: optional so older clients that never send it still validate; null clears, malformed input is omitted.
+      spotlightServer: z
+        .unknown()
+        .optional()
+        .transform((value) => normalizeSpotlightServerUpdate(value))
     })
   })
 }

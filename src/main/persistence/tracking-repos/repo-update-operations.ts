@@ -4,6 +4,7 @@ import type { ExecutionHostId } from '../../../shared/execution-host'
 import { getRepoExecutionHostId } from '../../../shared/execution-host'
 import { isLegacyRepoForExternalWorktreeVisibility } from '../../../shared/external-worktree-visibility'
 import { normalizeRepoSourceControlAiOverrides } from '../../../shared/source-control-ai'
+import { normalizeSpotlightServerUpdate } from '../../../shared/spotlight-server-command'
 import { normalizeWorktreeVisibilitySourcePreferences } from '../../../shared/worktree/visibility-sources'
 import type { GhAccountBinding } from '../../../shared/github/account-binding'
 import { invalidateGhAccountTokenCache } from '../../github/gh-account-token'
@@ -109,6 +110,7 @@ export class RepoUpdatePersistenceOperations {
       sourceControlAi?: Repo['sourceControlAi'] | null
       externalWorktreeDiscoverySuppressedAt?: Repo['externalWorktreeDiscoverySuppressedAt'] | null
       ghAccount?: GhAccountBinding | null
+      spotlightServer?: Repo['spotlightServer'] | null
     },
     hostId?: ExecutionHostId
   ): Repo | null {
@@ -127,6 +129,22 @@ export class RepoUpdatePersistenceOperations {
       // (e.g. from a runtime RPC client) so it can't persist a flag that only
       // injects a dead ORCA_SPOTLIGHT_LOG with no UI to turn it back off.
       delete sanitizedUpdates.spotlightTestingEnabled
+    }
+    if ('spotlightServer' in sanitizedUpdates) {
+      const spotlightServer = normalizeSpotlightServerUpdate(sanitizedUpdates.spotlightServer)
+      if (spotlightServer === null) {
+        delete repo.spotlightServer
+        delete sanitizedUpdates.spotlightServer
+      } else if (
+        spotlightServer === undefined ||
+        isFolderRepo(repo) ||
+        Boolean(repo.connectionId?.trim())
+      ) {
+        // Why: Spotlight is local-git only, so a set on a folder/SSH repo is dropped; a clear still applies.
+        delete sanitizedUpdates.spotlightServer
+      } else {
+        sanitizedUpdates.spotlightServer = spotlightServer
+      }
     }
     if (
       'executionHostId' in updates &&

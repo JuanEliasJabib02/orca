@@ -4,6 +4,7 @@ import type { Repo } from '../../../../shared/repo-types'
 import { sanitizeRepoIcon } from '../../../../shared/repo-icon'
 import { normalizeRepoBadgeColor } from '../../../../shared/repo-badge-color'
 import { normalizeGhAccountBinding } from '../../../../shared/github/account-binding'
+import { normalizeSpotlightServerUpdate } from '../../../../shared/spotlight-server-command'
 import {
   findRepoForHost,
   getRepoHostIdentityForParts,
@@ -57,6 +58,14 @@ export function sanitizeRepoUpdate(updates: RepoUpdate): RepoUpdate {
     typeof sanitized.spotlightTestingEnabled !== 'boolean'
   ) {
     delete sanitized.spotlightTestingEnabled
+  }
+  if ('spotlightServer' in sanitized) {
+    const spotlightServer = normalizeSpotlightServerUpdate(sanitized.spotlightServer)
+    if (spotlightServer === undefined) {
+      delete sanitized.spotlightServer
+    } else {
+      sanitized.spotlightServer = spotlightServer
+    }
   }
   if ('ghAccount' in sanitized && sanitized.ghAccount != null) {
     const normalized = normalizeGhAccountBinding(sanitized.ghAccount)
@@ -164,6 +173,7 @@ export function createRepoUpdateActions(
                 ghAccount,
                 externalWorktreeVisibility,
                 agentWorktreeVisibility,
+                spotlightServer,
                 ...updatesWithoutClearSentinels
               } = sanitizedUpdates
               mergedRepo = { ...mergedRepo, ...updatesWithoutClearSentinels }
@@ -202,6 +212,13 @@ export function createRepoUpdateActions(
                 mergedRepo = repoWithoutGhAccount
               } else if (ghAccount !== undefined) {
                 mergedRepo = { ...mergedRepo, ghAccount }
+              }
+              if (spotlightServer === null) {
+                const { spotlightServer: _spotlightServer, ...repoWithoutSpotlightServer } =
+                  mergedRepo
+                mergedRepo = repoWithoutSpotlightServer
+              } else if (spotlightServer !== undefined) {
+                mergedRepo = { ...mergedRepo, spotlightServer }
               }
               return mergedRepo
             })

@@ -6,6 +6,7 @@ import type { ForkSyncMode } from './git-fork-sync'
 import type { GitRemoteIdentity } from './git-remote-identity'
 import type { RepoSourceControlAiOverrides } from './source-control-ai-types'
 import type { RepoProjectHostSetupMethod } from './project-types'
+import type { SpotlightServerConfig } from './spotlight-server-types'
 
 // ─── Repo ────────────────────────────────────────────────────────────
 export type RepoKind = 'git' | 'folder'
@@ -115,6 +116,8 @@ export type Repo = {
    *  onto the repo root so it can be tested against the root's installed
    *  toolchain (node_modules, native builds) without duplicating it. */
   spotlightTestingEnabled?: boolean
+  /** Dev-server commands and port Spotlight starts for this repo; stored in Orca, never in the repo. */
+  spotlightServer?: SpotlightServerConfig
 }
 
 /**

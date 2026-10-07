@@ -223,4 +223,52 @@ describe('repo update serialization', () => {
     expect(reposUpdate).toHaveBeenCalledWith({ repoId: localRepo.id, updates: {} })
     expect(store.getState().repos[0]?.repoIcon).toBeUndefined()
   })
+
+  it('sends a sanitized Spotlight server config and merges it when IPC returns no repo', async () => {
+    reposUpdate.mockResolvedValueOnce(undefined)
+    const store = createTestStore()
+    store.setState({ repos: [localRepo] })
+
+    await store.getState().updateRepo(localRepo.id, {
+      spotlightServer: { local: ' pnpm local ', dev: '  ', port: 3002 }
+    })
+
+    expect(reposUpdate).toHaveBeenCalledWith({
+      repoId: localRepo.id,
+      updates: { spotlightServer: { local: 'pnpm local', port: 3002 } }
+    })
+    expect(store.getState().repos[0]?.spotlightServer).toEqual({ local: 'pnpm local', port: 3002 })
+  })
+
+  it('sends null and clears the stored Spotlight server config when it sanitizes to nothing', async () => {
+    reposUpdate.mockResolvedValue(undefined)
+    const store = createTestStore()
+    store.setState({ repos: [{ ...localRepo, spotlightServer: { dev: 'pnpm dev' } }] })
+
+    await store.getState().updateRepo(localRepo.id, { spotlightServer: { dev: '  ', port: 0 } })
+    expect(reposUpdate).toHaveBeenLastCalledWith({
+      repoId: localRepo.id,
+      updates: { spotlightServer: null }
+    })
+    expect(store.getState().repos[0]?.spotlightServer).toBeUndefined()
+
+    store.setState({ repos: [{ ...localRepo, spotlightServer: { dev: 'pnpm dev' } }] })
+    await store.getState().updateRepo(localRepo.id, { spotlightServer: null })
+    expect(reposUpdate).toHaveBeenLastCalledWith({
+      repoId: localRepo.id,
+      updates: { spotlightServer: null }
+    })
+    expect(store.getState().repos[0]?.spotlightServer).toBeUndefined()
+  })
+
+  it('does not send a malformed Spotlight server value', async () => {
+    reposUpdate.mockResolvedValueOnce(undefined)
+    const store = createTestStore()
+    store.setState({ repos: [{ ...localRepo, spotlightServer: { dev: 'pnpm dev' } }] })
+
+    await store.getState().updateRepo(localRepo.id, { spotlightServer: 'pnpm dev' as never })
+
+    expect(reposUpdate).toHaveBeenCalledWith({ repoId: localRepo.id, updates: {} })
+    expect(store.getState().repos[0]?.spotlightServer).toEqual({ dev: 'pnpm dev' })
+  })
 })

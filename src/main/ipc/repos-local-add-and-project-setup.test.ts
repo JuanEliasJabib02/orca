@@ -393,6 +393,33 @@ describe('repos:add + repos:clone', () => {
     })
   })
 
+  it('sanitizes Spotlight server configs through local repos:update', () => {
+    mockStore.updateRepo.mockReturnValue({ id: 'repo-spotlight-server' })
+    const update = (spotlightServer: unknown) =>
+      handlers.get('repos:update')!(null, {
+        repoId: 'repo-spotlight-server',
+        updates: { spotlightServer }
+      })
+
+    update({ local: ' pnpm local ', dev: 7, port: 3002, extra: true })
+    expect(mockStore.updateRepo).toHaveBeenLastCalledWith('repo-spotlight-server', {
+      spotlightServer: { local: 'pnpm local', port: 3002 }
+    })
+
+    update({ dev: '   ', port: 70000 })
+    expect(mockStore.updateRepo).toHaveBeenLastCalledWith('repo-spotlight-server', {
+      spotlightServer: null
+    })
+
+    update(null)
+    expect(mockStore.updateRepo).toHaveBeenLastCalledWith('repo-spotlight-server', {
+      spotlightServer: null
+    })
+
+    update('pnpm dev')
+    expect(mockStore.updateRepo).toHaveBeenLastCalledWith('repo-spotlight-server', {})
+  })
+
   it('validates source definitions and preferences through local repos:update', () => {
     const updated = {
       id: 'repo-source-visibility',

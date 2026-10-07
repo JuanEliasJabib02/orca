@@ -58,6 +58,8 @@ export type RepoUpdate = Partial<
   sourceControlAi?: Repo['sourceControlAi'] | null
   externalWorktreeDiscoverySuppressedAt?: Repo['externalWorktreeDiscoverySuppressedAt'] | null
   ghAccount?: GhAccountBinding | null
+  /** `null` (or a config that sanitizes to nothing) clears the stored server settings. */
+  spotlightServer?: Repo['spotlightServer'] | null
 }
 
 export type ProjectUpdate = ProjectUpdateArgs['updates']

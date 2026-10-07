@@ -9,6 +9,7 @@ import { sanitizeRepoIcon } from '../../../shared/repo-icon'
 import { normalizeGhAccountBinding } from '../../../shared/github/account-binding'
 import type { GhAccountBinding } from '../../../shared/github/account-binding'
 import { normalizeRepoSourceControlAiOverrides } from '../../../shared/source-control-ai'
+import { normalizeSpotlightServerUpdate } from '../../../shared/spotlight-server-command'
 import {
   normalizeCustomWorktreeVisibilitySources,
   normalizeWorktreeVisibilitySourcePreferences
@@ -56,6 +57,7 @@ export function registerRepoUpdateHandler(mainWindow: BrowserWindow, store: Stor
             | Repo['externalWorktreeDiscoverySuppressedAt']
             | null
           ghAccount?: GhAccountBinding | null
+          spotlightServer?: Repo['spotlightServer'] | null
         }
       }
     ) => {
@@ -85,6 +87,15 @@ export function registerRepoUpdateHandler(mainWindow: BrowserWindow, store: Stor
         typeof updates.spotlightTestingEnabled !== 'boolean'
       ) {
         delete updates.spotlightTestingEnabled
+      }
+      // Why: null is the transport sentinel for clearing the config; non-object garbage is dropped, never coerced.
+      if ('spotlightServer' in updates) {
+        const spotlightServer = normalizeSpotlightServerUpdate(updates.spotlightServer)
+        if (spotlightServer === undefined) {
+          delete updates.spotlightServer
+        } else {
+          updates.spotlightServer = spotlightServer
+        }
       }
       // Why: null is the transport sentinel for clearing the binding; malformed shapes are dropped, never coerced.
       if ('ghAccount' in updates) {
