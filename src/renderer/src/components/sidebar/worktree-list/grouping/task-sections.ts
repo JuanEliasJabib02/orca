@@ -11,9 +11,9 @@ import {
   getFolderWorkspaceTaskKeySource,
   getTaskKeyFromLaneKey,
   getTaskTitle,
-  getWorktreeTaskKeySource,
-  getWorktreeTaskLaneKey
+  getWorktreeTaskKeySource
 } from './worktree-task-key'
+import type { WorktreeTaskKeys } from './worktree-task-keys'
 
 export const TASK_GROUP_META = {
   tone: 'text-foreground',
@@ -34,10 +34,13 @@ export function getTaskLaneLabel(laneKey: string): string {
 }
 
 /** Every worktree per task lane, so a header can name members the Pinned section took. */
-export function groupWorktreesByTaskLane(worktrees: readonly Worktree[]): Map<string, Worktree[]> {
+export function groupWorktreesByTaskLane(
+  worktrees: readonly Worktree[],
+  taskKeys: WorktreeTaskKeys
+): Map<string, Worktree[]> {
   const byLaneKey = new Map<string, Worktree[]>()
   for (const worktree of worktrees) {
-    const laneKey = getWorktreeTaskLaneKey(worktree)
+    const laneKey = taskKeys.getLaneKey(worktree)
     const members = byLaneKey.get(laneKey)
     if (members) {
       members.push(worktree)

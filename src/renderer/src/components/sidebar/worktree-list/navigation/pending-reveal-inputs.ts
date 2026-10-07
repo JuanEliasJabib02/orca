@@ -14,6 +14,7 @@ import { getWorktreeLineageGroupKey } from '../grouping/group-keys'
 import type { ProjectGroupingModel } from '../grouping/project-grouping'
 import type { PinnedWorktreeDisplayPolicy, WorktreeGroupBy } from '../grouping/row-types'
 import { getGroupKeysForWorktree } from '../grouping/worktree-group-keys'
+import type { WorktreeTaskKeys } from '../grouping/worktree-task-keys'
 import { isPinnedSectionWorktree } from '../../pinned-section-worktrees'
 import { getWorktreeLineageAncestors } from '../../worktree-lineage-projection'
 import { getFolderWorkspaceRevealGroupKeys } from './folder-reveal'
@@ -31,6 +32,7 @@ export type PendingSidebarRevealArgs = {
   virtualizer: Virtualizer<HTMLDivElement, HTMLDivElement>
   scrollRef: React.RefObject<HTMLDivElement | null>
   worktrees: Worktree[]
+  taskKeys: WorktreeTaskKeys
   folderWorkspaces: readonly FolderWorkspace[]
   repoMap: Map<string, Repo>
   worktreeMap: Map<string, Worktree>
@@ -135,7 +137,8 @@ export function expandGroupsForWorktreeReveal(
           args.workspaceStatuses,
           args.settings,
           args.projectGroups,
-          args.projectGrouping
+          args.projectGrouping,
+          args.taskKeys
         )
   for (const groupKey of groupKeys) {
     if (args.collapsedGroups.has(groupKey)) {

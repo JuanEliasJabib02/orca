@@ -28,7 +28,7 @@ import type {
 } from './row-types'
 import { getManualOrderAnchorRepo, sortProjectEntries } from './section-order'
 import { getTaskLaneLabel, sortTaskGroupEntries } from './task-sections'
-import { getWorktreeTaskLaneKey } from './worktree-task-key'
+import type { WorktreeTaskKeys } from './worktree-task-keys'
 
 /** Lane label for a lane a folder workspace opened before any worktree did. */
 function getLaneLabelForKey(
@@ -64,6 +64,7 @@ export function buildOrderedGroups(args: {
   pendingByRepo: ReadonlyMap<string, PendingCreationRef[]>
   repoOrder: Map<string, number> | undefined
   projectOrderBy: ProjectOrderBy
+  taskKeys: WorktreeTaskKeys
   folderWorkspaces?: readonly RenderableFolderWorkspace[]
 }): OrderedGroupEntry[] {
   const {
@@ -80,6 +81,7 @@ export function buildOrderedGroups(args: {
     pendingByRepo,
     repoOrder,
     projectOrderBy,
+    taskKeys,
     folderWorkspaces = []
   } = args
 
@@ -99,7 +101,7 @@ export function buildOrderedGroups(args: {
       label =
         workspaceStatuses.find((status) => status.id === workspaceStatus)?.label ?? workspaceStatus
     } else if (groupBy === 'task') {
-      key = getWorktreeTaskLaneKey(w)
+      key = taskKeys.getLaneKey(w)
       label = getTaskLaneLabel(key)
     } else {
       const prGroup = getPRGroupKey(w, repoMap, prCache, settings)

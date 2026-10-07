@@ -12,6 +12,7 @@ import type { ExecutionHostId } from '../../../../../../shared/execution-host'
 import { folderWorkspaceKey } from '../../../../../../shared/workspace-scope'
 import { getHostDisplayLabelOverrides } from '../../../../../../shared/host-setting-overrides'
 import { buildRows } from '../grouping/build-rows'
+import type { WorktreeTaskKeys } from '../grouping/worktree-task-keys'
 import type { ProjectGroupingModel } from '../grouping/project-grouping'
 import type { PinnedWorktreeDisplayPolicy, Row, WorktreeGroupBy } from '../grouping/row-types'
 import { getLogicalRepoOrderRankById } from '../../project-header-drop'
@@ -27,6 +28,8 @@ type SectionRowsArgs = {
   pinnedDisplayPolicy: PinnedWorktreeDisplayPolicy
   defaultHostId: ExecutionHostId
   worktrees: Worktree[]
+  // Built over every worktree, not `worktrees`, so a filter cannot split a task.
+  taskKeys: WorktreeTaskKeys
   repos: readonly Repo[]
   repoMap: Map<string, Repo>
   worktreeMap: Map<string, Worktree>
@@ -165,7 +168,8 @@ export function useSidebarSectionRows(args: SectionRowsArgs) {
         args.visibleFolderWorkspacesForRows,
         hostLabelById,
         defaultHostId,
-        args.pinnedDisplayPolicy
+        args.pinnedDisplayPolicy,
+        args.taskKeys
       ),
     [
       args.groupBy,
@@ -188,7 +192,8 @@ export function useSidebarSectionRows(args: SectionRowsArgs) {
       args.newExternalWorktreesInboxByRepo,
       pendingCreations,
       hostLabelById,
-      args.pinnedDisplayPolicy
+      args.pinnedDisplayPolicy,
+      args.taskKeys
     ]
   )
   const orderedHostOptions = useMemo(

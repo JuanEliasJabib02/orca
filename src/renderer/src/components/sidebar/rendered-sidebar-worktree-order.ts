@@ -5,10 +5,15 @@ import {
   ALL_EXECUTION_HOSTS_SCOPE,
   getSettingsFocusedExecutionHostId
 } from '../../../../shared/execution-host'
-import { getRepoMapFromState, getWorktreeMapFromState } from '@/store/selectors'
+import {
+  getAllWorktreesFromState,
+  getRepoMapFromState,
+  getWorktreeMapFromState
+} from '@/store/selectors'
 import { getProjectHostSetupProjectionFromState } from '@/store/project-host-setup-selector'
 import { buildRows } from './worktree-list/grouping/build-rows'
 import { getPinnedWorktreeDisplayPolicy } from './worktree-list/grouping/row-types'
+import { getSidebarTaskKeys } from './worktree-list/grouping/worktree-task-keys'
 import { addHostSectionRows } from './host-section-rows'
 import { orderHostSectionOptions } from './host-section-order'
 import { buildSidebarHostOptions } from './sidebar-host-options'
@@ -95,7 +100,9 @@ export function computeRenderedSidebarWorktrees(
     // Why no hostLabelById: it only feeds display-only host context labels, never row order.
     undefined,
     defaultHostId,
-    pinnedDisplayPolicy
+    pinnedDisplayPolicy,
+    // Why all worktrees: must match the sidebar, whose tasks ignore filters.
+    getSidebarTaskKeys(state.groupBy, getAllWorktreesFromState(state))
   )
 
   // Why lazy: with no host filter, addHostSectionRows is a pass-through, so skip building the whole host registry on a keystroke.

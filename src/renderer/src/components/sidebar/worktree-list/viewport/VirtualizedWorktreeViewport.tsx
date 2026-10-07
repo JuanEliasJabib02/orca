@@ -147,6 +147,7 @@ export const VirtualizedWorktreeViewport = React.memo(function VirtualizedWorktr
     virtualizer: virtualization.virtualizer,
     scrollRef,
     worktrees: props.worktrees,
+    taskKeys: props.taskKeys,
     folderWorkspaces: props.folderWorkspaces,
     repoMap,
     worktreeMap,

@@ -47,7 +47,7 @@ function getBranchTaskKey(branch: string): string | null {
   return null
 }
 
-/** Linked Jira item first, then the branch, then the display name; null when none carries a key. */
+/** Linked Jira item first, then the branch, then the display name; null when none carries a key. Branch-name tasks live in worktree-task-keys.ts. */
 export function getTaskKey(source: TaskKeySource): string | null {
   return (
     getLinkedJiraKey(source.linkedWorkItem) ??
@@ -88,12 +88,6 @@ export function getTaskKeyFromLaneKey(laneKey: string): string | null {
     return null
   }
   return laneKey.slice(TASK_LANE_PREFIX.length)
-}
-
-export function getWorktreeTaskLaneKey(
-  worktree: Pick<Worktree, 'linkedWorkItem' | 'branch' | 'displayName'>
-): string {
-  return getTaskLaneKey(getTaskKey(getWorktreeTaskKeySource(worktree)))
 }
 
 export function getFolderWorkspaceTaskLaneKey(

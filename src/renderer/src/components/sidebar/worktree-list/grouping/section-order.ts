@@ -11,6 +11,7 @@ import type {
 } from './project-grouping'
 import type { WorktreeGroupBy } from './row-types'
 import { getGroupKeyForWorktree } from './worktree-group-keys'
+import type { WorktreeTaskKeys } from './worktree-task-keys'
 
 export function getRenderedNaturalAnchorRepoIds({
   groupBy,
@@ -20,7 +21,8 @@ export function getRenderedNaturalAnchorRepoIds({
   collapsedGroups,
   workspaceStatuses,
   settings,
-  projectGrouping
+  projectGrouping,
+  taskKeys
 }: {
   groupBy: WorktreeGroupBy
   worktrees: readonly Worktree[]
@@ -30,6 +32,7 @@ export function getRenderedNaturalAnchorRepoIds({
   workspaceStatuses: readonly WorkspaceStatusDefinition[]
   settings?: AppState['settings']
   projectGrouping?: ProjectGroupingModel
+  taskKeys: WorktreeTaskKeys
 }): Set<string> {
   const renderedRepoIds = new Set<string>()
   if (groupBy === 'none') {
@@ -54,7 +57,8 @@ export function getRenderedNaturalAnchorRepoIds({
       prCache,
       workspaceStatuses,
       settings,
-      projectGrouping
+      projectGrouping,
+      taskKeys
     )
     if (groupKey && !collapsedGroups.has(groupKey)) {
       renderedRepoIds.add(worktree.repoId)

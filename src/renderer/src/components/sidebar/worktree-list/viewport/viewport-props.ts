@@ -23,6 +23,7 @@ import type { WorktreeDragGroup } from '../../worktree-manual-order'
 import type { WorktreeStatusDropAtIndexArgs } from '../drag/drop-commit-context'
 import type { ProjectGroupingModel } from '../grouping/project-grouping'
 import type { PinnedWorktreeDisplayPolicy, WorktreeGroupBy } from '../grouping/row-types'
+import type { WorktreeTaskKeys } from '../grouping/worktree-task-keys'
 
 export const EMPTY_PROJECT_GROUPS: readonly ProjectGroup[] = []
 export type VirtualizedWorktreeViewportProps = {
@@ -57,6 +58,7 @@ export type VirtualizedWorktreeViewportProps = {
   clearPendingRevealSidebarRow: () => void
   agentSendTargetWorktreeId: string | null
   worktrees: Worktree[]
+  taskKeys: WorktreeTaskKeys
   folderWorkspaces: readonly FolderWorkspace[]
   selectedWorktreeIds: ReadonlySet<string>
   selectedWorktrees: readonly Worktree[]

@@ -8,7 +8,8 @@ import { ALL_GROUP_KEY, getPRGroupKey, getProjectGroupHeaderKey } from './group-
 import { buildProjectGroupingIndex, getProjectGroupingForRepo } from './project-grouping'
 import type { ProjectGroupingModel } from './project-grouping'
 import type { WorktreeGroupBy } from './row-types'
-import { getWorktreeTaskLaneKey } from './worktree-task-key'
+import { TICKET_ONLY_TASK_KEYS } from './worktree-task-keys'
+import type { WorktreeTaskKeys } from './worktree-task-keys'
 
 export function getGroupKeyForWorktree(
   groupBy: WorktreeGroupBy,
@@ -17,7 +18,9 @@ export function getGroupKeyForWorktree(
   prCache: Record<string, unknown> | null,
   workspaceStatuses: readonly WorkspaceStatusDefinition[] = cloneDefaultWorkspaceStatuses(),
   settings?: AppState['settings'],
-  projectGrouping?: ProjectGroupingModel
+  projectGrouping?: ProjectGroupingModel,
+  // Without it task mode sees ticket keys only, so pass the same index buildRows grouped with.
+  taskKeys: WorktreeTaskKeys = TICKET_ONLY_TASK_KEYS
 ): string | null {
   if (groupBy === 'none') {
     return ALL_GROUP_KEY
@@ -33,7 +36,7 @@ export function getGroupKeyForWorktree(
     ).key
   }
   if (groupBy === 'task') {
-    return getWorktreeTaskLaneKey(worktree)
+    return taskKeys.getLaneKey(worktree)
   }
   return `pr:${getPRGroupKey(worktree, repoMap, prCache, settings)}`
 }
@@ -46,7 +49,8 @@ export function getGroupKeysForWorktree(
   workspaceStatuses: readonly WorkspaceStatusDefinition[] = cloneDefaultWorkspaceStatuses(),
   settings?: AppState['settings'],
   projectGroups: readonly ProjectGroup[] = [],
-  projectGrouping?: ProjectGroupingModel
+  projectGrouping?: ProjectGroupingModel,
+  taskKeys: WorktreeTaskKeys = TICKET_ONLY_TASK_KEYS
 ): string[] {
   const groupKey = getGroupKeyForWorktree(
     groupBy,
@@ -55,7 +59,8 @@ export function getGroupKeysForWorktree(
     prCache,
     workspaceStatuses,
     settings,
-    projectGrouping
+    projectGrouping,
+    taskKeys
   )
   if (!groupKey) {
     return []

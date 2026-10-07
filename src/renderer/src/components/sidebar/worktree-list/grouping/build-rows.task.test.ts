@@ -4,6 +4,8 @@ import { PINNED_GROUP_KEY } from './group-keys'
 import type { GroupHeaderRow, Row } from './row-types'
 import { NO_TASK_LANE_KEY } from './worktree-task-key'
 import { getGroupKeysForWorktree } from './worktree-group-keys'
+import { buildWorktreeTaskKeys, getTaskKeysForAllWorktrees } from './worktree-task-keys'
+import type { WorktreeTaskKeys } from './worktree-task-keys'
 import { repo, worktree } from '../../worktree-list-groups-test-fixtures'
 import type { FolderWorkspace } from '../../../../../../shared/folder-workspace-types'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
@@ -55,7 +57,11 @@ function makeFolderWorkspace(overrides: Partial<FolderWorkspace> = {}): FolderWo
 
 function buildTaskRows(
   worktrees: Worktree[],
-  options: { collapsedGroups?: Set<string>; folderWorkspaces?: FolderWorkspace[] } = {}
+  options: {
+    collapsedGroups?: Set<string>
+    folderWorkspaces?: FolderWorkspace[]
+    taskKeys?: WorktreeTaskKeys
+  } = {}
 ): Row[] {
   return buildRows(
     'task',
@@ -76,7 +82,11 @@ function buildTaskRows(
     new Map(),
     [],
     undefined,
-    options.folderWorkspaces ?? []
+    options.folderWorkspaces ?? [],
+    undefined,
+    undefined,
+    undefined,
+    options.taskKeys
   )
 }
 
@@ -210,5 +220,116 @@ describe('buildRows grouped by task', () => {
 
   it('reveals a worktree through its task section key', () => {
     expect(getGroupKeysForWorktree('task', admin3448, REPO_MAP, null)).toEqual(['task:AX-3448'])
+  })
+})
+
+describe('buildRows grouped by task without a ticket key', () => {
+  const backendReview = makeWorktree({
+    id: 'wt-backend-review',
+    branch: 'refs/heads/juan/merchant-doc-cost-review',
+    displayName: 'merchant-doc-cost-review',
+    lastActivityAt: 20
+  })
+  const adminReview = makeWorktree({
+    id: 'wt-admin-review',
+    repoId: ADMIN.id,
+    branch: 'refs/heads/Merchant-Doc-Cost-Review',
+    displayName: 'Merchant-Doc-Cost-Review',
+    lastActivityAt: 30
+  })
+  const backendLone = makeWorktree({
+    id: 'wt-backend-lone',
+    branch: 'refs/heads/lone-work',
+    displayName: 'lone-work',
+    lastActivityAt: 40
+  })
+
+  it('files a branch name shared by two repos as one task labelled with that name', () => {
+    const rows = buildTaskRows([backendReview, adminReview, backendLone, backendMain])
+    const header = headers(rows).find((row) => row.key === 'task:Merchant-Doc-Cost-Review')
+
+    expect(headers(rows).map((row) => row.key)).toEqual([
+      'task:Merchant-Doc-Cost-Review',
+      NO_TASK_LANE_KEY
+    ])
+    expect(header).toMatchObject({ label: 'Merchant-Doc-Cost-Review', count: 2 })
+    expect(header?.task).toEqual({
+      taskKey: 'Merchant-Doc-Cost-Review',
+      title: null,
+      worktrees: [
+        { worktreeId: 'wt-backend-review', repoId: 'backend' },
+        { worktreeId: 'wt-admin-review', repoId: 'admin' }
+      ],
+      folderWorkspaceIds: []
+    })
+    expect(itemIdsUnder(rows, NO_TASK_LANE_KEY)).toEqual(['wt-backend-lone', 'wt-main'])
+  })
+
+  it('keeps a name used by one repo only in No task', () => {
+    const second = makeWorktree({ ...backendReview, id: 'wt-backend-review-2' })
+    const rows = buildTaskRows([backendReview, second])
+
+    expect(headers(rows).map((row) => row.key)).toEqual([NO_TASK_LANE_KEY])
+  })
+
+  it('keeps the shared-name task whole when the Pinned section holds one member', () => {
+    const rows = buildTaskRows([{ ...adminReview, isPinned: true }, backendReview])
+    const header = headers(rows).find((row) => row.key === 'task:Merchant-Doc-Cost-Review')
+
+    expect(itemIdsUnder(rows, PINNED_GROUP_KEY)).toEqual(['wt-admin-review'])
+    expect(itemIdsUnder(rows, 'task:Merchant-Doc-Cost-Review')).toEqual(['wt-backend-review'])
+    expect(header?.task?.worktrees.map((entry) => entry.worktreeId)).toEqual([
+      'wt-admin-review',
+      'wt-backend-review'
+    ])
+  })
+
+  it('keeps a visible worktree in its task when a filter hides the sibling in the other repo', () => {
+    const everyWorktree = [backendReview, adminReview, backendLone, backendMain]
+    const taskKeys = getTaskKeysForAllWorktrees(everyWorktree)
+    const visible = [backendReview, backendLone, backendMain]
+    const rows = buildTaskRows(visible, { taskKeys })
+    const header = headers(rows).find((row) => row.key === 'task:Merchant-Doc-Cost-Review')
+
+    expect(itemIdsUnder(rows, 'task:Merchant-Doc-Cost-Review')).toEqual(['wt-backend-review'])
+    expect(header).toMatchObject({ label: 'Merchant-Doc-Cost-Review', count: 1 })
+    expect(
+      getGroupKeysForWorktree(
+        'task',
+        backendReview,
+        REPO_MAP,
+        null,
+        undefined,
+        undefined,
+        [],
+        undefined,
+        taskKeys
+      )
+    ).toEqual(['task:Merchant-Doc-Cost-Review'])
+  })
+
+  it('reveals every worktree through the section its row renders in', () => {
+    const all = [backendReview, adminReview, backendLone, backendMain, backend3448]
+    const rows = buildTaskRows(all)
+    const taskKeys = buildWorktreeTaskKeys(all)
+
+    for (const entry of all) {
+      const sectionKey = headers(rows).find((row) =>
+        itemIdsUnder(rows, row.key).includes(entry.id)
+      )?.key
+      expect(
+        getGroupKeysForWorktree(
+          'task',
+          entry,
+          REPO_MAP,
+          null,
+          undefined,
+          undefined,
+          [],
+          undefined,
+          taskKeys
+        )
+      ).toEqual([sectionKey])
+    }
   })
 })

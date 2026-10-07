@@ -8,6 +8,7 @@ import { PINNED_GROUP_KEY, getLineageGroupKey } from '../grouping/group-keys'
 import type { PinnedWorktreeDisplayPolicy, WorktreeGroupBy } from '../grouping/row-types'
 import type { ProjectGroupingModel } from '../grouping/project-grouping'
 import { getGroupKeysForWorktree } from '../grouping/worktree-group-keys'
+import type { WorktreeTaskKeys } from '../grouping/worktree-task-keys'
 import { getFolderWorkspaceRevealGroupKeys } from '../navigation/folder-reveal'
 import type { FolderWorkspace } from '../../../../../../shared/folder-workspace-types'
 import type { ExecutionHostId } from '../../../../../../shared/execution-host'
@@ -21,6 +22,7 @@ export function useEffectiveCollapsedGroups(args: {
   groupBy: WorktreeGroupBy
   pinnedDisplayPolicy: PinnedWorktreeDisplayPolicy
   visibleWorktrees: readonly Worktree[]
+  taskKeys: WorktreeTaskKeys
   repoMap: Map<string, Repo>
   worktreeMap: Map<string, Worktree>
   worktreeLineageById: Record<string, WorktreeLineage>
@@ -38,6 +40,7 @@ export function useEffectiveCollapsedGroups(args: {
     groupBy,
     pinnedDisplayPolicy,
     visibleWorktrees,
+    taskKeys,
     repoMap,
     worktreeMap,
     worktreeLineageById,
@@ -87,7 +90,8 @@ export function useEffectiveCollapsedGroups(args: {
         workspaceStatuses,
         settings,
         projectGroups,
-        projectGrouping
+        projectGrouping,
+        taskKeys
       )) {
         next.delete(groupKey)
       }
@@ -107,6 +111,7 @@ export function useEffectiveCollapsedGroups(args: {
     groupBy,
     pinnedDisplayPolicy,
     visibleWorktrees,
+    taskKeys,
     prCache,
     projectGroups,
     projectGrouping,

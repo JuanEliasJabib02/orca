@@ -45,6 +45,8 @@ import type {
 import { getRenderedNaturalAnchorRepoIds, withRepoSectionDisplayLabels } from './section-order'
 import { buildOrderedGroups } from './worktree-grouping'
 import { groupWorktreesByTaskLane } from './task-sections'
+import { TICKET_ONLY_TASK_KEYS, buildWorktreeTaskKeys } from './worktree-task-keys'
+import type { WorktreeTaskKeys } from './worktree-task-keys'
 
 export function buildRows(
   groupBy: WorktreeGroupBy,
@@ -71,7 +73,11 @@ export function buildRows(
   folderWorkspaces: readonly FolderWorkspace[] = [],
   hostLabelById?: ReadonlyMap<string, string>,
   defaultHostId: ExecutionHostId = LOCAL_EXECUTION_HOST_ID,
-  pinnedDisplayPolicy: PinnedWorktreeDisplayPolicy = getPinnedWorktreeDisplayPolicy(settings)
+  pinnedDisplayPolicy: PinnedWorktreeDisplayPolicy = getPinnedWorktreeDisplayPolicy(settings),
+  // Why the caller passes it: `worktrees` is filtered, but a task must span every worktree; the default is only right for an unfiltered list.
+  taskKeys: WorktreeTaskKeys = groupBy === 'task'
+    ? buildWorktreeTaskKeys(worktrees)
+    : TICKET_ONLY_TASK_KEYS
 ): Row[] {
   const result: Row[] = []
   const projectIndex = buildProjectGroupingIndex(projectGrouping)
@@ -134,7 +140,8 @@ export function buildRows(
     collapsedGroups,
     workspaceStatuses,
     settings,
-    projectGrouping
+    projectGrouping,
+    taskKeys
   })
   emitPinnedGroup(
     pinnedSectionWorktrees,
@@ -210,6 +217,7 @@ export function buildRows(
     pendingByRepo,
     repoOrder,
     projectOrderBy,
+    taskKeys,
     folderWorkspaces: renderableFolderWorkspaces
   })
 
@@ -232,7 +240,8 @@ export function buildRows(
     nestLineage,
     cyclicLineageIds,
     // Why all worktrees: whole-task actions must reach members the Pinned section took.
-    taskWorktreesByLaneKey: groupBy === 'task' ? groupWorktreesByTaskLane(worktrees) : undefined
+    taskWorktreesByLaneKey:
+      groupBy === 'task' ? groupWorktreesByTaskLane(worktrees, taskKeys) : undefined
   }
 
   if (groupBy !== 'repo' || projectGroups.length === 0) {

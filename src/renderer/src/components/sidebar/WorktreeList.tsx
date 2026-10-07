@@ -15,6 +15,7 @@ import {
 } from '../../../../shared/execution-host'
 import { getActiveSidebarWorkspaceId } from '../../../../shared/workspace-scope'
 import { getPinnedWorktreeDisplayPolicy } from './worktree-list/grouping/row-types'
+import { getSidebarTaskKeys } from './worktree-list/grouping/worktree-task-keys'
 import { selectWorktreeListReviewCacheInputs } from './worktree-list/listing/review-cache-inputs'
 import type { VirtualizedScrollAnchor } from '@/hooks/useVirtualizedScrollAnchor'
 import { SidebarWorktreeListDialogs } from './worktree-list/rows/ProjectGroupDialogs'
@@ -122,12 +123,15 @@ const WorktreeList = React.memo(function WorktreeList({
     defaultHostId,
     agentSendTargetWorktreeId
   })
+  // Why all worktrees, not visibleWorktrees: a filter must never split a task.
+  const taskKeys = useMemo(() => getSidebarTaskKeys(groupBy, allWorktrees), [groupBy, allWorktrees])
   const effectiveCollapsedGroups = useEffectiveCollapsedGroups({
     collapsedGroups,
     agentSendTargetWorktreeId,
     groupBy,
     pinnedDisplayPolicy,
     visibleWorktrees,
+    taskKeys,
     repoMap,
     worktreeMap,
     worktreeLineageById,
@@ -159,6 +163,7 @@ const WorktreeList = React.memo(function WorktreeList({
     pinnedDisplayPolicy,
     defaultHostId,
     worktrees: visibleWorktrees,
+    taskKeys,
     repos,
     repoMap,
     worktreeMap,
@@ -323,6 +328,7 @@ const WorktreeList = React.memo(function WorktreeList({
         clearPendingRevealSidebarRow={clearPendingRevealSidebarRow}
         agentSendTargetWorktreeId={agentSendTargetWorktreeId}
         worktrees={visibleWorktrees}
+        taskKeys={taskKeys}
         folderWorkspaces={folderWorkspaces}
         selectedWorktreeIds={selection.selectedWorktreeIds}
         selectedWorktrees={selection.selectedWorktrees}
