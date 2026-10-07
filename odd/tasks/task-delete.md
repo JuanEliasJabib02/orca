@@ -19,7 +19,7 @@ from its header in one step. Status management stays in Jira, so there's no
 
 ## Tasks
 
-- [ ] **1. `⋯` menu with "Delete task…" on the task header**
+- [x] **1. `⋯` menu with "Delete task…" on the task header** (coder, `50da443dce`; `forceConfirm` so a one-worktree task still asks)
   - New `TaskHeaderMenu` in the header actions (reuse `ProjectGroupHeaderMenu`'s
     dropdown pattern), rendered when `row.task?.taskKey`.
   - Map `task.worktrees` to delete identities from the store (id, instanceId, hostId),

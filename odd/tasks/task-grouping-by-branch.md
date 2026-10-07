@@ -19,7 +19,7 @@ ai-bulk-hours landed in "No task" instead of one task. Builds on
 
 ## Tasks
 
-- [ ] **1. Branch-name tasks in the grouping**
+- [x] **1. Branch-name tasks in the grouping** (coder, `6dcbf0f63b`; index over every non-archived worktree so filters never split a task; smallest casing wins)
   - One resolver that, given every visible worktree, returns each worktree's task key
     (ticket key, else a shared branch name, else null). Every consumer of
     `getWorktreeTaskLaneKey` (`worktree-grouping.ts`, `worktree-group-keys.ts`,

@@ -21,7 +21,7 @@ the same branch.
 
 ## Tasks
 
-- [ ] **1. Task notes: state, header tooltip, edit dialog, cleanup on delete**
+- [x] **1. Task notes: state, header tooltip, edit dialog, cleanup on delete** (coder, `0ae15d8674`; SectionHeader.tsx now at exactly 400 lines)
   - `taskNoteByTaskKey: Record<string, string>` in ui.json, same pattern as
     `spotlightEnvByTaskKey` (`ui-slice-spotlight-env-actions.ts`): type, zod,
     hydration sanitizer (trim, max 500 chars per note, max 500 entries, unsafe keys

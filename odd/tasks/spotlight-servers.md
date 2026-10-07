@@ -47,7 +47,7 @@ picks. Builds on `odd/tasks/task-workflow.md`, on the same branch.
 
 ## Tasks
 
-- [ ] **1. Per-repo server config: model, persistence, resolver**
+- [x] **1. Per-repo server config: model, persistence, resolver** (coder, `2105c677a0`; `null` clears; npm detection must add `--` so `--port` reaches the script)
   - `Repo.spotlightServer?: { local?: string; dev?: string; prod?: string; port?: number }`
     through every `updateRepo` layer (renderer action + sanitizer, preload, main IPC
     Pick + guard, tracking-repos write, loading store, runtime settings controller,
@@ -56,7 +56,7 @@ picks. Builds on `odd/tasks/task-workflow.md`, on the same branch.
     else detected, Local → Dev fallback, `--port N` appended; `null` when there's
     nothing to run.
   - Check: unit tests for the resolver and the sanitizer (trim, port 1-65535).
-- [ ] **2. Detect scripts + settings UI**
+- [x] **2. Detect scripts + settings UI** (coder, `bab45c95a9`; npm gets a trailing `--`; RepositoryPane update type moved out for max-lines)
   - Main reads the root `package.json` `scripts` (size cap like
     `repo-icon-autodetect.ts`) and the package manager (reuse
     `setup-script-package-manager-suggestion.ts`) → `{ local?, dev?, prod? }`.
@@ -64,12 +64,12 @@ picks. Builds on `odd/tasks/task-workflow.md`, on the same branch.
     placeholders) and a Port input, under the Spotlight toggle. Searchable.
   - Check: detection unit tests (pnpm/npm/yarn, missing scripts, no package.json);
     component test for the section.
-- [ ] **3. Environment per task (ui.json)**
+- [x] **3. Environment per task (ui.json)** (coder, `6895919765`)
   - `spotlightEnvByTaskKey: Record<string, 'local' | 'dev' | 'prod'>`, same shape as
     `composerCompanionRepoIdsByRepoId` (type, zod, hydration sanitizer, setter).
     Default `local`.
   - Check: persistence + sanitizer tests.
-- [ ] **4. Main: start / restart / stop the Spotlight server**
+- [x] **4. Main: start / restart / stop the Spotlight server** (coder opus, `cc57689513`; stop runs after the root is restored, only on success; failed/slow idle check counts as busy)
   - The log capture keeps the server command. New IPC to start (writes the command
     only when the terminal is idle, via the PTY provider's foreground inspection) and
     restart (Ctrl-C, then the command; falls back to today's history recall when no
@@ -78,7 +78,7 @@ picks. Builds on `odd/tasks/task-workflow.md`, on the same branch.
     down. The `.orca/spotlight-restart` trigger uses the stored command.
   - Check: unit tests with a fake PTY provider (idle vs busy, restart, stop on
     deactivate, no command).
-- [ ] **5. Lockfile check → install before start**
+- [x] **5. Lockfile check → install before start** (coder opus, `5f31bbe657`; check runs inside the repo lock so autostart sees the flag; takeover also restarts; `prepareSpotlightServerLaunch` for task 6)
   - In `spotlight-service.ts`, after activate / takeover / non-skipped sync, compare
     `pnpm-lock.yaml` between the before and after commits
     (`git diff --quiet A B -- pnpm-lock.yaml`), outside the repo lock. Mark the repo
@@ -86,7 +86,7 @@ picks. Builds on `odd/tasks/task-workflow.md`, on the same branch.
     `pnpm install --frozen-lockfile && `. A sync that changes it while the server runs
     triggers that restart. Only when the root has `pnpm-lock.yaml`.
   - Check: unit tests for the comparison per operation and the prefix.
-- [ ] **6. Autostart on activation (one repo or the whole task)**
+- [x] **6. Autostart on activation (one repo or the whole task)** (coder opus, `ca56c6a047`; spawn path: prepare → create+queue in one tick → background mount, claim watcher falls back to startServer; takeover restarts only a server Orca launched)
   - In `activateSpotlight`, after `openSpotlightTerminalTab`: resolve the command
     (task 1 + the worktree's task environment from task 3).
     - New tab, or a tab whose PTY died: `queueTabStartupCommand` before the pane
@@ -96,20 +96,21 @@ picks. Builds on `odd/tasks/task-workflow.md`, on the same branch.
     - Live tab: the start IPC from task 4 (idle only).
   - The whole-task button goes through `activateSpotlight`, so it starts every repo.
   - Check: unit tests for the three tab paths and "no command → nothing".
-- [ ] **7. Environment pill on the task header**
+- [x] **7. Environment pill on the task header** (coder, `9204d0f9b6`; env key = task key else worktree id; context-menu Spotlight items extracted to `WorktreeSpotlightMenuItems.tsx`)
   - `Local ▾` next to `TaskSpotlightButton`. On change: save it, then restart the held
     repos whose resolved command changes and exists in the new environment.
   - Same choice in a workspace row's context menu, for workspaces outside Group by
     Task.
   - Check: unit tests for which repos restart (backend kept in Dev, fronts switched);
     component test for the pill.
-- [ ] **8. Server status on the flashlight**
-  - While a Spotlight is active, main checks the terminal's foreground process
-    periodically and emits an optional `server: { running, port? }` in
-    `SpotlightRepoState` only when it changes.
-  - Row flashlight: running vs stopped, port in the tooltip.
-  - Check: unit tests for the poll/emit (no emit without a change, stops on
-    deactivate); component test for the indicator.
+- [x] **8. Server status on the flashlight** (coder, `31d139499d`; filled dot = running, ring = stopped, nothing while unknown)
+  - Renderer-only (changed from the first draft so it needs no new main event): while
+    a repo's Spotlight is active, poll `window.api.pty.hasChildProcesses` for its
+    Spotlight terminal's PTY every few seconds, one poll per repo however many rows
+    show it.
+  - Row flashlight and primary badge: running vs stopped, port in the tooltip.
+  - Check: unit tests for the poller (one poll per repo, stops when Spotlight is off);
+    component test for the indicator.
 
 ## Verification rule
 
