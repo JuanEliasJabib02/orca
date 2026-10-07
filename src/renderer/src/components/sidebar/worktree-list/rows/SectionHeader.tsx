@@ -42,6 +42,7 @@ import {
 } from './header-event-guards'
 import type { WorktreeSidebarHeaderDrag } from '../drag/use-header-drag'
 import { getWorktreeOptionId } from './option-dom'
+import { TaskHeaderMenu } from './TaskHeaderMenu'
 import { TaskSectionHeader } from './TaskSectionHeader'
 import { TaskSpotlightButton } from './TaskSpotlightButton'
 
@@ -370,6 +371,8 @@ export function renderWorktreeSectionHeaderRow(args: {
               />
             </div>
           ) : null}
+
+          {row.task?.taskKey ? <TaskHeaderMenu task={row.task} /> : null}
 
           {isProjectGroupHeader && !row.repo && projectGroupIdForHeader ? (
             <ProjectGroupHeaderMenu

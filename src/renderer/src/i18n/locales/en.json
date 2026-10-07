@@ -6524,6 +6524,10 @@
           "partialOn": "Spotlight on for {{succeeded}} of {{total}} projects",
           "partialOff": "Spotlight off for {{succeeded}} of {{total}} projects"
         },
+        "TaskHeaderMenu": {
+          "actionsFor": "Task actions for {{task}}",
+          "deleteTask": "Delete task…"
+        },
         "RepoScanUnavailableIndicator": {
           "title": "Worktree scan failed for {{value0}}",
           "retry": "Retry scan",
