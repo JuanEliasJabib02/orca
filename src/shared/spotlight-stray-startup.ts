@@ -11,7 +11,10 @@ export const SPOTLIGHT_STRAY_MAX_INTERRUPTS = 2
 export type StraySpotlightStartupState = {
   /** When the current unbroken run of "has a child" readings began. */
   runningSince: number | null
+  /** Ctrl-Cs counted toward the limit, the caller's included. */
   interrupts: number
+  /** Ctrl-Cs this watch sent: only these prove the queued line was what got interrupted. */
+  ownInterrupts: number
 }
 
 export type StraySpotlightStartupStep = {
@@ -21,7 +24,8 @@ export type StraySpotlightStartupStep = {
 
 export const STRAY_SPOTLIGHT_STARTUP_START: StraySpotlightStartupState = {
   runningSince: null,
-  interrupts: 0
+  interrupts: 0,
+  ownInterrupts: 0
 }
 
 /** One reading of whether the terminal runs a child, taken at `now`. */
@@ -31,10 +35,11 @@ export function stepStraySpotlightStartup(
   now: number
 ): StraySpotlightStartupStep {
   if (!running) {
-    // After a Ctrl-C the child is gone: done. Before one, it was a short-lived startup process.
-    return state.interrupts > 0
+    // After our Ctrl-C the child is gone: done. Otherwise it was a short-lived startup process, or
+    // the caller's Ctrl-C landed before the queued line ran: keep waiting for it.
+    return state.ownInterrupts > 0
       ? { next: state, action: 'done' }
-      : { next: STRAY_SPOTLIGHT_STARTUP_START, action: 'wait' }
+      : { next: { ...state, runningSince: null }, action: 'wait' }
   }
   const runningSince = state.runningSince ?? now
   if (now - runningSince < SPOTLIGHT_STRAY_CHILD_PERSIST_MS) {
@@ -44,17 +49,29 @@ export function stepStraySpotlightStartup(
     return { next: state, action: 'done' }
   }
   // A follow-up needs the child to persist past this Ctrl-C as well.
-  return { next: { runningSince: now, interrupts: state.interrupts + 1 }, action: 'interrupt' }
+  return {
+    next: {
+      runningSince: now,
+      interrupts: state.interrupts + 1,
+      ownInterrupts: state.ownInterrupts + 1
+    },
+    action: 'interrupt'
+  }
 }
 
 /** Polls the terminal by the rule above until it is done, `shouldStop` holds (Spotlight back on,
- *  the tab gone), or the watch window ends. `interrupt` returns false when the write failed. */
+ *  the tab gone), or the watch window ends. `interrupt` returns false when the write failed.
+ *  `alreadyInterrupted`: the caller sent a Ctrl-C just now; it counts toward the limit, but the
+ *  watch still waits for the queued line, which may not have run yet. */
 export function watchStraySpotlightStartup(args: {
   isRunning: () => Promise<boolean>
   interrupt: () => boolean
   shouldStop: () => boolean
+  alreadyInterrupted?: boolean
 }): void {
-  let state = STRAY_SPOTLIGHT_STARTUP_START
+  let state: StraySpotlightStartupState = args.alreadyInterrupted
+    ? { ...STRAY_SPOTLIGHT_STARTUP_START, runningSince: Date.now(), interrupts: 1 }
+    : STRAY_SPOTLIGHT_STARTUP_START
   let done = false
   let pollTimer: ReturnType<typeof setTimeout> | null = null
   const finish = (): void => {

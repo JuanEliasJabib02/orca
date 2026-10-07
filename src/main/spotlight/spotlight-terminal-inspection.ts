@@ -42,12 +42,3 @@ async function inspect(ptyId: string): Promise<SpotlightTerminalReading> {
 export function readSpotlightTerminal(ptyId: string): Promise<SpotlightTerminalReading> {
   return withTimeout(inspect(ptyId), INSPECTION_TIMEOUT_MS, UNKNOWN)
 }
-
-/** A process runs in the terminal; a failed or slow check counts as none. */
-export function spotlightTerminalHasChild(ptyId: string): Promise<boolean> {
-  return withTimeout(
-    Promise.resolve().then(() => getLocalPtyProvider().hasChildProcesses(ptyId)),
-    INSPECTION_TIMEOUT_MS,
-    false
-  )
-}

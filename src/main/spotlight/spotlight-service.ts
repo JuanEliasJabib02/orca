@@ -19,7 +19,7 @@ import {
   interruptSpotlightServer,
   resumeSpotlightServerControl,
   stopSpotlightServer
-} from './spotlight-server-control'
+} from './spotlight-server-turn-off'
 import { writeSpotlightStateFile } from './spotlight-state-file'
 import {
   activeStateFromActivation,

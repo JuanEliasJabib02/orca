@@ -11,9 +11,9 @@ import {
   cancelPreparedSpotlightServerLaunch,
   prepareSpotlightServerLaunch,
   startSpotlightServer,
-  watchLateSpotlightTerminal
+  trackRegisteredSpotlightLaunch
 } from '../spotlight/spotlight-server-control'
-import { markPreparedSpotlightLaunchRegistered } from '../spotlight/spotlight-server-commands'
+import { watchLateSpotlightTerminal } from '../spotlight/spotlight-server-turn-off'
 import { configureSpotlightTerminalShell } from '../spotlight/spotlight-terminal-shell'
 
 // Module singleton with a mutable window ref: attachMainWindowServices re-runs on
@@ -122,7 +122,7 @@ export function registerSpotlightHandlers(mainWindow: BrowserWindow, store: Stor
       return
     }
     // A queued server line now has a shell to run in; starts wait a grace for it to fork.
-    markPreparedSpotlightLaunchRegistered(args.repoId)
+    trackRegisteredSpotlightLaunch(args.repoId, args.ptyId)
   })
   ipcMain.handle('spotlight:clearLogPty', (_event, args: { repoId: string; ptyId?: string }) => {
     stopSpotlightLogCapture(args)

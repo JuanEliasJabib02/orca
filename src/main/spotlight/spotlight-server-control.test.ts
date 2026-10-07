@@ -46,9 +46,9 @@ import {
   prepareSpotlightServerLaunch,
   restartSpotlightServer,
   restartSpotlightServerForLockfileChange,
-  startSpotlightServer,
-  stopSpotlightServer
+  startSpotlightServer
 } from './spotlight-server-control'
+import { stopSpotlightServer } from './spotlight-server-turn-off'
 import { forgetSpotlightTerminalShell } from './spotlight-terminal-shell'
 
 const REPO_ID = 'repo-1'
@@ -59,6 +59,8 @@ const RESTART_RERUN_DELAY_MS = 700
 const INSTALL = 'pnpm install --frozen-lockfile && '
 const LAUNCH_GRACE_MS = 2000
 const QUEUED_LAUNCH_MAX_WAIT_MS = 35_000
+// Busy readings this far apart show a queued line running, not a shell's rc child.
+const QUEUED_LINE_RAN_MS = 2500
 const BUSY = { ok: true, started: false, reason: 'busy' }
 
 let root = ''
@@ -561,12 +563,12 @@ describe('a queued launch that may still be on its way into the shell', () => {
     await prepareSpotlightServerLaunch(REPO_ID, 'pnpm local')
     markPreparedSpotlightLaunchRegistered(REPO_ID)
     vi.setSystemTime(Date.now() + LAUNCH_GRACE_MS)
+    const switchEnv = (): ReturnType<typeof startSpotlightServer> =>
+      startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev', restartIfDifferent: true })
 
-    const result = await startSpotlightServer({
-      repoId: REPO_ID,
-      command: 'pnpm dev',
-      restartIfDifferent: true
-    })
+    expect(await switchEnv()).toEqual(BUSY)
+    vi.setSystemTime(Date.now() + QUEUED_LINE_RAN_MS)
+    const result = await switchEnv()
     vi.advanceTimersByTime(RESTART_RERUN_DELAY_MS)
 
     expect(result).toEqual({ ok: true, started: true, restarted: true })
@@ -633,8 +635,10 @@ describe('cancelPreparedSpotlightServerLaunch', () => {
     await prepareSpotlightServerLaunch(REPO_ID, 'pnpm local')
     markPreparedSpotlightLaunchRegistered(REPO_ID)
     vi.setSystemTime(Date.now() + LAUNCH_GRACE_MS)
-    // The queued line ran (a busy reading) and exited; then Orca types into the idle shell.
-    fakePty.hasChildProcesses.mockResolvedValueOnce(true)
+    // The queued line ran (busy readings that persist) and exited; then Orca types into the idle shell.
+    fakePty.hasChildProcesses.mockResolvedValueOnce(true).mockResolvedValueOnce(true)
+    await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm local' })
+    vi.setSystemTime(Date.now() + QUEUED_LINE_RAN_MS)
     await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm local' })
     await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })
 
@@ -812,6 +816,9 @@ describe('startSpotlightServer with restartIfDifferent (takeover into another en
     markPreparedSpotlightLaunchRegistered(REPO_ID)
     vi.setSystemTime(Date.now() + LAUNCH_GRACE_MS)
     fakePty.hasChildProcesses.mockResolvedValue(true)
+    // The first busy reading starts the run that shows the queued line running.
+    await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm local' })
+    vi.setSystemTime(Date.now() + QUEUED_LINE_RAN_MS)
 
     const result = await startSpotlightServer({
       repoId: REPO_ID,

@@ -101,6 +101,40 @@ describe('watchSpotlightStartupClaim', () => {
     expect(onDropped).toHaveBeenCalledTimes(1)
   })
 
+  it("drops the previous activation's command when Spotlight comes back on before the tab spawns", async () => {
+    watch()
+    const { spotlightByRepo } = spotlightTerminalTestStore.getState()
+
+    spotlightTerminalTestStore.setState({ spotlightByRepo: {} })
+    expect(pending()).toEqual({ command: 'pnpm local' })
+    spotlightTerminalTestStore.setState({ spotlightByRepo })
+
+    expect(pending()).toBeUndefined()
+    // Main forgot that launch at turn-off; cancelling now could take the new activation's.
+    expect(onDropped).not.toHaveBeenCalled()
+    // The new activation queues its own command, which the old watch leaves alone.
+    spotlightTerminalTestStore.getState().queueTabStartupCommand(TAB, { command: 'pnpm dev' })
+    bindTestTabPty(MAIN, TAB, 'pty-1')
+    await vi.runAllTimersAsync()
+
+    expect(pending()).toEqual({ command: 'pnpm dev' })
+    expect(onUnclaimed).not.toHaveBeenCalled()
+    expect(onDropped).not.toHaveBeenCalled()
+    expect(pty.write).not.toHaveBeenCalled()
+  })
+
+  it('keeps a newer command queued while Spotlight was off when Spotlight comes back on', () => {
+    watch()
+    const { spotlightByRepo } = spotlightTerminalTestStore.getState()
+
+    spotlightTerminalTestStore.setState({ spotlightByRepo: {} })
+    spotlightTerminalTestStore.getState().queueTabStartupCommand(TAB, { command: 'pnpm dev' })
+    spotlightTerminalTestStore.setState({ spotlightByRepo })
+
+    expect(pending()).toEqual({ command: 'pnpm dev' })
+    expect(onDropped).not.toHaveBeenCalled()
+  })
+
   it('drops the command a PTY bound after Spotlight went off never read', async () => {
     watch()
 

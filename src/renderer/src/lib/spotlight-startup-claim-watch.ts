@@ -29,6 +29,7 @@ function findTabPtyId(
  * when Spotlight is off by then. The tab closing or the timeout drop the entry too.
  * Spotlight turning off before the bind keeps the entry: only a pane spending it proves the line
  * reached a shell, which is then interrupted (main never mirrors a PTY bound with Spotlight off).
+ * Spotlight coming back on before the bind drops it: a newer activation queues its own command.
  */
 export function watchSpotlightStartupClaim(args: {
   repoId: string
@@ -43,6 +44,7 @@ export function watchSpotlightStartupClaim(args: {
     return
   }
   let done = false
+  let spotlightWentOff = false
   let unsubscribe: () => void = () => {}
   let timer: ReturnType<typeof setTimeout> | null = null
   const stop = (dropQueued: boolean): void => {
@@ -88,6 +90,13 @@ export function watchSpotlightStartupClaim(args: {
       return
     }
     if (ptyId === null) {
+      const spotlightOn = Boolean(state.spotlightByRepo[repoId])
+      spotlightWentOff ||= !spotlightOn
+      if (spotlightOn && spotlightWentOff) {
+        // Main forgot this line at turn-off, so there's nothing to cancel there.
+        stop(false)
+        useAppStore.getState().consumeTabStartupCommand(tabId, queued)
+      }
       return
     }
     const spotlightOnAtBind = Boolean(state.spotlightByRepo[repoId])

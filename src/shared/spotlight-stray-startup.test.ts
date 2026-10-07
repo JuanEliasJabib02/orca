@@ -84,6 +84,53 @@ describe('watchStraySpotlightStartup', () => {
     expect(isRunning.mock.calls.length).toBe(readings + 1)
   })
 
+  it("counts the caller's Ctrl-C: a child that outlives it gets one follow-up at most", async () => {
+    interrupt.mockImplementationOnce(() => true)
+    watchStraySpotlightStartup({
+      isRunning,
+      interrupt,
+      shouldStop: () => false,
+      alreadyInterrupted: true
+    })
+
+    await vi.advanceTimersByTimeAsync(SPOTLIGHT_STRAY_CHILD_PERSIST_MS)
+    expect(interrupt).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(SPOTLIGHT_STRAY_STARTUP_WATCH_MS)
+
+    expect(interrupt).toHaveBeenCalledTimes(1)
+  })
+
+  it("keeps waiting after the caller's Ctrl-C and gives a line that runs later one follow-up", async () => {
+    running = false
+    watchStraySpotlightStartup({
+      isRunning,
+      interrupt,
+      shouldStop: () => false,
+      alreadyInterrupted: true
+    })
+
+    await vi.advanceTimersByTimeAsync(SPOTLIGHT_STRAY_CHILD_PERSIST_MS * 2)
+    expect(interrupt).not.toHaveBeenCalled()
+    running = true
+    await vi.advanceTimersByTimeAsync(SPOTLIGHT_STRAY_STARTUP_WATCH_MS)
+
+    expect(interrupt).toHaveBeenCalledTimes(1)
+  })
+
+  it("never interrupts when nothing runs after the caller's Ctrl-C", async () => {
+    running = false
+    watchStraySpotlightStartup({
+      isRunning,
+      interrupt,
+      shouldStop: () => false,
+      alreadyInterrupted: true
+    })
+
+    await vi.advanceTimersByTimeAsync(SPOTLIGHT_STRAY_STARTUP_WATCH_MS)
+
+    expect(interrupt).not.toHaveBeenCalled()
+  })
+
   it('stops without interrupting when told to', async () => {
     watchStraySpotlightStartup({ isRunning, interrupt, shouldStop: () => true })
 
