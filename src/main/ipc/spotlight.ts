@@ -10,7 +10,8 @@ import {
 import {
   cancelPreparedSpotlightServerLaunch,
   prepareSpotlightServerLaunch,
-  startSpotlightServer
+  startSpotlightServer,
+  watchLateSpotlightTerminal
 } from '../spotlight/spotlight-server-control'
 import { markPreparedSpotlightLaunchRegistered } from '../spotlight/spotlight-server-commands'
 import { configureSpotlightTerminalShell } from '../spotlight/spotlight-terminal-shell'
@@ -114,6 +115,12 @@ export function registerSpotlightHandlers(mainWindow: BrowserWindow, store: Stor
       return
     }
     await startSpotlightLogCapture({ repoId: args.repoId, ptyId: args.ptyId, rootPath: repo.path })
+    // Why: a turn-off during the await already ran; don't leave this capture on the restored root.
+    if (!isActiveLocalSpotlight(args.repoId)) {
+      stopSpotlightLogCapture({ repoId: args.repoId, ptyId: args.ptyId })
+      watchLateSpotlightTerminal(args.repoId, args.ptyId)
+      return
+    }
     // A queued server line now has a shell to run in; starts wait a grace for it to fork.
     markPreparedSpotlightLaunchRegistered(args.repoId)
   })

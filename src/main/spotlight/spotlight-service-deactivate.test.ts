@@ -35,6 +35,13 @@ vi.mock('./spotlight-state-file', () => ({
 }))
 vi.mock('../../shared/spotlight-sync-core', async (importOriginal) => ({
   ...(await importOriginal<typeof SpotlightSyncCore>()),
+  assertSpotlightDeactivatableCore: vi.fn(async () => ({
+    snapshotSha: 'b'.repeat(40),
+    backupSha: 'a'.repeat(40),
+    originalHeadSha: 'a'.repeat(40),
+    originalBranch: 'main',
+    rootHeadSha: 'b'.repeat(40)
+  })),
   deactivateSpotlightCore: vi.fn(async () => ({
     branchMissing: false,
     originalBranch: 'main',
@@ -42,7 +49,11 @@ vi.mock('../../shared/spotlight-sync-core', async (importOriginal) => ({
   }))
 }))
 
-import { deactivateSpotlightCore } from '../../shared/spotlight-sync-core'
+import {
+  assertSpotlightDeactivatableCore,
+  deactivateSpotlightCore,
+  SpotlightCoreError
+} from '../../shared/spotlight-sync-core'
 import {
   isSpotlightInstallPending,
   markSpotlightInstallPending
@@ -66,6 +77,10 @@ const INTERRUPT = String.fromCharCode(3)
 let root = ''
 let state: SpotlightRepoState | null = null
 
+function spotlightLog(): string {
+  return readFileSync(nodePath.join(root, '.orca', 'spotlight.log'), 'utf-8')
+}
+
 function createService(): SpotlightService {
   const store = {
     getRepo: (repoId: string) => (repoId === REPO_ID ? { id: REPO_ID, path: root } : undefined),
@@ -83,6 +98,8 @@ function createService(): SpotlightService {
 }
 
 beforeEach(async () => {
+  vi.mocked(deactivateSpotlightCore).mockClear()
+  vi.mocked(assertSpotlightDeactivatableCore).mockClear()
   fakePty.writes.length = 0
   fakePty.hasChildProcesses.mockReset()
   fakePty.hasChildProcesses.mockResolvedValue(false)
@@ -144,13 +161,58 @@ describe('SpotlightService.deactivate', () => {
     // Server control gets the terminal back, so Orca can start the server again.
     expect(getSpotlightTerminal(REPO_ID)).toMatchObject({ ptyId: PTY_ID })
     expect(getSpotlightServerCommand(REPO_ID)).toBe('pnpm dev')
-    await vi.waitFor(
-      () =>
-        expect(readFileSync(nodePath.join(root, '.orca', 'spotlight.log'), 'utf-8')).toContain(
-          'Spotlight off failed'
-        ),
-      { timeout: 1000, interval: 20 }
+    await vi.waitFor(() => expect(spotlightLog()).toContain('its server was stopped'), {
+      timeout: 1000,
+      interval: 20
+    })
+  })
+
+  it('does not claim the server was stopped when no interrupt went out', async () => {
+    vi.mocked(deactivateSpotlightCore).mockRejectedValueOnce(new Error('restore failed'))
+
+    await createService().deactivate(REPO_ID)
+
+    expect(fakePty.writes).toEqual([])
+    await vi.waitFor(() => expect(spotlightLog()).toContain('Spotlight off failed'), {
+      timeout: 1000,
+      interval: 20
+    })
+    expect(spotlightLog()).not.toContain('server was stopped')
+  })
+
+  it.each([
+    ['a diverged root, not forced', 'root-diverged'],
+    ['a merge or rebase in progress', 'operation-in-progress']
+  ] as const)('leaves the server running when refused for %s', async (_case, code) => {
+    fakePty.hasChildProcesses.mockResolvedValue(true)
+    await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })
+    vi.mocked(assertSpotlightDeactivatableCore).mockRejectedValueOnce(
+      new SpotlightCoreError(code, 'refused')
     )
+
+    const result = await createService().deactivate(REPO_ID)
+
+    expect(result).toMatchObject({ ok: false, error: { code } })
+    expect(fakePty.writes).toEqual([])
+    expect(deactivateSpotlightCore).not.toHaveBeenCalled()
+    // Server control keeps the terminal: Spotlight is still on and its server untouched.
+    expect(getSpotlightTerminal(REPO_ID)).toMatchObject({ ptyId: PTY_ID })
+    expect(getSpotlightServerCommand(REPO_ID)).toBe('pnpm dev')
+  })
+
+  it('interrupts before restoring when the turn-off is forced', async () => {
+    fakePty.hasChildProcesses.mockResolvedValue(true)
+    let writesWhenRestoring: string[] = []
+    vi.mocked(deactivateSpotlightCore).mockImplementationOnce(async () => {
+      writesWhenRestoring = fakePty.writes.map((entry) => entry.data)
+      return { branchMissing: false, originalBranch: 'main', branchInUse: false }
+    })
+
+    const result = await createService().deactivate(REPO_ID, { force: true })
+
+    expect(result).toEqual({ ok: true, state: null })
+    expect(assertSpotlightDeactivatableCore).toHaveBeenCalledWith({}, root, { force: true })
+    expect(writesWhenRestoring).toEqual([INTERRUPT])
   })
 
   it('leaves an idle Spotlight terminal alone', async () => {

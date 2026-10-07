@@ -13,6 +13,7 @@ const fakePty = vi.hoisted(() => {
     }),
     hasChildProcesses: vi.fn(async (_id: string): Promise<boolean> => false),
     getForegroundProcess: vi.fn(async (_id: string): Promise<string | null> => 'zsh'),
+    confirmShellForeground: undefined as ((id: string) => Promise<boolean>) | undefined,
     onData: vi.fn(() => () => {})
   }
 })
@@ -77,6 +78,7 @@ beforeEach(async () => {
   fakePty.hasChildProcesses.mockResolvedValue(false)
   fakePty.getForegroundProcess.mockReset()
   fakePty.getForegroundProcess.mockResolvedValue('zsh')
+  fakePty.confirmShellForeground = undefined
   root = mkdtempSync(nodePath.join(tmpdir(), 'orca-spotlight-server-'))
   await startSpotlightLogCapture({ repoId: REPO_ID, ptyId: PTY_ID, rootPath: root })
 })
@@ -361,6 +363,39 @@ describe('stopSpotlightServer', () => {
   })
 })
 
+describe('a Windows terminal whose shell name proves nothing', () => {
+  const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
+
+  beforeEach(() => {
+    Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
+    fakePty.getForegroundProcess.mockResolvedValue('powershell.exe')
+  })
+
+  afterEach(() => {
+    if (originalPlatform) {
+      Object.defineProperty(process, 'platform', originalPlatform)
+    }
+  })
+
+  it('never gets typed into without the host confirming the shell owns the foreground', async () => {
+    expect(await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })).toEqual(BUSY)
+    fakePty.confirmShellForeground = async () => false
+    expect(await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })).toEqual(BUSY)
+    expect(fakePty.writes).toEqual([])
+
+    fakePty.confirmShellForeground = async () => true
+    expect(await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })).toEqual({
+      ok: true,
+      started: true
+    })
+  })
+
+  it('gets the Ctrl-C when Spotlight turns off', async () => {
+    expect(await stopSpotlightServer(REPO_ID)).toBe(true)
+    expect(writtenData()).toEqual([INTERRUPT])
+  })
+})
+
 describe('.orca/spotlight-restart trigger', () => {
   it('restarts with the stored command', async () => {
     fakePty.hasChildProcesses.mockResolvedValue(true)
@@ -395,6 +430,7 @@ describe('pending install after a lockfile change', () => {
     try {
       markSpotlightInstallPending(REPO_ID)
       fakePty.getForegroundProcess.mockResolvedValue('powershell.exe')
+      fakePty.confirmShellForeground = async () => true
 
       await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })
 
@@ -597,6 +633,9 @@ describe('cancelPreparedSpotlightServerLaunch', () => {
     await prepareSpotlightServerLaunch(REPO_ID, 'pnpm local')
     markPreparedSpotlightLaunchRegistered(REPO_ID)
     vi.setSystemTime(Date.now() + LAUNCH_GRACE_MS)
+    // The queued line ran (a busy reading) and exited; then Orca types into the idle shell.
+    fakePty.hasChildProcesses.mockResolvedValueOnce(true)
+    await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm local' })
     await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })
 
     cancelPreparedSpotlightServerLaunch(REPO_ID)

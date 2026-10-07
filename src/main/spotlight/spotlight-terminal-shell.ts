@@ -1,12 +1,11 @@
 // Which shell the repo's Spotlight terminal runs, so a pending install is chained in syntax it parses.
-import { win32 as pathWin32 } from 'node:path'
 import type { GlobalSettings } from '../../shared/global-settings-types'
 import { withTimeout } from '../../shared/promise-timeout-fallback'
 import { isPwshAvailableAsync } from '../pwsh'
 import {
-  resolveEffectiveWindowsPowerShell,
-  type WindowsPowerShellShellFamily
-} from '../providers/windows-powershell'
+  selectWindowsShell,
+  type WindowsShellSelection
+} from '../providers/windows-shell-selection'
 
 type SpotlightShellSettings = Partial<
   Pick<GlobalSettings, 'terminalWindowsShell' | 'terminalWindowsPowerShellImplementation'>
@@ -33,38 +32,33 @@ export function forgetSpotlightTerminalShell(repoId: string): void {
   observedShellByRepoId.delete(repoId)
 }
 
-/** The shell a new local terminal spawns, resolved like the local PTY launch plan. Null off Windows,
- *  where every default shell chains with `&&`. An unknown pwsh availability resolves to Windows
- *  PowerShell, whose chain PowerShell 7 parses too. */
-function resolveDefaultShell(pwshAvailable: boolean | null): string | null {
+/** The shell a new local terminal spawns, selected like the local PTY launch plan. Null off
+ *  Windows, where every default shell chains with `&&`. */
+function selectDefaultShell(): WindowsShellSelection | null {
   if (process.platform !== 'win32') {
     return null
   }
   const settings = readSettings()
-  const family = settings?.terminalWindowsShell || process.env.COMSPEC || 'powershell.exe'
-  const normalized = pathWin32.basename(family).toLowerCase()
-  const shellFamily: WindowsPowerShellShellFamily =
-    normalized === 'powershell.exe' || normalized === 'pwsh.exe' ? normalized : undefined
-  return (
-    resolveEffectiveWindowsPowerShell({
-      shellFamily,
-      implementation: settings?.terminalWindowsPowerShellImplementation ?? 'auto',
-      pwshAvailable: pwshAvailable ?? false
-    }) ?? family
+  return selectWindowsShell(
+    settings?.terminalWindowsShell || process.env.COMSPEC || 'powershell.exe',
+    settings?.terminalWindowsPowerShellImplementation ?? 'auto'
   )
 }
 
-/** For a launch queued before the Spotlight terminal's PTY exists. */
+/** For a launch queued before the Spotlight terminal's PTY exists. An unknown pwsh availability
+ *  resolves to Windows PowerShell, whose chain PowerShell 7 parses too. */
 export async function resolveSpotlightQueuedLaunchShell(): Promise<string | null> {
-  if (process.platform !== 'win32') {
+  const selection = selectDefaultShell()
+  if (!selection) {
     return null
   }
-  return resolveDefaultShell(
-    await withTimeout<boolean | null>(isPwshAvailableAsync(), PWSH_PROBE_TIMEOUT_MS, null)
-  )
+  const pwshAvailable = selection.shouldProbePwsh
+    ? await withTimeout(isPwshAvailableAsync(), PWSH_PROBE_TIMEOUT_MS, false)
+    : false
+  return selection.resolveShellPath(pwshAvailable)
 }
 
 /** For a line typed into a busy terminal (a restart's re-run), where no prompt is there to inspect. */
 export function getSpotlightTerminalShell(repoId: string): string | null {
-  return observedShellByRepoId.get(repoId) ?? resolveDefaultShell(null)
+  return observedShellByRepoId.get(repoId) ?? selectDefaultShell()?.resolveShellPath(false) ?? null
 }

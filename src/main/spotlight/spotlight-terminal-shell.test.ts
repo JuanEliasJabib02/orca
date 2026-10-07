@@ -1,11 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GlobalSettings } from '../../shared/global-settings-types'
+import type * as GitBash from '../git-bash'
 
 const pwsh = vi.hoisted(() => ({
   isPwshAvailableAsync: vi.fn(async (): Promise<boolean> => false)
 }))
 
 vi.mock('../pwsh', () => pwsh)
+vi.mock('../git-bash', async (importOriginal) => {
+  const actual = await importOriginal<typeof GitBash>()
+  return {
+    ...actual,
+    resolveWindowsGitBashShellPath: vi.fn(actual.resolveWindowsGitBashShellPath)
+  }
+})
+
+import { resolveWindowsGitBashShellPath } from '../git-bash'
 
 import {
   configureSpotlightTerminalShell,
@@ -94,6 +104,29 @@ describe('resolveSpotlightQueuedLaunchShell', () => {
     })
 
     expect(await resolveSpotlightQueuedLaunchShell()).toBe('cmd.exe')
+  })
+
+  it('resolves a Git Bash default to the installed bash, like new terminals', async () => {
+    onPlatform('win32')
+    useSettings({
+      terminalWindowsShell: 'git-bash',
+      terminalWindowsPowerShellImplementation: 'auto'
+    })
+    vi.mocked(resolveWindowsGitBashShellPath).mockReturnValueOnce('C:\\Git\\bin\\bash.exe')
+
+    expect(await resolveSpotlightQueuedLaunchShell()).toBe('C:\\Git\\bin\\bash.exe')
+    expect(pwsh.isPwshAvailableAsync).not.toHaveBeenCalled()
+  })
+
+  it('resolves a Git Bash default that is not installed to Windows PowerShell', async () => {
+    onPlatform('win32')
+    useSettings({
+      terminalWindowsShell: 'git-bash',
+      terminalWindowsPowerShellImplementation: 'auto'
+    })
+    vi.mocked(resolveWindowsGitBashShellPath).mockReturnValueOnce(null)
+
+    expect(await resolveSpotlightQueuedLaunchShell()).toBe('powershell.exe')
   })
 
   it('falls back to Windows PowerShell when the pwsh probe is slow', async () => {

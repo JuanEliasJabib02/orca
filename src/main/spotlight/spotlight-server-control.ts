@@ -4,8 +4,7 @@ import type {
   SpotlightServerRestartResult,
   SpotlightServerStartResult
 } from '../../shared/spotlight'
-import { withTimeout } from '../../shared/promise-timeout-fallback'
-import { isShellProcess } from '../../shared/shell-process-detection'
+import { watchStraySpotlightStartup } from '../../shared/spotlight-stray-startup'
 import { getLocalPtyProvider } from '../ipc/pty'
 import {
   appendSpotlightLogNote,
@@ -25,9 +24,11 @@ import {
 import {
   clearSpotlightServerLaunched,
   forgetSpotlightServerCommand,
+  getPreparedSpotlightLaunchPhase,
   getSpotlightServerLaunchedCommand,
-  isPreparedSpotlightLaunchStarting,
+  isPreparedSpotlightLaunchAwaitingRun,
   isSpotlightServerTypedWithin,
+  markPreparedSpotlightLaunchRan,
   markSpotlightServerLaunched,
   markSpotlightServerTyped,
   rememberPreparedSpotlightLaunch,
@@ -39,9 +40,12 @@ import {
   rememberSpotlightTerminalShell,
   resolveSpotlightQueuedLaunchShell
 } from './spotlight-terminal-shell'
+import {
+  readSpotlightTerminal,
+  spotlightTerminalHasChild,
+  type SpotlightTerminalReading
+} from './spotlight-terminal-inspection'
 
-// Bound the foreground inspection so Spotlight off can't hang on an unresponsive PTY host.
-const BUSY_CHECK_TIMEOUT_MS = 3000
 // A line Orca just typed still shows the shell in the foreground until the shell forks it.
 const LAUNCH_GRACE_MS = 2000
 // Past the renderer's 30 s claim window an unregistered queued launch was dropped, not delayed.
@@ -82,22 +86,10 @@ export function normalizeSpotlightServerCommand(command: unknown): string | null
   return trimmed && !hasControlChar ? trimmed : null
 }
 
-async function inspectIdleShell(ptyId: string): Promise<string | null> {
-  const provider = getLocalPtyProvider()
-  // Both reads: the daemon derives "no children" from a foreground it may not have read, and a
-  // degraded local Windows scan reports the shell's name while a child runs.
-  if (await provider.hasChildProcesses(ptyId)) {
-    return null
-  }
-  // Login shells report as `-zsh`.
-  const foreground = (await provider.getForegroundProcess(ptyId))?.replace(/^-/, '')
-  return foreground && isShellProcess(foreground) ? foreground : null
-}
-
-/** The shell's name when it provably owns the foreground, else null: something runs there, or
- *  the check failed, timed out or got no answer. */
-function findIdleShell(ptyId: string): Promise<string | null> {
-  return withTimeout(inspectIdleShell(ptyId), BUSY_CHECK_TIMEOUT_MS, null)
+/** The shell's name when it provably owns the foreground, else null (busy, or unknown). */
+async function findIdleShell(ptyId: string): Promise<string | null> {
+  const reading = await readSpotlightTerminal(ptyId)
+  return reading.kind === 'idle' ? reading.shell : null
 }
 
 /** Orca typed a line moments ago: the terminal counts as busy whatever the check says. */
@@ -143,23 +135,34 @@ async function startServerNow(
   rememberSpotlightServerCommand(repoId, command)
   // A queued line may not have reached its shell yet: typing would add a second line, and a
   // restart would Ctrl-C a shell that is still starting. Neither until it ran or was cancelled.
-  if (isPreparedSpotlightLaunchStarting(repoId, LAUNCH_GRACE_MS, QUEUED_LAUNCH_MAX_WAIT_MS)) {
+  const queued = getPreparedSpotlightLaunchPhase(repoId, LAUNCH_GRACE_MS, QUEUED_LAUNCH_MAX_WAIT_MS)
+  if (queued === 'unregistered' || queued === 'settling') {
     return BUSY
   }
-  const idleShell =
-    terminal.restartPending || isLaunchSettling(repoId) ? null : await findIdleShell(terminal.ptyId)
+  const reading: SpotlightTerminalReading =
+    terminal.restartPending || isLaunchSettling(repoId)
+      ? { kind: 'unknown' }
+      : await readSpotlightTerminal(terminal.ptyId)
   // Re-read after the check: Spotlight may have turned off or the PTY been replaced meanwhile.
   const current = getSpotlightTerminal(repoId)
   if (current?.ptyId !== terminal.ptyId) {
     return { ok: false, reason: 'no-terminal' }
   }
+  if (queued === 'pending') {
+    // Only a busy terminal shows the queued line ran; an idle one may still be starting its shell.
+    if (reading.kind !== 'busy') {
+      return BUSY
+    }
+    markPreparedSpotlightLaunchRan(repoId)
+  }
   // A restart that started during the check re-runs the command itself.
   if (current.restartPending) {
     return BUSY
   }
-  if (!idleShell) {
+  if (reading.kind !== 'idle') {
     return restartIfDifferent ? replaceOrcaServer(repoId, command) : BUSY
   }
+  const idleShell = reading.shell
   rememberSpotlightTerminalShell(repoId, idleShell)
   const launch = takeSpotlightLaunchLine(repoId, command, idleShell)
   if (!writeToTerminal(terminal.ptyId, `${launch}\r`)) {
@@ -190,8 +193,8 @@ function replaceOrcaServer(repoId: string, command: string): SpotlightServerStar
 
 /** For a Spotlight terminal whose PTY doesn't exist yet: the caller queues the returned text as
  *  its startup command. Keeps the command for restarts and consumes a pending install; call
- *  `cancelPreparedSpotlightServerLaunch` if the text never runs. Until the PTY registers (and a
- *  grace after it), starts count the terminal as busy. */
+ *  `cancelPreparedSpotlightServerLaunch` if the text never runs. Until the registered terminal is
+ *  seen running it (or a cap passes), starts count the terminal as busy. */
 export async function prepareSpotlightServerLaunch(
   repoId: string,
   command: string
@@ -287,14 +290,29 @@ async function restartForLockfileChangeNow(repoId: string): Promise<void> {
 
 /** Spotlight is turning off: block further server writes (a pending restart's re-run included)
  *  and Ctrl-C the terminal unless its shell provably idles at the prompt; an unknown state gets
- *  the Ctrl-C too, harmless at a prompt. Await before restoring the root. */
+ *  the Ctrl-C too, harmless at a prompt. Await before restoring the root. True when the Ctrl-C
+ *  went out. */
 export function interruptSpotlightServer(repoId: string): Promise<boolean> {
-  return interruptTerminal(repoId, isLaunchSettling(repoId))
+  return interruptTerminal(
+    repoId,
+    isLaunchSettling(repoId),
+    isPreparedSpotlightLaunchAwaitingRun(repoId)
+  )
 }
 
-async function interruptTerminal(repoId: string, launchSettling: boolean): Promise<boolean> {
+async function interruptTerminal(
+  repoId: string,
+  launchSettling: boolean,
+  queuedLaunchAwaitingRun: boolean
+): Promise<boolean> {
   const terminal = releaseSpotlightTerminal(repoId)
-  if (!terminal || (!launchSettling && (await findIdleShell(terminal.ptyId)))) {
+  if (!terminal) {
+    return false
+  }
+  if (queuedLaunchAwaitingRun) {
+    watchStrayQueuedLaunch(repoId, terminal.ptyId)
+  }
+  if (!launchSettling && (await findIdleShell(terminal.ptyId))) {
     return false
   }
   if (!writeToTerminal(terminal.ptyId, '\x03')) {
@@ -304,13 +322,36 @@ async function interruptTerminal(repoId: string, launchSettling: boolean): Promi
   return true
 }
 
-/** Turning Spotlight off failed after `interruptSpotlightServer`: Spotlight stays on with its
- *  server stopped, so hand the terminal back to server control and say so in the log. */
-export function resumeSpotlightServerControl(repoId: string, rootPath: string): void {
+/** The queued line may still wait in the shell's startup, where the shell reads as idle: once it
+ *  runs, interrupt it like the renderer does for a PTY main never mirrored. */
+function watchStrayQueuedLaunch(repoId: string, ptyId: string): void {
+  watchStraySpotlightStartup({
+    isRunning: () => spotlightTerminalHasChild(ptyId),
+    interrupt: () => writeToTerminal(ptyId, '\x03'),
+    // Server control owns the terminal again: Spotlight is back on, or turning it off failed.
+    shouldStop: () => getSpotlightTerminal(repoId) !== null
+  })
+}
+
+/** A Spotlight terminal that registered while Spotlight turned off: its queued line may still
+ *  run on the restored root, so watch it like a released one. */
+export function watchLateSpotlightTerminal(repoId: string, ptyId: string): void {
+  watchStrayQueuedLaunch(repoId, ptyId)
+}
+
+/** Turning Spotlight off failed after `interruptSpotlightServer`: Spotlight stays on, so hand the
+ *  terminal back to server control and log whether its server was stopped. */
+export function resumeSpotlightServerControl(
+  repoId: string,
+  rootPath: string,
+  serverStopped: boolean
+): void {
   reclaimSpotlightTerminal(repoId)
   void appendSpotlightLogNote(
     rootPath,
-    'Spotlight off failed — Spotlight is still on, but its server was stopped; start it again'
+    serverStopped
+      ? 'Spotlight off failed — Spotlight is still on, but its server was stopped; start it again'
+      : 'Spotlight off failed — Spotlight is still on'
   )
 }
 
@@ -318,8 +359,9 @@ export function resumeSpotlightServerControl(repoId: string, rootPath: string): 
 export function stopSpotlightServer(repoId: string): Promise<boolean> {
   // Read before forgetting: a line typed moments ago still needs the Ctrl-C.
   const launchSettling = isLaunchSettling(repoId)
+  const queuedLaunchAwaitingRun = isPreparedSpotlightLaunchAwaitingRun(repoId)
   forgetSpotlightServerCommand(repoId)
   forgetSpotlightTerminalShell(repoId)
   clearSpotlightInstallPending(repoId)
-  return interruptTerminal(repoId, launchSettling)
+  return interruptTerminal(repoId, launchSettling, queuedLaunchAwaitingRun)
 }

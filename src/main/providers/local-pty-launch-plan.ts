@@ -1,8 +1,6 @@
 import { win32 as pathWin32 } from 'node:path'
 import { canUseBunPty } from '../daemon/pty-subprocess/bun-pty-process-capabilities'
 import { recognizeAgentProcessFromCommandLine } from '../../shared/agent-process-recognition'
-import { WINDOWS_GIT_BASH_SHELL } from '../../shared/windows-terminal-shell'
-import { resolveWindowsGitBashShellPath } from '../git-bash'
 import { getDefaultWslDistro, parseWslPath } from '../wsl'
 import {
   getDefaultCwd,
@@ -12,11 +10,7 @@ import {
 import type { LocalPtyProviderOptions } from './local-pty-provider-types'
 import type { getShellLaunchConfig } from './local-pty-shell-ready'
 import { ensureNodePtySpawnHelperExecutable, validateWorkingDirectory } from './local-pty-utils'
-import {
-  resolveEffectiveWindowsPowerShell,
-  shouldProbeWindowsPowerShellAvailability,
-  type WindowsPowerShellShellFamily
-} from './windows-powershell'
+import { selectWindowsShell } from './windows-shell-selection'
 import { buildWindowsPowerShellSpawnAttempts } from './windows-shell-fallback-chain'
 import { resolveWindowsShellLaunchArgs } from './windows-shell-args'
 import { assertSafeAgentStartupCwd } from './pty-default-cwd'
@@ -122,37 +116,12 @@ function createWindowsLocalPtyLaunchPlan(
   if (!seed.launchWslContext && pathWin32.basename(shellFamily).toLowerCase() === 'wsl.exe') {
     seed.launchWslContext = getWslContextFromPreferredDistro(getDefaultWslDistro())
   }
-  const normalizedShellFamily = pathWin32.basename(shellFamily).toLowerCase()
-  const resolvedGitBashPath = resolveWindowsGitBashShellPath(shellFamily)
-  // Why: normalize setting-value and path forms to the PowerShell family so the resolver can fall back to inbox powershell.exe.
-  const powerShellImplementation = getOptions().getWindowsPowerShellImplementation?.()
-  const resolvedShellFamily: WindowsPowerShellShellFamily =
-    normalizedShellFamily === 'powershell.exe' || normalizedShellFamily === 'pwsh.exe'
-      ? normalizedShellFamily
-      : normalizedShellFamily === 'cmd.exe' || normalizedShellFamily === 'wsl.exe'
-        ? normalizedShellFamily
-        : undefined
-  const shouldProbePwsh = shouldProbeWindowsPowerShellAvailability({
-    shellFamily: resolvedShellFamily,
-    implementation: powerShellImplementation
-  })
-  const shouldResolvePowerShellFamily =
-    powerShellImplementation !== undefined || pathWin32.basename(shellFamily) === shellFamily
+  const shellSelection = selectWindowsShell(
+    shellFamily,
+    getOptions().getWindowsPowerShellImplementation?.()
+  )
   const finish = (pwshAvailable: boolean): LocalPtyLaunchPlan => {
-    let shellPath: string
-    if (resolvedGitBashPath) {
-      shellPath = resolvedGitBashPath
-    } else if (shellFamily === WINDOWS_GIT_BASH_SHELL) {
-      shellPath = 'powershell.exe'
-    } else {
-      shellPath = shouldResolvePowerShellFamily
-        ? (resolveEffectiveWindowsPowerShell({
-            shellFamily: resolvedShellFamily,
-            implementation: powerShellImplementation,
-            pwshAvailable
-          }) ?? shellFamily)
-        : shellFamily
-    }
+    const shellPath = shellSelection.resolveShellPath(pwshAvailable)
     // Why: bare `pwsh.exe` resolves to the Store App Execution Alias stub whose spawn fails (code 5); use an absolute exe + cmd.exe fallback.
     const windowsFallbackAttempts = buildWindowsPowerShellSpawnAttempts({
       shellPath,
@@ -188,7 +157,7 @@ function createWindowsLocalPtyLaunchPlan(
       windowsFallbackAttempts
     })
   }
-  return shouldProbePwsh
+  return shellSelection.shouldProbePwsh
     ? new DeferredLocalPtyLaunchPlan(getOptions().pwshAvailable?.() ?? false, finish)
     : finish(false)
 }

@@ -6,6 +6,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   activateSpotlightCore,
+  assertSpotlightDeactivatableCore,
   createCheckpointCommit,
   deactivateSpotlightCore,
   inspectSpotlightRefsCore,
@@ -168,6 +169,29 @@ describe('spotlight-sync-core', () => {
     // Forcing discards it and completes the turn-off.
     await deactivateSpotlightCore(ctx, rootPath, { force: true })
     expect((await inspectSpotlightRefsCore(ctx, rootPath)).originalHeadSha).toBeNull()
+  })
+
+  it("checks turn-off's refusals without touching the root", async () => {
+    await expect(assertSpotlightDeactivatableCore(ctx, rootPath)).rejects.toMatchObject({
+      code: 'not-active'
+    })
+    await activateSpotlightCore(ctx, rootPath, worktreePath)
+    const snapshotHead = run(rootPath, 'rev-parse', 'HEAD')
+    write(rootPath, 'a.txt', 'edited-directly-in-root\n')
+
+    await expect(assertSpotlightDeactivatableCore(ctx, rootPath)).rejects.toMatchObject({
+      code: 'root-diverged'
+    })
+    const conflictedCtx = makeContext({ detectConflict: async () => 'merge' })
+    await expect(
+      assertSpotlightDeactivatableCore(conflictedCtx, rootPath, { force: true })
+    ).rejects.toMatchObject({ code: 'operation-in-progress' })
+    await expect(
+      assertSpotlightDeactivatableCore(ctx, rootPath, { force: true })
+    ).resolves.toMatchObject({ snapshotSha: snapshotHead })
+    // Read-only: the divergent edit and the snapshot HEAD are still there.
+    expect(readFileSync(path.join(rootPath, 'a.txt'), 'utf-8')).toBe('edited-directly-in-root\n')
+    expect(run(rootPath, 'rev-parse', 'HEAD')).toBe(snapshotHead)
   })
 
   it('refuses to sync when the root diverged, unless forced', async () => {

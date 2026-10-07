@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   cancelPreparedSpotlightServerLaunch: vi.fn<(repoId: string) => void>(),
   markPreparedSpotlightLaunchRegistered: vi.fn<(repoId: string) => void>(),
   startSpotlightLogCapture: vi.fn(async (_args: unknown) => {}),
+  stopSpotlightLogCapture: vi.fn<(args: { repoId: string; ptyId?: string }) => void>(),
+  watchLateSpotlightTerminal: vi.fn<(repoId: string, ptyId: string) => void>(),
   startSpotlightServer: vi.fn(async (_args: unknown) => ({ ok: true, started: true }))
 }))
 
@@ -28,7 +30,7 @@ vi.mock('../spotlight/spotlight-service', () => ({
 
 vi.mock('../spotlight/spotlight-log-mirror', () => ({
   startSpotlightLogCapture: mocks.startSpotlightLogCapture,
-  stopSpotlightLogCapture: vi.fn()
+  stopSpotlightLogCapture: mocks.stopSpotlightLogCapture
 }))
 
 vi.mock('../spotlight/spotlight-server-commands', () => ({
@@ -38,7 +40,8 @@ vi.mock('../spotlight/spotlight-server-commands', () => ({
 vi.mock('../spotlight/spotlight-server-control', () => ({
   cancelPreparedSpotlightServerLaunch: mocks.cancelPreparedSpotlightServerLaunch,
   prepareSpotlightServerLaunch: mocks.prepareSpotlightServerLaunch,
-  startSpotlightServer: mocks.startSpotlightServer
+  startSpotlightServer: mocks.startSpotlightServer,
+  watchLateSpotlightTerminal: mocks.watchLateSpotlightTerminal
 }))
 
 import { registerSpotlightHandlers } from './spotlight'
@@ -139,6 +142,21 @@ describe('spotlight:setLogPty', () => {
     await invoke('spotlight:setLogPty', { repoId: LOCAL_REPO.id, ptyId: 'pty-1' })
 
     expect(mocks.startSpotlightLogCapture).not.toHaveBeenCalled()
+    expect(mocks.markPreparedSpotlightLaunchRegistered).not.toHaveBeenCalled()
+  })
+
+  it('tears the capture down and watches the terminal when Spotlight turned off during the registration', async () => {
+    mocks.startSpotlightLogCapture.mockImplementationOnce(async () => {
+      mocks.getState.mockReturnValue(null)
+    })
+
+    await invoke('spotlight:setLogPty', { repoId: LOCAL_REPO.id, ptyId: 'pty-1' })
+
+    expect(mocks.stopSpotlightLogCapture).toHaveBeenCalledWith({
+      repoId: LOCAL_REPO.id,
+      ptyId: 'pty-1'
+    })
+    expect(mocks.watchLateSpotlightTerminal).toHaveBeenCalledWith(LOCAL_REPO.id, 'pty-1')
     expect(mocks.markPreparedSpotlightLaunchRegistered).not.toHaveBeenCalled()
   })
 })

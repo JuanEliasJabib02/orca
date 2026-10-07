@@ -25,8 +25,10 @@ function findTabPtyId(
  * startup command only when it mounts, and spends it synchronously right after binding its PTY.
  * So when the tab's PTY binds and the command is still queued a tick later, a pane mounted before
  * the queue spawned that PTY and will never run it: drop the entry (a later remount must not run
- * it either) and call `onUnclaimed` to start the server in the live shell instead. Spotlight
- * turning off, the tab closing, or the timeout drop the entry too, and call `onDropped`.
+ * it either) and call `onUnclaimed` to start the server in the live shell instead, or `onDropped`
+ * when Spotlight is off by then. The tab closing or the timeout drop the entry too.
+ * Spotlight turning off before the bind keeps the entry: only a pane spending it proves the line
+ * reached a shell, which is then interrupted (main never mirrors a PTY bound with Spotlight off).
  */
 export function watchSpotlightStartupClaim(args: {
   repoId: string
@@ -59,6 +61,13 @@ export function watchSpotlightStartupClaim(args: {
   }
   timer = setTimeout(() => stop(true), SPOTLIGHT_STARTUP_CLAIM_TIMEOUT_MS)
 
+  /** The entry left the queue after `ptyId` bound. Spent by the pane (not replaced) while
+   *  Spotlight was off, the line runs in a shell main never mirrored: the renderer interrupts it. */
+  const settleSpent = (state: ClaimWatchState, ptyId: string, spotlightOnAtBind: boolean): void => {
+    if (state.pendingStartupByTabId[tabId] === undefined && !spotlightOnAtBind) {
+      interruptStraySpotlightStartup({ repoId, worktreeId, tabId, ptyId })
+    }
+  }
   const check = (state: ClaimWatchState): void => {
     if (done) {
       return
@@ -69,6 +78,8 @@ export function watchSpotlightStartupClaim(args: {
       stop(false)
       if (ptyId === undefined) {
         onDropped()
+      } else if (ptyId !== null) {
+        settleSpent(state, ptyId, Boolean(state.spotlightByRepo[repoId]))
       }
       return
     }
@@ -76,26 +87,24 @@ export function watchSpotlightStartupClaim(args: {
       stop(true)
       return
     }
-    if (!state.spotlightByRepo[repoId]) {
-      stop(true)
-      // A pane that already read the command may still be spawning it.
-      if (ptyId === null) {
-        interruptStraySpotlightStartup({ repoId, worktreeId, tabId })
-      }
-      return
-    }
     if (ptyId === null) {
       return
     }
+    const spotlightOnAtBind = Boolean(state.spotlightByRepo[repoId])
     stop(false)
     // Why a tick: the owning pane spends the entry in the same synchronous call that binds the PTY.
     setTimeout(() => {
       const store = useAppStore.getState()
       if (store.pendingStartupByTabId[tabId] !== queued) {
+        settleSpent(store, ptyId, spotlightOnAtBind)
         return
       }
       store.consumeTabStartupCommand(tabId, queued)
-      onUnclaimed()
+      if (store.spotlightByRepo[repoId]) {
+        onUnclaimed()
+      } else {
+        onDropped()
+      }
     }, 0)
   }
   unsubscribe = useAppStore.subscribe(check)

@@ -7,6 +7,7 @@ import type {
 } from '../../shared/spotlight'
 import {
   activateSpotlightCore,
+  assertSpotlightDeactivatableCore,
   deactivateSpotlightCore,
   inspectSpotlightRefsCore,
   purgeSpotlightRefsCore,
@@ -201,12 +202,14 @@ export class SpotlightService {
       if (state) {
         this.emitSyncing(repoId, state)
       }
-      // Stop the server first: while the root is restored it would act on the root's own code.
-      await interruptSpotlightServer(repoId)
+      const forceOpts = { force: opts.force }
+      // Set once the server was interrupted: a refused turn-off (checked first) never touches it.
+      let serverStopped: boolean | null = null
       try {
-        const outcome = await deactivateSpotlightCore(resolved.ctx, resolved.repo.path, {
-          force: opts.force
-        })
+        await assertSpotlightDeactivatableCore(resolved.ctx, resolved.repo.path, forceOpts)
+        // Stop the server before the restore: it would act on the root's own code meanwhile.
+        serverStopped = await interruptSpotlightServer(repoId)
+        const outcome = await deactivateSpotlightCore(resolved.ctx, resolved.repo.path, forceOpts)
         await this.clearSpotlightRecord(repoId, resolved.repo.path)
         void appendSpotlightLogNote(resolved.repo.path, spotlightOffLogNote(outcome))
         return deactivatedResult(outcome)
@@ -217,7 +220,9 @@ export class SpotlightService {
           await this.clearSpotlightRecord(repoId, resolved.repo.path)
           return { ok: true, state: null }
         }
-        resumeSpotlightServerControl(repoId, resolved.repo.path)
+        if (serverStopped !== null) {
+          resumeSpotlightServerControl(repoId, resolved.repo.path, serverStopped)
+        }
         return this.failure(repoId, spotlightError, state)
       }
     })

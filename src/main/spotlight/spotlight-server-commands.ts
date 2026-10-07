@@ -11,7 +11,13 @@ type PreparedLaunchRecord = PreparedSpotlightLaunch & {
   preparedAt: number
   /** When a PTY registered as the Spotlight terminal, i.e. the queued line got a shell to run in. */
   registeredAt?: number
+  /** A busy reading of that terminal showed the queued line running. */
+  ran?: boolean
 }
+
+/** Where a queued line stands: no PTY yet, one registered less than the grace ago, or registered
+ *  but never seen running (it may still wait behind a slow shell's startup). */
+export type PreparedSpotlightLaunchPhase = 'unregistered' | 'settling' | 'pending'
 
 const commandByRepoId = new Map<string, string>()
 // Why separate: a busy start remembers its command for restarts without having typed it.
@@ -69,20 +75,36 @@ export function markPreparedSpotlightLaunchRegistered(repoId: string): void {
   }
 }
 
-/** A queued line may still be on its way into the shell: no PTY registered for it yet (for at most
- *  `maxWaitMs`), or one registered less than `graceMs` ago. */
-export function isPreparedSpotlightLaunchStarting(
+/** The phase of a queued line that may still be on its way into the shell, for at most `maxWaitMs`
+ *  after it was prepared; null once it ran, was taken back, or that cap passed. */
+export function getPreparedSpotlightLaunchPhase(
   repoId: string,
   graceMs: number,
   maxWaitMs: number
-): boolean {
+): PreparedSpotlightLaunchPhase | null {
   const prepared = preparedByRepoId.get(repoId)
-  if (!prepared) {
-    return false
+  const now = Date.now()
+  if (!prepared || prepared.ran || now - prepared.preparedAt >= maxWaitMs) {
+    return null
   }
-  return prepared.registeredAt === undefined
-    ? Date.now() - prepared.preparedAt < maxWaitMs
-    : Date.now() - prepared.registeredAt < graceMs
+  if (prepared.registeredAt === undefined) {
+    return 'unregistered'
+  }
+  return now - prepared.registeredAt < graceMs ? 'settling' : 'pending'
+}
+
+/** The registered terminal was seen busy: the queued line ran. */
+export function markPreparedSpotlightLaunchRan(repoId: string): void {
+  const prepared = preparedByRepoId.get(repoId)
+  if (prepared?.registeredAt !== undefined) {
+    prepared.ran = true
+  }
+}
+
+/** A registered PTY got the queued line, which was never seen running. */
+export function isPreparedSpotlightLaunchAwaitingRun(repoId: string): boolean {
+  const prepared = preparedByRepoId.get(repoId)
+  return prepared?.registeredAt !== undefined && prepared.ran !== true
 }
 
 export function takePreparedSpotlightLaunch(repoId: string): PreparedSpotlightLaunch | undefined {

@@ -1,7 +1,7 @@
 // Spotlight sync orchestration: the four public operations (activate / sync /
 // deactivate / inspect). Low-level git primitives and guards live in
 // ./spotlight-sync-primitives.
-import { SPOTLIGHT_REFS } from './spotlight'
+import { SPOTLIGHT_REFS, type SpotlightRefsSnapshot } from './spotlight'
 import {
   applySnapshotToRoot,
   assertNoConflictOperation,
@@ -214,18 +214,21 @@ export async function syncSpotlightCore(
   return { snapshotSha: checkpoint.sha, checkpointHeadSha: checkpoint.headSha, skipped: false }
 }
 
-export async function deactivateSpotlightCore(
+/** Spotlight off's read-only refusals, run before anything touches the root (or its server): a
+ *  merge/rebase in progress, refs already gone, and, unless forced, a diverged root. */
+export async function assertSpotlightDeactivatableCore(
   ctx: SpotlightGitContext,
   rootPath: string,
   opts: { force?: boolean } = {}
-): Promise<SpotlightDeactivateOutcome> {
+): Promise<SpotlightRefsSnapshot & { originalHeadSha: string }> {
   await assertNoConflictOperation(ctx, rootPath)
   const refs = await inspectSpotlightRefsCore(ctx, rootPath)
-  if (!refs.originalHeadSha) {
+  const originalHeadSha = refs.originalHeadSha
+  if (!originalHeadSha) {
     throw new SpotlightCoreError('not-active', 'Spotlight is not active for this repository.')
   }
 
-  // Same divergence guard sync/activate enforce: the reset --hard below would
+  // Same divergence guard sync/activate enforce: deactivate's reset --hard would
   // silently destroy tracked work committed or edited directly in the root
   // after activation — the backup ref predates it and never captured it. Refuse
   // unless the caller explicitly forces the discard.
@@ -244,7 +247,15 @@ export async function deactivateSpotlightCore(
       )
     }
   }
+  return { ...refs, originalHeadSha }
+}
 
+export async function deactivateSpotlightCore(
+  ctx: SpotlightGitContext,
+  rootPath: string,
+  opts: { force?: boolean } = {}
+): Promise<SpotlightDeactivateOutcome> {
+  const refs = await assertSpotlightDeactivatableCore(ctx, rootPath, opts)
   await git(ctx, rootPath, ['reset', '--hard', refs.originalHeadSha])
 
   let branchMissing = false

@@ -17,7 +17,10 @@ import {
   SPOTLIGHT_STARTUP_CLAIM_TIMEOUT_MS,
   watchSpotlightStartupClaim
 } from './spotlight-startup-claim-watch'
-import { SPOTLIGHT_STRAY_STARTUP_POLL_MS } from './spotlight-stray-startup-interrupt'
+import {
+  SPOTLIGHT_STRAY_CHILD_PERSIST_MS,
+  SPOTLIGHT_STRAY_STARTUP_POLL_MS
+} from '../../../shared/spotlight-stray-startup'
 
 const REPO = 'repo-1'
 const MAIN = 'main'
@@ -86,8 +89,19 @@ describe('watchSpotlightStartupClaim', () => {
     expect(onDropped).not.toHaveBeenCalled()
   })
 
-  it('drops the command when Spotlight turns off before the spawn', async () => {
-    pty.hasChildProcesses.mockResolvedValue(false)
+  it('keeps the command queued while Spotlight is off and the tab has not spawned', () => {
+    watch()
+
+    spotlightTerminalTestStore.setState({ spotlightByRepo: {} })
+
+    expect(pending()).toEqual({ command: 'pnpm local' })
+    expect(onDropped).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(SPOTLIGHT_STARTUP_CLAIM_TIMEOUT_MS)
+    expect(pending()).toBeUndefined()
+    expect(onDropped).toHaveBeenCalledTimes(1)
+  })
+
+  it('drops the command a PTY bound after Spotlight went off never read', async () => {
     watch()
 
     spotlightTerminalTestStore.setState({ spotlightByRepo: {} })
@@ -97,20 +111,54 @@ describe('watchSpotlightStartupClaim', () => {
     expect(pending()).toBeUndefined()
     expect(onDropped).toHaveBeenCalledTimes(1)
     expect(onUnclaimed).not.toHaveBeenCalled()
+    expect(pty.hasChildProcesses).not.toHaveBeenCalled()
     expect(pty.write).not.toHaveBeenCalled()
   })
 
-  it('interrupts what a spawn already under way runs once Spotlight is off', async () => {
+  it('interrupts the server a pane ran after Spotlight went off', async () => {
+    let serverRunning = true
+    pty.hasChildProcesses.mockImplementation(async () => serverRunning)
+    pty.write.mockImplementation(() => {
+      serverRunning = false
+    })
     watch()
 
     spotlightTerminalTestStore.setState({ spotlightByRepo: {} })
+    const queued = pending()
     bindTestTabPty(MAIN, TAB, 'pty-1')
-    await vi.advanceTimersByTimeAsync(SPOTLIGHT_STRAY_STARTUP_POLL_MS * 2)
+    spotlightTerminalTestStore.getState().consumeTabStartupCommand(TAB, queued)
+    await vi.advanceTimersByTimeAsync(
+      SPOTLIGHT_STRAY_STARTUP_POLL_MS + SPOTLIGHT_STRAY_CHILD_PERSIST_MS
+    )
 
     expect(pty.write).toHaveBeenCalledTimes(1)
     expect(pty.write).toHaveBeenCalledWith('pty-1', INTERRUPT, 'driving')
-    await vi.advanceTimersByTimeAsync(SPOTLIGHT_STRAY_STARTUP_POLL_MS * 4)
+    await vi.advanceTimersByTimeAsync(SPOTLIGHT_STARTUP_CLAIM_TIMEOUT_MS)
     expect(pty.write).toHaveBeenCalledTimes(1)
+  })
+
+  it('never interrupts once the watcher dropped the command itself', async () => {
+    watch()
+
+    spotlightTerminalTestStore.setState({ spotlightByRepo: {} })
+    vi.advanceTimersByTime(SPOTLIGHT_STARTUP_CLAIM_TIMEOUT_MS)
+    bindTestTabPty(MAIN, TAB, 'pty-1')
+    await vi.advanceTimersByTimeAsync(SPOTLIGHT_STARTUP_CLAIM_TIMEOUT_MS)
+
+    expect(pty.hasChildProcesses).not.toHaveBeenCalled()
+    expect(pty.write).not.toHaveBeenCalled()
+  })
+
+  it('leaves a PTY whose pane spent the command while Spotlight was on to main', async () => {
+    watch()
+
+    const queued = pending()
+    bindTestTabPty(MAIN, TAB, 'pty-1')
+    spotlightTerminalTestStore.getState().consumeTabStartupCommand(TAB, queued)
+    spotlightTerminalTestStore.setState({ spotlightByRepo: {} })
+    await vi.advanceTimersByTimeAsync(SPOTLIGHT_STARTUP_CLAIM_TIMEOUT_MS)
+
+    expect(pty.hasChildProcesses).not.toHaveBeenCalled()
   })
 
   it('does not interrupt a PTY whose pane never read the command', async () => {
