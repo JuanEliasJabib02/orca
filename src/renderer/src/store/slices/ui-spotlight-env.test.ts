@@ -4,6 +4,7 @@ import {
   getSpotlightEnvForTask,
   sanitizeSpotlightEnvByTaskKey
 } from './ui/ui-slice-spotlight-env-actions'
+import type { SpotlightServerEnv } from '../../../../shared/spotlight-server-types'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -67,6 +68,30 @@ describe('Spotlight environment per task', () => {
 
     expect(store.getState().spotlightEnvByTaskKey).toEqual({})
     expect(setMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses a new environment past the 500 entries hydration keeps, but still edits existing ones', () => {
+    const setMock = stubUiSet()
+    const store = createUIStore()
+    const full: Record<string, SpotlightServerEnv> = Object.fromEntries(
+      Array.from({ length: 500 }, (_, i) => [`AX-${i}`, 'dev' as const])
+    )
+    store.getState().hydratePersistedUI(makePersistedUI({ spotlightEnvByTaskKey: full }))
+    setMock.mockClear()
+
+    store.getState().setSpotlightEnvForTask('AX-new', 'prod')
+    expect(store.getState().spotlightEnvByTaskKey['AX-new']).toBeUndefined()
+    expect(setMock).not.toHaveBeenCalled()
+
+    store.getState().setSpotlightEnvForTask('AX-0', 'prod')
+    expect(store.getState().spotlightEnvByTaskKey['AX-0']).toBe('prod')
+
+    store.getState().setSpotlightEnvForTask('AX-1', 'local')
+    expect(store.getState().spotlightEnvByTaskKey['AX-1']).toBeUndefined()
+    expect(Object.keys(store.getState().spotlightEnvByTaskKey)).toHaveLength(499)
+
+    store.getState().setSpotlightEnvForTask('AX-new', 'prod')
+    expect(store.getState().spotlightEnvByTaskKey['AX-new']).toBe('prod')
   })
 
   it('hydrates the persisted map and tolerates its absence', () => {

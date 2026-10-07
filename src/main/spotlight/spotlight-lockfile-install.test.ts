@@ -6,18 +6,21 @@ import { promisify } from 'node:util'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SpotlightGitContext, SpotlightGitExecutor } from '../../shared/spotlight-sync-core'
 import {
+  chainSpotlightInstall,
   clearSpotlightInstallPending,
   isSpotlightInstallPending,
+  isWindowsPowerShell51,
   markSpotlightInstallIfLockfileChanged,
   markSpotlightInstallPending,
-  SPOTLIGHT_INSTALL_PREFIX,
-  takeSpotlightInstallPrefix
+  takeSpotlightLaunchLine
 } from './spotlight-lockfile-install'
 
 const REPO_ID = 'repo-1'
 const FROM = 'a'.repeat(40)
 const TO = 'b'.repeat(40)
 const ROOT = '/repo/root'
+const AND_CHAIN = 'pnpm install --frozen-lockfile && pnpm dev'
+const POWERSHELL_51_CHAIN = 'pnpm install --frozen-lockfile; if ($?) { pnpm dev }'
 
 /** Answers the two reads the check makes: the lockfile diff and the lockfile blob in `toSha`. */
 function fakeContext(answers: {
@@ -94,27 +97,69 @@ describe('markSpotlightInstallIfLockfileChanged', () => {
   })
 })
 
-describe('install prefix', () => {
-  it('is handed out once per change', () => {
+describe('launch line with a pending install', () => {
+  it('chains the install once per change', () => {
     markSpotlightInstallPending(REPO_ID)
 
-    expect(SPOTLIGHT_INSTALL_PREFIX).toBe('pnpm install --frozen-lockfile && ')
-    expect(takeSpotlightInstallPrefix(REPO_ID)).toBe(SPOTLIGHT_INSTALL_PREFIX)
-    expect(takeSpotlightInstallPrefix(REPO_ID)).toBe('')
+    expect(takeSpotlightLaunchLine(REPO_ID, 'pnpm dev', 'zsh')).toBe(AND_CHAIN)
+    expect(takeSpotlightLaunchLine(REPO_ID, 'pnpm dev', 'zsh')).toBe('pnpm dev')
   })
 
   it('is dropped by clear', () => {
     markSpotlightInstallPending(REPO_ID)
     clearSpotlightInstallPending(REPO_ID)
 
-    expect(takeSpotlightInstallPrefix(REPO_ID)).toBe('')
+    expect(takeSpotlightLaunchLine(REPO_ID, 'pnpm dev', 'zsh')).toBe('pnpm dev')
   })
 
   it('is tracked per repo', () => {
     markSpotlightInstallPending('repo-2')
 
-    expect(takeSpotlightInstallPrefix(REPO_ID)).toBe('')
-    expect(takeSpotlightInstallPrefix('repo-2')).toBe(SPOTLIGHT_INSTALL_PREFIX)
+    expect(takeSpotlightLaunchLine(REPO_ID, 'pnpm dev', null)).toBe('pnpm dev')
+    expect(takeSpotlightLaunchLine('repo-2', 'pnpm dev', null)).toBe(AND_CHAIN)
+  })
+})
+
+describe('install chain per shell', () => {
+  const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
+
+  function onPlatform(platform: NodeJS.Platform): void {
+    Object.defineProperty(process, 'platform', { configurable: true, value: platform })
+  }
+
+  afterEach(() => {
+    if (originalPlatform) {
+      Object.defineProperty(process, 'platform', originalPlatform)
+    }
+  })
+
+  it('uses `; if ($?)` for Windows PowerShell 5.1, which has no `&&`', () => {
+    onPlatform('win32')
+
+    expect(chainSpotlightInstall('pnpm dev', 'powershell.exe')).toBe(POWERSHELL_51_CHAIN)
+    expect(
+      chainSpotlightInstall(
+        'pnpm dev',
+        'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+      )
+    ).toBe(POWERSHELL_51_CHAIN)
+    expect(isWindowsPowerShell51('PowerShell')).toBe(true)
+  })
+
+  it('keeps `&&` for PowerShell 7, cmd, Git Bash and an unknown shell on Windows', () => {
+    onPlatform('win32')
+
+    for (const shell of ['pwsh.exe', 'cmd.exe', 'bash.exe', null]) {
+      expect(chainSpotlightInstall('pnpm dev', shell)).toBe(AND_CHAIN)
+    }
+  })
+
+  it('keeps `&&` off Windows, whatever the shell is called', () => {
+    onPlatform('darwin')
+
+    for (const shell of ['zsh', 'bash', 'fish', 'powershell']) {
+      expect(chainSpotlightInstall('pnpm dev', shell)).toBe(AND_CHAIN)
+    }
   })
 })
 

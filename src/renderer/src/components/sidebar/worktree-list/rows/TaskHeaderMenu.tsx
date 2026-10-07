@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
 import { Ellipsis, StickyNote, Trash2 } from 'lucide-react'
 import { useAppStore } from '@/store'
+import { useAllWorktrees } from '@/store/selectors'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -26,13 +27,14 @@ import { createTaskDeleteCompletion } from './task-note-delete-cleanup'
 /** `⋯` menu of a Group by → Task header: actions on the whole task across repos. */
 export function TaskHeaderMenu({ task }: { task: TaskSectionInfo }): React.JSX.Element | null {
   const { taskKey } = task
-  const worktreesByRepo = useAppStore((s) => s.worktreesByRepo)
+  const allWorktrees = useAllWorktrees()
   const note = useAppStore((s) => getTaskNote(s.taskNoteByTaskKey, taskKey))
   const openModal = useAppStore((s) => s.openModal)
   const setTaskNote = useAppStore((s) => s.setTaskNote)
+  // Why every worktree, not `task.worktrees`: sidebar filters hide members the delete must still cover.
   const targets = useMemo(
-    () => resolveTaskDeleteTargets(task, worktreesByRepo),
-    [task, worktreesByRepo]
+    () => resolveTaskDeleteTargets(taskKey, allWorktrees),
+    [taskKey, allWorktrees]
   )
 
   // Why null: the "No task" section has no task to act on.

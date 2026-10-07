@@ -14,13 +14,19 @@ import {
 } from '../../shared/spotlight-sync-core'
 import { appendSpotlightLogNote, stopSpotlightLogCapture } from './spotlight-log-mirror'
 import { checkActivationLockfile, checkSyncLockfile } from './spotlight-lockfile-operation-checks'
-import { stopSpotlightServer } from './spotlight-server-control'
+import {
+  interruptSpotlightServer,
+  resumeSpotlightServerControl,
+  stopSpotlightServer
+} from './spotlight-server-control'
 import { writeSpotlightStateFile } from './spotlight-state-file'
 import {
   activeStateFromActivation,
+  deactivatedResult,
   isRootHolderPath,
   pendingSpotlightState,
   resolveRepoContext,
+  spotlightOffLogNote,
   syncedSpotlightState,
   toSpotlightError,
   worktreePathFromId,
@@ -195,29 +201,15 @@ export class SpotlightService {
       if (state) {
         this.emitSyncing(repoId, state)
       }
+      // Stop the server first: while the root is restored it would act on the root's own code.
+      await interruptSpotlightServer(repoId)
       try {
         const outcome = await deactivateSpotlightCore(resolved.ctx, resolved.repo.path, {
           force: opts.force
         })
         await this.clearSpotlightRecord(repoId, resolved.repo.path)
-        void appendSpotlightLogNote(
-          resolved.repo.path,
-          outcome.branchMissing
-            ? `Spotlight off — root restored but left detached (branch "${
-                outcome.originalBranch ?? '?'
-              }" was unavailable)`
-            : 'Spotlight off — the root shows its own code again'
-        )
-        return outcome.branchMissing
-          ? {
-              ok: true,
-              state: null,
-              // Name only when the branch still exists but is in use elsewhere
-              // (recoverable by freeing it); null when it was deleted, so the
-              // renderer shows the correct "no longer exists" message.
-              leftDetachedFromBranch: outcome.branchInUse ? outcome.originalBranch : null
-            }
-          : { ok: true, state: null }
+        void appendSpotlightLogNote(resolved.repo.path, spotlightOffLogNote(outcome))
+        return deactivatedResult(outcome)
       } catch (error) {
         const spotlightError = toSpotlightError(error)
         if (spotlightError.code === 'not-active') {
@@ -225,6 +217,7 @@ export class SpotlightService {
           await this.clearSpotlightRecord(repoId, resolved.repo.path)
           return { ok: true, state: null }
         }
+        resumeSpotlightServerControl(repoId, resolved.repo.path)
         return this.failure(repoId, spotlightError, state)
       }
     })

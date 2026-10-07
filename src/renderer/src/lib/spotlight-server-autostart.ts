@@ -76,6 +76,15 @@ async function prepareLaunch(repoId: string, command: string): Promise<string | 
   }
 }
 
+/** Main takes back a prepared line that will never run. Never rejects. */
+async function cancelPreparedLaunch(repoId: string): Promise<void> {
+  try {
+    await window.api.spotlight.cancelPreparedServerLaunch({ repoId })
+  } catch (error) {
+    console.warn('[spotlight] Could not cancel the prepared server launch:', error)
+  }
+}
+
 function waitForRetry(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, SPOTLIGHT_START_RETRY_DELAY_MS))
 }
@@ -127,7 +136,10 @@ function spawnInBackground(
       repoId,
       worktreeId,
       tabId,
-      onUnclaimed: () => void startServerInTerminal(repoId, command)
+      onDropped: () => void cancelPreparedLaunch(repoId),
+      // Cancel first, so the live start chains the install the queued line had taken.
+      onUnclaimed: () =>
+        void cancelPreparedLaunch(repoId).then(() => startServerInTerminal(repoId, command))
     })
   } catch (error) {
     console.warn('[spotlight] Could not spawn the Spotlight terminal in the background:', error)
@@ -165,6 +177,10 @@ export async function openSpotlightTerminalAndStartServer(args: {
     reveal: false,
     ...(launch ? { startupCommand: launch } : {})
   })
+  if (launch && !(opened.ok && opened.startupQueued)) {
+    // The PTY bound while preparing, so the line was never queued; cancel before the live start.
+    await cancelPreparedLaunch(repoId)
+  }
   if (!opened.ok) {
     return { opened, server: NO_SERVER }
   }

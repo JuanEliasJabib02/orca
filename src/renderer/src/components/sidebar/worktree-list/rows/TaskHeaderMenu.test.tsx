@@ -5,6 +5,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppStore } from '@/store'
+import type { Worktree } from '../../../../../../shared/worktree/types'
 import type { TaskSectionInfo } from '../grouping/row-types'
 import { TaskHeaderMenu } from './TaskHeaderMenu'
 import { makeTaskWorktree } from './task-spotlight-test-fixtures'
@@ -55,14 +56,19 @@ const TASK: TaskSectionInfo = {
   folderWorkspaceIds: []
 }
 
+/** A worktree whose branch carries the task's ticket key. */
+function makeMember(id: string, repoId: string, overrides: Partial<Worktree> = {}): Worktree {
+  return makeTaskWorktree(id, repoId, { branch: 'refs/heads/AX-3450-pos', ...overrides })
+}
+
 function seedStore(): void {
   useAppStore.setState({
     worktreesByRepo: {
       backend: [
-        makeTaskWorktree('be-main', 'backend', { isMainWorktree: true }),
-        makeTaskWorktree('be-1', 'backend', { instanceId: 'inst-be' })
+        makeMember('be-main', 'backend', { isMainWorktree: true }),
+        makeMember('be-1', 'backend', { instanceId: 'inst-be' })
       ],
-      admin: [makeTaskWorktree('ad-1', 'admin', { instanceId: 'inst-ad' })]
+      admin: [makeMember('ad-1', 'admin', { instanceId: 'inst-ad' })]
     }
   })
 }
@@ -160,10 +166,32 @@ describe('TaskHeaderMenu', () => {
     )
   })
 
+  it('also deletes members that sidebar filters hide from the section', async () => {
+    seedStore()
+    // Why: the section lists only the visible member; the admin worktree is filtered out.
+    const filteredTask: TaskSectionInfo = {
+      ...TASK,
+      worktrees: [{ worktreeId: 'be-1', repoId: 'backend' }]
+    }
+    const container = await render(filteredTask)
+
+    await act(async () => {
+      getDeleteItem(container)?.click()
+    })
+
+    expect(runWorktreeBatchDelete).toHaveBeenCalledWith(
+      [
+        { id: 'be-1', instanceId: 'inst-be', hostId: undefined },
+        { id: 'ad-1', instanceId: 'inst-ad', hostId: undefined }
+      ],
+      { forceConfirm: true, onDeleted: expect.any(Function) }
+    )
+  })
+
   it('disables the delete when the task holds only main worktrees', async () => {
     useAppStore.setState({
       worktreesByRepo: {
-        backend: [makeTaskWorktree('be-main', 'backend', { isMainWorktree: true })]
+        backend: [makeMember('be-main', 'backend', { isMainWorktree: true })]
       }
     })
     const container = await render({
@@ -260,6 +288,24 @@ describe('TaskHeaderMenu', () => {
         getOnDeleted()([{ id: 'ad-1', executionHostId: null }])
       })
       expect(useAppStore.getState().taskNoteByTaskKey).toEqual({})
+    })
+
+    it('keeps the note when only the visible members were deleted and a hidden one remains', async () => {
+      seedStore()
+      useAppStore.setState({ taskNoteByTaskKey: { 'AX-3450': 'POS Action Wear' } })
+      const container = await render({
+        ...TASK,
+        worktrees: [{ worktreeId: 'be-1', repoId: 'backend' }]
+      })
+      await act(async () => {
+        getDeleteItem(container)?.click()
+      })
+
+      await act(async () => {
+        getOnDeleted()([{ id: 'be-1', executionHostId: null }])
+      })
+
+      expect(useAppStore.getState().taskNoteByTaskKey).toEqual({ 'AX-3450': 'POS Action Wear' })
     })
 
     it('keeps the note when the delete is cancelled', async () => {

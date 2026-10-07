@@ -1,7 +1,8 @@
 import type { Repo } from '../../shared/repo-types'
-import type { SpotlightError, SpotlightRepoState } from '../../shared/spotlight'
+import type { SpotlightError, SpotlightOpResult, SpotlightRepoState } from '../../shared/spotlight'
 import type {
   SpotlightActivateOutcome,
+  SpotlightDeactivateOutcome,
   SpotlightGitContext,
   SpotlightSyncOutcome
 } from '../../shared/spotlight-sync-core'
@@ -131,4 +132,26 @@ export function pendingSpotlightState(
     lastSyncAt: null,
     lastError: null
   }
+}
+
+/** The log line after a successful Spotlight off. */
+export function spotlightOffLogNote(outcome: SpotlightDeactivateOutcome): string {
+  return outcome.branchMissing
+    ? `Spotlight off — root restored but left detached (branch "${
+        outcome.originalBranch ?? '?'
+      }" was unavailable)`
+    : 'Spotlight off — the root shows its own code again'
+}
+
+export function deactivatedResult(outcome: SpotlightDeactivateOutcome): SpotlightOpResult {
+  return outcome.branchMissing
+    ? {
+        ok: true,
+        state: null,
+        // Name only when the branch still exists but is in use elsewhere
+        // (recoverable by freeing it); null when it was deleted, so the
+        // renderer shows the correct "no longer exists" message.
+        leftDetachedFromBranch: outcome.branchInUse ? outcome.originalBranch : null
+      }
+    : { ok: true, state: null }
 }

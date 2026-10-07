@@ -1,6 +1,6 @@
 // Test-only stand-in for `useAppStore` in the Spotlight terminal/autostart tests: just the state
 // and actions those modules touch, with synchronous subscribers like zustand's.
-import { vi } from 'vitest'
+import { vi, type Mock } from 'vitest'
 import type { Repo } from '../../../shared/repo-types'
 import type { SpotlightRepoState } from '../../../shared/spotlight'
 import type { SpotlightServerEnv } from '../../../shared/spotlight-server-types'
@@ -96,7 +96,28 @@ export function makeTestSpotlightState(
   }
 }
 
-function createActions() {
+// Why explicit: the exported state type must not depend on vitest's unexported spy types.
+type SpotlightTerminalTestActions = {
+  createTab: Mock<
+    (
+      worktreeId: string,
+      targetGroupId?: string,
+      shellOverride?: string,
+      options?: { spotlightRepoRoot?: boolean }
+    ) => TerminalTab
+  >
+  queueTabStartupCommand: Mock<(tabId: string, startup: { command: string }) => void>
+  consumeTabStartupCommand: Mock<
+    (tabId: string, expected?: { command: string }) => { command: string } | null
+  >
+  queueTabInitialCwd: Mock<(tabId: string, cwd: string) => void>
+  markTabSpotlightRepoRoot: Mock<(tabId: string) => void>
+  setTabCustomTitle: Mock<(...args: unknown[]) => void>
+  setActiveTabForWorktree: Mock<(...args: unknown[]) => void>
+  setActiveTabType: Mock<(...args: unknown[]) => void>
+}
+
+function createActions(): SpotlightTerminalTestActions {
   return {
     createTab: vi.fn(
       (
@@ -144,14 +165,13 @@ function createActions() {
         )
       }
     }),
-    setTabCustomTitle: vi.fn(),
-    setActiveTabForWorktree: vi.fn(),
-    setActiveTabType: vi.fn()
+    setTabCustomTitle: vi.fn<(...args: unknown[]) => void>(),
+    setActiveTabForWorktree: vi.fn<(...args: unknown[]) => void>(),
+    setActiveTabType: vi.fn<(...args: unknown[]) => void>()
   }
 }
 
-export type SpotlightTerminalTestState = SpotlightTerminalTestData &
-  ReturnType<typeof createActions>
+export type SpotlightTerminalTestState = SpotlightTerminalTestData & SpotlightTerminalTestActions
 
 let state: SpotlightTerminalTestState = { ...emptyData(), ...createActions() }
 

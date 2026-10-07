@@ -1,9 +1,6 @@
 import { ipcMain } from 'electron'
 import type { BrowserWindow } from 'electron'
-import type {
-  SpotlightServerRestartResult,
-  SpotlightServerStartResult
-} from '../../shared/spotlight'
+import type { SpotlightServerStartResult } from '../../shared/spotlight'
 import type { Store } from '../persistence'
 import { SpotlightService } from '../spotlight/spotlight-service'
 import {
@@ -11,10 +8,12 @@ import {
   stopSpotlightLogCapture
 } from '../spotlight/spotlight-log-mirror'
 import {
+  cancelPreparedSpotlightServerLaunch,
   prepareSpotlightServerLaunch,
-  restartSpotlightServer,
   startSpotlightServer
 } from '../spotlight/spotlight-server-control'
+import { markPreparedSpotlightLaunchRegistered } from '../spotlight/spotlight-server-commands'
+import { configureSpotlightTerminalShell } from '../spotlight/spotlight-terminal-shell'
 
 // Module singleton with a mutable window ref: attachMainWindowServices re-runs on
 // macOS dock re-activation, and rebuilding the service would drop its per-repo
@@ -77,6 +76,7 @@ export function registerSpotlightHandlers(mainWindow: BrowserWindow, store: Stor
     )
   }
   const spotlight = service
+  configureSpotlightTerminalShell(() => store.getSettings())
 
   ipcMain.removeHandler('spotlight:getState')
   ipcMain.removeHandler('spotlight:activate')
@@ -85,8 +85,8 @@ export function registerSpotlightHandlers(mainWindow: BrowserWindow, store: Stor
   ipcMain.removeHandler('spotlight:setLogPty')
   ipcMain.removeHandler('spotlight:clearLogPty')
   ipcMain.removeHandler('spotlight:startServer')
-  ipcMain.removeHandler('spotlight:restartServer')
   ipcMain.removeHandler('spotlight:prepareServerLaunch')
+  ipcMain.removeHandler('spotlight:cancelPreparedServerLaunch')
 
   // Only while Spotlight is actually active for a local repo — the
   // spotlightRepoRoot tab flag persists across sessions, so without this a
@@ -114,6 +114,8 @@ export function registerSpotlightHandlers(mainWindow: BrowserWindow, store: Stor
       return
     }
     await startSpotlightLogCapture({ repoId: args.repoId, ptyId: args.ptyId, rootPath: repo.path })
+    // A queued server line now has a shell to run in; starts wait a grace for it to fork.
+    markPreparedSpotlightLaunchRegistered(args.repoId)
   })
   ipcMain.handle('spotlight:clearLogPty', (_event, args: { repoId: string; ptyId?: string }) => {
     stopSpotlightLogCapture(args)
@@ -134,18 +136,16 @@ export function registerSpotlightHandlers(mainWindow: BrowserWindow, store: Stor
   )
   ipcMain.handle(
     'spotlight:prepareServerLaunch',
-    (_event, args: { repoId: string; command: string }): string | null =>
+    async (_event, args: { repoId: string; command: string }): Promise<string | null> =>
       isActiveLocalSpotlight(args.repoId)
         ? prepareSpotlightServerLaunch(args.repoId, args.command)
         : null
   )
-  ipcMain.handle(
-    'spotlight:restartServer',
-    (_event, args: { repoId: string; command?: string }): SpotlightServerRestartResult =>
-      isActiveLocalSpotlight(args.repoId)
-        ? restartSpotlightServer(args)
-        : { ok: false, reason: 'not-active' }
-  )
+  ipcMain.handle('spotlight:cancelPreparedServerLaunch', (_event, args: { repoId: string }) => {
+    if (isActiveLocalSpotlight(args.repoId)) {
+      cancelPreparedSpotlightServerLaunch(args.repoId)
+    }
+  })
 
   // Why: the git refs are the source of truth and may have changed while Orca
   // was closed (manual git use, crashes). One reconcile pass per app run.

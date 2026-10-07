@@ -39,7 +39,8 @@ picks. Builds on `odd/tasks/task-workflow.md`, on the same branch.
   first, so it stops the server too.
 - **Dependencies**: when `pnpm-lock.yaml` differs between what the root had and what
   the Spotlight puts there, the next start/restart runs
-  `pnpm install --frozen-lockfile && <command>` in the Spotlight terminal. If the
+  `pnpm install --frozen-lockfile && <command>` in the Spotlight terminal (on Windows
+  PowerShell 5.1: `pnpm install --frozen-lockfile; if ($?) { <command> }`). If the
   server is running when a workspace switch changes the lockfile, Orca restarts it
   that way. The backend (`uv run`) syncs its own deps.
 - **Status at a glance**: each row's flashlight shows whether its server is running,

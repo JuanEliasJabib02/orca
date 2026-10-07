@@ -10,6 +10,7 @@ import {
   makeTestSpotlightState,
   makeTestTab,
   makeTestWorktree,
+  removeTestTab,
   resetSpotlightTerminalTestStore,
   spotlightTerminalEvents,
   spotlightTerminalTestStore,
@@ -73,10 +74,13 @@ const api = {
   },
   spotlight: {
     setLogPty: vi.fn(async (_args: { repoId: string; ptyId: string }) => {}),
-    prepareServerLaunch: vi.fn(async (args: { repoId: string; command: string }) => {
-      spotlightTerminalEvents.push('prepare')
-      return args.command
-    }),
+    prepareServerLaunch: vi.fn(
+      async (args: { repoId: string; command: string }): Promise<string | null> => {
+        spotlightTerminalEvents.push('prepare')
+        return args.command
+      }
+    ),
+    cancelPreparedServerLaunch: vi.fn(async (_args: { repoId: string }) => {}),
     startServer: vi.fn(
       async (_args: {
         repoId: string
@@ -96,6 +100,10 @@ function seed(overrides: Partial<SpotlightTerminalTestData> = {}): void {
     spotlightByRepo: { [REPO]: makeTestSpotlightState(REPO, TICKET.id) },
     ...overrides
   })
+}
+
+function callOrder(mock: { mock: { invocationCallOrder: number[] } }): number {
+  return mock.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
 }
 
 function liveSpotlightTab(): ReturnType<typeof makeTestTab> {
@@ -206,6 +214,7 @@ describe('openSpotlightTerminalAndStartServer', () => {
     ])
     expect(activation.server).toEqual({ kind: 'queued', command: 'pnpm local --port 3000' })
     expect(api.spotlight.startServer).not.toHaveBeenCalled()
+    expect(api.spotlight.cancelPreparedServerLaunch).not.toHaveBeenCalled()
   })
 
   it('queues the launch line main returns, install prefix included', async () => {
@@ -270,6 +279,45 @@ describe('openSpotlightTerminalAndStartServer', () => {
       })
     )
     expect(spotlightTerminalTestStore.getState().pendingStartupByTabId).toEqual({})
+    // Cancelled first, so the live start chains the install the queued line had taken.
+    expect(api.spotlight.cancelPreparedServerLaunch).toHaveBeenCalledWith({ repoId: REPO })
+    expect(callOrder(api.spotlight.cancelPreparedServerLaunch)).toBeLessThan(
+      callOrder(api.spotlight.startServer)
+    )
+  })
+
+  it('cancels the prepared line when its tab closes before any pane runs it', async () => {
+    await openSpotlightTerminalAndStartServer({ repoId: REPO, worktreeId: TICKET.id })
+
+    removeTestTab(MAIN.id, 'created-1')
+
+    expect(api.spotlight.cancelPreparedServerLaunch).toHaveBeenCalledWith({ repoId: REPO })
+    expect(api.spotlight.startServer).not.toHaveBeenCalled()
+  })
+
+  it('cancels a prepared line the PTY made useless by binding first, then starts live', async () => {
+    seed({
+      tabsByWorktree: {
+        [MAIN.id]: [makeTestTab({ id: 'spot', worktreeId: MAIN.id, spotlightRepoRoot: true })]
+      }
+    })
+    api.spotlight.prepareServerLaunch.mockImplementationOnce(async (args) => {
+      bindTestTabPty(MAIN.id, 'spot', 'pty-2')
+      return `pnpm install --frozen-lockfile && ${args.command}`
+    })
+
+    const activation = await openSpotlightTerminalAndStartServer({
+      repoId: REPO,
+      worktreeId: TICKET.id
+    })
+
+    expect(activation.opened).toMatchObject({ ok: true, startupQueued: false, ptyId: 'pty-2' })
+    expect(spotlightTerminalTestStore.getState().pendingStartupByTabId).toEqual({})
+    expect(api.spotlight.cancelPreparedServerLaunch).toHaveBeenCalledWith({ repoId: REPO })
+    expect(callOrder(api.spotlight.cancelPreparedServerLaunch)).toBeLessThan(
+      callOrder(api.spotlight.startServer)
+    )
+    expect(activation.server).toEqual({ kind: 'started', command: 'pnpm local --port 3000' })
   })
 
   it('live PTY: waits for the log mirror, then asks main to start it', async () => {
@@ -296,6 +344,7 @@ describe('openSpotlightTerminalAndStartServer', () => {
     })
     expect(activation.server).toEqual({ kind: 'started', command: 'pnpm local --port 3000' })
     expect(spotlightTerminalTestStore.getState().pendingStartupByTabId).toEqual({})
+    expect(api.spotlight.cancelPreparedServerLaunch).not.toHaveBeenCalled()
   })
 
   it('reports a takeover restart', async () => {

@@ -1,11 +1,11 @@
 // Spotlight projects committed code onto the repo root but not node_modules, so a pnpm-lock.yaml
 // change leaves the root's install stale. The repo is flagged here, and the next server command
 // Orca types into the Spotlight terminal installs first, where the user sees it run.
+import { win32 as pathWin32 } from 'node:path'
 import { gitTry, type SpotlightGitContext } from '../../shared/spotlight-sync-primitives'
 
 const PNPM_LOCKFILE = 'pnpm-lock.yaml'
-// Windows PowerShell 5.1 has no `&&`; zsh, bash, fish, cmd and PowerShell 7 all chain with it.
-export const SPOTLIGHT_INSTALL_PREFIX = 'pnpm install --frozen-lockfile && '
+const PNPM_INSTALL = 'pnpm install --frozen-lockfile'
 
 const installPendingRepoIds = new Set<string>()
 
@@ -49,10 +49,37 @@ export async function markSpotlightInstallIfLockfileChanged(args: {
   return true
 }
 
-/** The install prefix once per change (clearing the flag), else ''. Call only when the
- *  command is about to be typed, so a skipped start keeps the install pending. */
-export function takeSpotlightInstallPrefix(repoId: string): string {
-  return installPendingRepoIds.delete(repoId) ? SPOTLIGHT_INSTALL_PREFIX : ''
+/** Windows PowerShell 5.1 (`powershell.exe`) rejects `&&`, so neither half would run. `shell` is a
+ *  process name or path; null means unknown. */
+export function isWindowsPowerShell51(shell: string | null | undefined): boolean {
+  if (process.platform !== 'win32' || !shell) {
+    return false
+  }
+  const name = pathWin32.basename(shell.trim()).toLowerCase()
+  return name === 'powershell' || name === 'powershell.exe'
+}
+
+/** The install, then `command` only if it succeeded, in syntax `shell` parses: zsh, bash, fish 3+,
+ *  cmd and PowerShell 7 chain with `&&`. */
+export function chainSpotlightInstall(command: string, shell: string | null | undefined): string {
+  return isWindowsPowerShell51(shell)
+    ? `${PNPM_INSTALL}; if ($?) { ${command} }`
+    : `${PNPM_INSTALL} && ${command}`
+}
+
+/** Whether an install was pending, clearing it: it is handed out once per change. */
+export function takeSpotlightInstallPending(repoId: string): boolean {
+  return installPendingRepoIds.delete(repoId)
+}
+
+/** `command`, with a pending install chained first (once per change). Call only when the line is
+ *  about to be typed, so a skipped start keeps the install pending. */
+export function takeSpotlightLaunchLine(
+  repoId: string,
+  command: string,
+  shell: string | null | undefined
+): string {
+  return takeSpotlightInstallPending(repoId) ? chainSpotlightInstall(command, shell) : command
 }
 
 export function isSpotlightInstallPending(repoId: string): boolean {

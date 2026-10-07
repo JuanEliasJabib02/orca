@@ -3,19 +3,27 @@ import {
   toWorktreeDeleteIdentities,
   type WorktreeDeleteIdentity
 } from '../../worktree-delete-request'
-import type { TaskSectionInfo } from '../grouping/row-types'
+import { getTaskKeysForAllWorktrees } from '../grouping/worktree-task-keys'
 
-/** Delete identities for a task's worktrees; main checkouts, ids gone from the store and folder workspaces stay out. */
+/**
+ * Delete identities for every worktree filed under `taskKey`, hidden by sidebar filters or not;
+ * `allWorktrees` is the unfiltered set. Main checkouts and archived worktrees stay out, and folder
+ * workspaces are not worktrees.
+ */
 export function resolveTaskDeleteTargets(
-  task: Pick<TaskSectionInfo, 'worktrees'>,
-  worktreesByRepo: Readonly<Record<string, readonly Worktree[] | undefined>>
+  taskKey: string | null,
+  allWorktrees: readonly Worktree[]
 ): WorktreeDeleteIdentity[] {
-  const targets: Worktree[] = []
-  for (const { worktreeId, repoId } of task.worktrees) {
-    const worktree = worktreesByRepo[repoId]?.find((entry) => entry.id === worktreeId)
-    if (worktree && !worktree.isMainWorktree) {
-      targets.push(worktree)
-    }
+  if (taskKey === null) {
+    return []
   }
-  return toWorktreeDeleteIdentities(targets)
+  const taskKeys = getTaskKeysForAllWorktrees(allWorktrees)
+  return toWorktreeDeleteIdentities(
+    allWorktrees.filter(
+      (worktree) =>
+        !worktree.isMainWorktree &&
+        !worktree.isArchived &&
+        taskKeys.getTaskKey(worktree) === taskKey
+    )
+  )
 }

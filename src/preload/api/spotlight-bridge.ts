@@ -17,9 +17,10 @@ export const spotlightApi = {
 
   startServer: (args) => ipcRenderer.invoke('spotlight:startServer', args),
 
-  restartServer: (args) => ipcRenderer.invoke('spotlight:restartServer', args),
-
   prepareServerLaunch: (args) => ipcRenderer.invoke('spotlight:prepareServerLaunch', args),
+
+  cancelPreparedServerLaunch: (args) =>
+    ipcRenderer.invoke('spotlight:cancelPreparedServerLaunch', args),
 
   onChanged: (callback: (event: SpotlightChangedEvent) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, data: SpotlightChangedEvent) =>

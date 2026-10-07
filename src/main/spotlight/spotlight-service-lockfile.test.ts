@@ -15,6 +15,7 @@ const fakePty = vi.hoisted(() => {
       return true
     }),
     hasChildProcesses: vi.fn(async (_id: string): Promise<boolean> => false),
+    getForegroundProcess: vi.fn(async (_id: string): Promise<string | null> => 'zsh'),
     onData: vi.fn(() => () => {})
   }
 })
@@ -127,10 +128,11 @@ function comparedShas(): string[][] {
   return fakeGit.calls.filter((args) => args[0] === 'diff-tree').map((args) => args.slice(2, 4))
 }
 
-/** A server Orca started earlier (its command is stored) and that is running now. */
+/** A server Orca typed into the idle terminal earlier and that is running now. */
 async function runOrcaServer(): Promise<void> {
-  fakePty.hasChildProcesses.mockResolvedValue(true)
   await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })
+  fakePty.writes.length = 0
+  fakePty.hasChildProcesses.mockResolvedValue(true)
 }
 
 beforeEach(async () => {

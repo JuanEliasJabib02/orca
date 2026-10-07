@@ -48,6 +48,14 @@ export function createUiSpotlightEnvActions(set: UISliceSet, _get: UISliceGet): 
         if (getSpotlightEnvForTask(s.spotlightEnvByTaskKey, taskKey) === env) {
           return s
         }
+        // Why: hydration drops entries past the cap, so an environment added beyond it would vanish on restart.
+        if (
+          env !== DEFAULT_SPOTLIGHT_SERVER_ENV &&
+          !Object.hasOwn(s.spotlightEnvByTaskKey, taskKey) &&
+          Object.keys(s.spotlightEnvByTaskKey).length >= MAX_TASK_KEYED_ENTRIES
+        ) {
+          return s
+        }
         const next = { ...s.spotlightEnvByTaskKey }
         // Why: the default is the absence of an entry, so the map only holds deviations.
         if (env === DEFAULT_SPOTLIGHT_SERVER_ENV) {

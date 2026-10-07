@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   handlers: new Map<string, (event: unknown, args: unknown) => unknown>(),
   getState: vi.fn<(repoId: string) => unknown>(),
-  prepareSpotlightServerLaunch: vi.fn<(repoId: string, command: string) => string | null>(),
+  prepareSpotlightServerLaunch:
+    vi.fn<(repoId: string, command: string) => Promise<string | null>>(),
+  cancelPreparedSpotlightServerLaunch: vi.fn<(repoId: string) => void>(),
+  markPreparedSpotlightLaunchRegistered: vi.fn<(repoId: string) => void>(),
+  startSpotlightLogCapture: vi.fn(async (_args: unknown) => {}),
   startSpotlightServer: vi.fn(async (_args: unknown) => ({ ok: true, started: true }))
 }))
 
@@ -23,13 +27,17 @@ vi.mock('../spotlight/spotlight-service', () => ({
 }))
 
 vi.mock('../spotlight/spotlight-log-mirror', () => ({
-  startSpotlightLogCapture: vi.fn(),
+  startSpotlightLogCapture: mocks.startSpotlightLogCapture,
   stopSpotlightLogCapture: vi.fn()
 }))
 
+vi.mock('../spotlight/spotlight-server-commands', () => ({
+  markPreparedSpotlightLaunchRegistered: mocks.markPreparedSpotlightLaunchRegistered
+}))
+
 vi.mock('../spotlight/spotlight-server-control', () => ({
+  cancelPreparedSpotlightServerLaunch: mocks.cancelPreparedSpotlightServerLaunch,
   prepareSpotlightServerLaunch: mocks.prepareSpotlightServerLaunch,
-  restartSpotlightServer: vi.fn(),
   startSpotlightServer: mocks.startSpotlightServer
 }))
 
@@ -53,37 +61,91 @@ function invoke(channel: string, args: unknown): unknown {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.getState.mockReturnValue({ holderWorktreeId: 'wt-1' })
-  mocks.prepareSpotlightServerLaunch.mockReturnValue('pnpm local')
+  mocks.prepareSpotlightServerLaunch.mockResolvedValue('pnpm local')
   const store = { getRepo: (repoId: string) => REPOS.get(repoId) }
   // @ts-expect-error minimal window and store fakes; the handlers only read these members
   registerSpotlightHandlers({ isDestroyed: () => false }, store)
 })
 
 describe('spotlight:prepareServerLaunch', () => {
-  it('returns the startup line for an active local Spotlight', () => {
+  it('returns the startup line for an active local Spotlight', async () => {
     expect(
-      invoke('spotlight:prepareServerLaunch', { repoId: LOCAL_REPO.id, command: 'pnpm local' })
+      await invoke('spotlight:prepareServerLaunch', {
+        repoId: LOCAL_REPO.id,
+        command: 'pnpm local'
+      })
     ).toBe('pnpm local')
     expect(mocks.prepareSpotlightServerLaunch).toHaveBeenCalledWith(LOCAL_REPO.id, 'pnpm local')
   })
 
-  it('refuses while Spotlight is off for the repo', () => {
+  it('refuses while Spotlight is off for the repo', async () => {
     mocks.getState.mockReturnValue(null)
 
     expect(
-      invoke('spotlight:prepareServerLaunch', { repoId: LOCAL_REPO.id, command: 'pnpm local' })
+      await invoke('spotlight:prepareServerLaunch', {
+        repoId: LOCAL_REPO.id,
+        command: 'pnpm local'
+      })
     ).toBeNull()
     expect(mocks.prepareSpotlightServerLaunch).not.toHaveBeenCalled()
   })
 
-  it('refuses SSH and unknown repos', () => {
+  it('refuses SSH and unknown repos', async () => {
     expect(
-      invoke('spotlight:prepareServerLaunch', { repoId: SSH_REPO.id, command: 'pnpm local' })
+      await invoke('spotlight:prepareServerLaunch', { repoId: SSH_REPO.id, command: 'pnpm local' })
     ).toBeNull()
     expect(
-      invoke('spotlight:prepareServerLaunch', { repoId: 'missing', command: 'pnpm local' })
+      await invoke('spotlight:prepareServerLaunch', { repoId: 'missing', command: 'pnpm local' })
     ).toBeNull()
     expect(mocks.prepareSpotlightServerLaunch).not.toHaveBeenCalled()
+  })
+})
+
+describe('spotlight:cancelPreparedServerLaunch', () => {
+  it('takes back the prepared line of an active local Spotlight', () => {
+    invoke('spotlight:cancelPreparedServerLaunch', { repoId: LOCAL_REPO.id })
+
+    expect(mocks.cancelPreparedSpotlightServerLaunch).toHaveBeenCalledWith(LOCAL_REPO.id)
+  })
+
+  it('does nothing while Spotlight is off, or for SSH and unknown repos', () => {
+    invoke('spotlight:cancelPreparedServerLaunch', { repoId: SSH_REPO.id })
+    invoke('spotlight:cancelPreparedServerLaunch', { repoId: 'missing' })
+    mocks.getState.mockReturnValue(null)
+    invoke('spotlight:cancelPreparedServerLaunch', { repoId: LOCAL_REPO.id })
+
+    expect(mocks.cancelPreparedSpotlightServerLaunch).not.toHaveBeenCalled()
+  })
+})
+
+describe('spotlight:setLogPty', () => {
+  it('marks a queued server launch as having a shell, once the capture is registered', async () => {
+    await invoke('spotlight:setLogPty', { repoId: LOCAL_REPO.id, ptyId: 'pty-1' })
+
+    expect(mocks.startSpotlightLogCapture).toHaveBeenCalledWith({
+      repoId: LOCAL_REPO.id,
+      ptyId: 'pty-1',
+      rootPath: LOCAL_REPO.path
+    })
+    expect(mocks.markPreparedSpotlightLaunchRegistered).toHaveBeenCalledWith(LOCAL_REPO.id)
+    expect(mocks.startSpotlightLogCapture.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.markPreparedSpotlightLaunchRegistered.mock.invocationCallOrder[0] ?? 0
+    )
+  })
+
+  it('does nothing while Spotlight is off', async () => {
+    mocks.getState.mockReturnValue(null)
+
+    await invoke('spotlight:setLogPty', { repoId: LOCAL_REPO.id, ptyId: 'pty-1' })
+
+    expect(mocks.startSpotlightLogCapture).not.toHaveBeenCalled()
+    expect(mocks.markPreparedSpotlightLaunchRegistered).not.toHaveBeenCalled()
+  })
+})
+
+describe('spotlight:restartServer', () => {
+  it('is not registered: nothing in the renderer restarts the server directly', () => {
+    expect(mocks.handlers.has('spotlight:restartServer')).toBe(false)
   })
 })
 

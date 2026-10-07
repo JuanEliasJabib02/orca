@@ -1,7 +1,6 @@
 import type {
   SpotlightChangedEvent,
   SpotlightOpResult,
-  SpotlightServerRestartResult,
   SpotlightServerStartResult,
   SpotlightStateSnapshot
 } from '../../shared/spotlight'
@@ -36,10 +35,9 @@ export type SpotlightApi = {
    *  pending install first); main keeps the command for restarts. Null when Spotlight is off for
    *  the repo or the command is invalid. */
   prepareServerLaunch: (args: { repoId: string; command: string }) => Promise<string | null>
-  /** Ctrl-C, then re-run `command` (or the last one Orca ran; history recall when none). */
-  restartServer: (args: {
-    repoId: string
-    command?: string
-  }) => Promise<SpotlightServerRestartResult>
+  /** The prepared line will never run (its queue entry was dropped, or the PTY bound first): main
+   *  stops counting it as Orca's server and puts back the install it took. Call before any
+   *  fallback start, so that start installs first. */
+  cancelPreparedServerLaunch: (args: { repoId: string }) => Promise<void>
   onChanged: (callback: (event: SpotlightChangedEvent) => void) => () => void
 }

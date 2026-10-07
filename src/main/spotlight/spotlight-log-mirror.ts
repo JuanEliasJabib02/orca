@@ -318,6 +318,14 @@ export function releaseSpotlightTerminal(repoId: string): SpotlightTerminal | nu
   return terminal
 }
 
+/** Spotlight stayed on after all (turning it off failed): server writes may resume. */
+export function reclaimSpotlightTerminal(repoId: string): void {
+  const capture = capturesByRepoId.get(repoId)
+  if (capture && !capture.stopped) {
+    capture.released = false
+  }
+}
+
 /** Restart the repo's Spotlight server (interrupt, then the stored command or history recall)
  *  and log the attempt. Shared by the .orca/spotlight-restart trigger and Orca's own restart. */
 export function restartSpotlightTerminalServer(
