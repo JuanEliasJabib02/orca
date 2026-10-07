@@ -47,6 +47,7 @@ vi.mock('@/components/terminal/background-terminal-worktree-mount', async () => 
 
 import {
   SPOTLIGHT_START_RETRY_DELAY_MS,
+  applySpotlightEnvChange,
   openSpotlightTerminalAndStartServer,
   resolveSpotlightActivationCommand
 } from './spotlight-server-autostart'
@@ -157,6 +158,17 @@ describe('resolveSpotlightActivationCommand', () => {
     })
 
     expect(await resolveSpotlightActivationCommand(REPO, own.id)).toBe('pnpm dev:do --port 3000')
+  })
+
+  it('keys a workspace with no task by its own id', async () => {
+    const lone = makeTestWorktree({ id: 'admin-lone', repoId: REPO, branch: 'refs/heads/lone-fix' })
+    seed({
+      worktreesByRepo: { [REPO]: [MAIN, TICKET, lone] },
+      spotlightEnvByTaskKey: { 'admin-lone': 'dev' }
+    })
+
+    expect(await resolveSpotlightActivationCommand(REPO, lone.id)).toBe('pnpm dev:do --port 3000')
+    expect(await resolveSpotlightActivationCommand(REPO, TICKET.id)).toBe('pnpm local --port 3000')
   })
 
   it('still resolves from config when detection fails', async () => {
@@ -343,5 +355,164 @@ describe('openSpotlightTerminalAndStartServer', () => {
     })
 
     expect(activation).toMatchObject({ opened: { ok: true }, server: { kind: 'none' } })
+  })
+})
+
+describe('applySpotlightEnvChange', () => {
+  const BACKEND = 'backend'
+  const BE_MAIN = makeTestWorktree({ id: 'backend-main', repoId: BACKEND, isMainWorktree: true })
+  const BE_TICKET = makeTestWorktree({
+    id: 'backend-ax',
+    repoId: BACKEND,
+    branch: 'refs/heads/juan/AX-3447-api',
+    displayName: 'api'
+  })
+  const OTHER = makeTestWorktree({
+    id: 'admin-other',
+    repoId: REPO,
+    branch: 'refs/heads/juan/AX-1-other',
+    displayName: 'other'
+  })
+  const LONE = makeTestWorktree({ id: 'admin-lone', repoId: REPO, branch: 'refs/heads/lone-fix' })
+
+  // The task AX-3447 holds the Spotlight of both repos; the backend has no Dev command.
+  function seedTask(overrides: Partial<SpotlightTerminalTestData> = {}): void {
+    seed({
+      repos: [
+        { id: REPO, spotlightServer: CONFIG },
+        { id: BACKEND, spotlightServer: { local: 'ax-dev-back' } }
+      ],
+      worktreesByRepo: { [REPO]: [MAIN, TICKET, OTHER, LONE], [BACKEND]: [BE_MAIN, BE_TICKET] },
+      spotlightByRepo: {
+        [REPO]: makeTestSpotlightState(REPO, TICKET.id),
+        [BACKEND]: makeTestSpotlightState(BACKEND, BE_TICKET.id)
+      },
+      ...overrides
+    })
+  }
+
+  function startedCommands(): [string, string][] {
+    return api.spotlight.startServer.mock.calls.map(([args]): [string, string] => [
+      args.repoId,
+      args.command
+    ])
+  }
+
+  it('Dev: restarts the front with its Dev command and keeps the backend, which has none', async () => {
+    seedTask({ spotlightEnvByTaskKey: { 'AX-3447': 'dev' } })
+
+    await applySpotlightEnvChange('AX-3447')
+
+    expect(api.spotlight.startServer).toHaveBeenCalledTimes(1)
+    expect(api.spotlight.startServer).toHaveBeenCalledWith({
+      repoId: REPO,
+      command: 'pnpm dev:do --port 3000',
+      restartIfDifferent: true
+    })
+  })
+
+  it('Local: starts every held repo with its Local command', async () => {
+    seedTask()
+
+    await applySpotlightEnvChange('AX-3447')
+
+    expect(api.spotlight.startServer).toHaveBeenCalledTimes(2)
+    expect(api.spotlight.startServer).toHaveBeenCalledWith({
+      repoId: BACKEND,
+      command: 'ax-dev-back',
+      restartIfDifferent: true
+    })
+    expect(api.spotlight.startServer).toHaveBeenCalledWith({
+      repoId: REPO,
+      command: 'pnpm local --port 3000',
+      restartIfDifferent: true
+    })
+  })
+
+  it('leaves a repo whose Spotlight is held by a workspace of another task alone', async () => {
+    seedTask({
+      spotlightByRepo: {
+        [REPO]: makeTestSpotlightState(REPO, OTHER.id),
+        [BACKEND]: makeTestSpotlightState(BACKEND, BE_TICKET.id)
+      }
+    })
+
+    await applySpotlightEnvChange('AX-3447')
+
+    expect(startedCommands()).toEqual([[BACKEND, 'ax-dev-back']])
+  })
+
+  it('leaves a repo whose Spotlight is off alone', async () => {
+    seedTask({ spotlightByRepo: { [BACKEND]: makeTestSpotlightState(BACKEND, BE_TICKET.id) } })
+
+    await applySpotlightEnvChange('AX-3447')
+
+    expect(startedCommands()).toEqual([[BACKEND, 'ax-dev-back']])
+  })
+
+  it('does nothing when no Spotlight is held for the key', async () => {
+    seedTask({ spotlightByRepo: {} })
+
+    await applySpotlightEnvChange('AX-3447')
+
+    expect(api.spotlight.startServer).not.toHaveBeenCalled()
+  })
+
+  it('applies the environment of a workspace with no task through its own id', async () => {
+    seedTask({
+      spotlightByRepo: { [REPO]: makeTestSpotlightState(REPO, LONE.id) },
+      spotlightEnvByTaskKey: { [LONE.id]: 'dev' }
+    })
+
+    await applySpotlightEnvChange('AX-3447')
+    expect(api.spotlight.startServer).not.toHaveBeenCalled()
+
+    await applySpotlightEnvChange(LONE.id)
+    expect(startedCommands()).toEqual([[REPO, 'pnpm dev:do --port 3000']])
+  })
+
+  it('treats a branch-name task across repos like the sidebar', async () => {
+    const shared = (repoId: string, id: string): Worktree =>
+      makeTestWorktree({ id, repoId, branch: 'refs/heads/landing-redo', displayName: 'x' })
+    const own = shared(REPO, 'admin-landing')
+    seedTask({
+      worktreesByRepo: { [REPO]: [MAIN, own], [BACKEND]: [BE_MAIN, shared(BACKEND, 'be-landing')] },
+      spotlightByRepo: { [REPO]: makeTestSpotlightState(REPO, own.id) },
+      spotlightEnvByTaskKey: { 'landing-redo': 'dev' }
+    })
+
+    await applySpotlightEnvChange('landing-redo')
+
+    expect(startedCommands()).toEqual([[REPO, 'pnpm dev:do --port 3000']])
+  })
+
+  it('never throws when the start IPC fails, and still starts the other repos', async () => {
+    seedTask()
+    api.spotlight.startServer.mockRejectedValueOnce(new Error('ipc gone'))
+
+    await expect(applySpotlightEnvChange('AX-3447')).resolves.toBeUndefined()
+
+    expect(api.spotlight.startServer).toHaveBeenCalledTimes(2)
+  })
+
+  it('never throws when the store cannot be read', async () => {
+    seedTask()
+    const getState = vi.spyOn(spotlightTerminalTestStore, 'getState').mockImplementationOnce(() => {
+      throw new Error('store gone')
+    })
+
+    await expect(applySpotlightEnvChange('AX-3447')).resolves.toBeUndefined()
+
+    expect(api.spotlight.startServer).not.toHaveBeenCalled()
+    getState.mockRestore()
+  })
+
+  it('leaves a repo untouched when main reports its terminal busy', async () => {
+    seedTask({ spotlightEnvByTaskKey: { 'AX-3447': 'dev' } })
+    api.spotlight.startServer.mockResolvedValueOnce({ ok: true, started: false, reason: 'busy' })
+
+    await expect(applySpotlightEnvChange('AX-3447')).resolves.toBeUndefined()
+
+    expect(api.spotlight.startServer).toHaveBeenCalledTimes(1)
   })
 })

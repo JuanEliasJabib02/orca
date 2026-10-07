@@ -2,6 +2,7 @@ import React from 'react'
 import StatusIndicator from '../../StatusIndicator'
 import type { TaskSectionInfo } from '../grouping/row-types'
 import { useTaskSectionAgentStatus } from './task-section-agent-status'
+import { TaskSpotlightEnvPill } from './TaskSpotlightEnvPill'
 
 export type TaskSectionHeaderProps = {
   task: TaskSectionInfo
@@ -25,6 +26,7 @@ export function TaskSectionHeader({ task, actions }: TaskSectionHeaderProps): Re
           {actions}
         </div>
       ) : null}
+      {task.taskKey !== null ? <TaskSpotlightEnvPill task={task} /> : null}
     </>
   )
 }

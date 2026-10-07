@@ -5824,7 +5824,8 @@
           "deleteWithDescendants": "Delete with Descendants…",
           "spotlightOff": "Turn Off Spotlight",
           "spotlightOn": "Spotlight This Workspace",
-          "spotlightForceSync": "Force Sync Spotlight (overwrite root changes)"
+          "spotlightForceSync": "Force Sync Spotlight (overwrite root changes)",
+          "spotlightEnvironment": "Spotlight environment"
         },
         "WorktreeList": {
           "7a8b9c0d1e": "Update required",
@@ -6532,6 +6533,14 @@
         "TaskHeaderMenu": {
           "actionsFor": "Task actions for {{task}}",
           "deleteTask": "Delete task…"
+        },
+        "TaskSpotlightEnvPill": {
+          "ariaLabel": "Spotlight environment for {{task}}: {{env}}"
+        },
+        "SpotlightEnv": {
+          "local": "Local",
+          "dev": "Dev",
+          "prod": "Prod"
         },
         "TaskNoteActionLabel": {
           "add": "Add note…",

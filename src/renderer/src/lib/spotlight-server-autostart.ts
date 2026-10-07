@@ -4,14 +4,16 @@ import { useAppStore } from '@/store'
 import type { SpotlightServerStartResult } from '../../../shared/spotlight'
 import { resolveSpotlightServerCommand } from '../../../shared/spotlight-server-command'
 import type { SpotlightServerCommands } from '../../../shared/spotlight-server-types'
+import type { Worktree } from '../../../shared/worktree/types'
 import { getSpotlightEnvForTask } from '@/store/slices/ui/ui-slice-spotlight-env-actions'
-import { getWorktreeTaskKey } from '@/components/sidebar/worktree-list/grouping/worktree-task-keys'
+import { buildWorktreeTaskKeys } from '@/components/sidebar/worktree-list/grouping/worktree-task-keys'
 import { requestBackgroundTerminalWorktreeMount } from '@/components/terminal/background-terminal-worktree-mount'
 import {
   openSpotlightTerminalTab,
   planSpotlightTerminal,
   type OpenSpotlightTerminalTabResult
 } from '@/lib/open-spotlight-terminal-tab'
+import { getSpotlightEnvKey, toSpotlightEnvKey } from '@/lib/spotlight-env-key'
 import { watchSpotlightStartupClaim } from '@/lib/spotlight-startup-claim-watch'
 
 /** What happened to the server after the activation; `command` is the one Orca runs. */
@@ -39,8 +41,16 @@ async function detectServerCommands(repoId: string): Promise<SpotlightServerComm
   }
 }
 
-/** The activated worktree's server command: repo config, else detected scripts, in its task's
- *  environment. Null when the repo isn't started there (e.g. the backend in Dev). */
+// Why every repo: a branch-name task is only a task when it spans 2+ repos, like in the sidebar.
+function listAllWorktrees(): Worktree[] {
+  return Object.values(useAppStore.getState().worktreesByRepo)
+    .flat()
+    .filter((entry) => !entry.isArchived)
+}
+
+/** The activated worktree's server command: repo config, else detected scripts, in the environment
+ *  of its task (or of the workspace itself when it has none). Null when the repo isn't started
+ *  there (e.g. the backend in Dev). */
 export async function resolveSpotlightActivationCommand(
   repoId: string,
   worktreeId: string
@@ -51,12 +61,8 @@ export async function resolveSpotlightActivationCommand(
     return null
   }
   const worktree = state.worktreesByRepo[repoId]?.find((entry) => entry.id === worktreeId)
-  // Why every repo: a branch-name task is only a task when it spans 2+ repos, like in the sidebar.
-  const allWorktrees = Object.values(state.worktreesByRepo)
-    .flat()
-    .filter((entry) => !entry.isArchived)
-  const taskKey = worktree ? getWorktreeTaskKey(worktree, allWorktrees) : null
-  const env = getSpotlightEnvForTask(state.spotlightEnvByTaskKey, taskKey)
+  const envKey = worktree ? getSpotlightEnvKey(worktree, listAllWorktrees()) : null
+  const env = getSpotlightEnvForTask(state.spotlightEnvByTaskKey, envKey)
   const detected = await detectServerCommands(repoId)
   return resolveSpotlightServerCommand({ config: repo.spotlightServer, detected, env })
 }
@@ -173,4 +179,35 @@ export async function openSpotlightTerminalAndStartServer(args: {
   // Live PTY (or one that bound while preparing): main can type only once it mirrors it.
   await opened.logPtyRegistered
   return { opened, server: describeStart(await startServerInTerminal(repoId, command), command) }
+}
+
+/**
+ * After an environment switch: for every repo whose Spotlight is held by a workspace with this env
+ * key, starts the command of the new environment (main replaces only a server Orca launched).
+ * A repo with no command there is left running. Never throws.
+ */
+export async function applySpotlightEnvChange(envKey: string): Promise<void> {
+  try {
+    const state = useAppStore.getState()
+    const taskKeys = buildWorktreeTaskKeys(listAllWorktrees())
+    const holders: { repoId: string; worktreeId: string }[] = []
+    for (const [repoId, spotlight] of Object.entries(state.spotlightByRepo)) {
+      const holder = state.worktreesByRepo[repoId]?.find(
+        (entry) => entry.id === spotlight.holderWorktreeId
+      )
+      if (holder && toSpotlightEnvKey(taskKeys.getTaskKey(holder), holder.id) === envKey) {
+        holders.push({ repoId, worktreeId: holder.id })
+      }
+    }
+    await Promise.all(
+      holders.map(async ({ repoId, worktreeId }) => {
+        const command = await resolveSpotlightActivationCommand(repoId, worktreeId)
+        if (command) {
+          await startServerInTerminal(repoId, command)
+        }
+      })
+    )
+  } catch (error) {
+    console.warn('[spotlight] Could not apply the environment change:', error)
+  }
 }
