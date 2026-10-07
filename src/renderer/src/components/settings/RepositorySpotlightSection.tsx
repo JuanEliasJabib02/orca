@@ -1,12 +1,18 @@
 import type { Repo } from '../../../../shared/repo-types'
 import { useAppStore } from '@/store'
+import type { RepoUpdate } from '@/store/repos/repo-state'
 import { SearchableSetting } from './SearchableSetting'
 import { SettingsSwitchRow } from './SettingsFormControls'
+import { RepositorySpotlightServerFields } from './RepositorySpotlightServerFields'
+import { getRepositorySpotlightServerSearchEntry } from './repository-spotlight-search-entries'
 import { translate } from '@/i18n/i18n'
 
 type RepositorySpotlightSectionProps = {
   repo: Repo
-  updateRepo: (repoId: string, updates: Partial<Pick<Repo, 'spotlightTestingEnabled'>>) => void
+  updateRepo: (
+    repoId: string,
+    updates: Pick<RepoUpdate, 'spotlightTestingEnabled' | 'spotlightServer'>
+  ) => void
   forceVisible: boolean
 }
 
@@ -81,6 +87,15 @@ export function RepositorySpotlightSection({
           onChange={handleToggle}
         />
       </SearchableSetting>
+      {enabled ? (
+        <SearchableSetting
+          {...getRepositorySpotlightServerSearchEntry(repo)}
+          className="space-y-2"
+          forceVisible={forceVisible}
+        >
+          <RepositorySpotlightServerFields repo={repo} updateRepo={updateRepo} />
+        </SearchableSetting>
+      ) : null}
     </section>
   )
 }

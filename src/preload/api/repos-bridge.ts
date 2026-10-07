@@ -5,6 +5,7 @@ import type {
 } from '../../shared/host-repo-catalog-contract'
 import type { BaseRefDefaultResult, BaseRefSearchResult } from '../../shared/repo-types'
 import type { ExecutionHostId } from '../../shared/execution-host'
+import type { SpotlightServerScriptDetection } from '../../shared/spotlight-server-types'
 import type { PreloadApi } from '../api-types'
 
 export const reposApi = {
@@ -59,6 +60,11 @@ export const reposApi = {
 
   getGitUsername: (args: { repoId: string }): Promise<string> =>
     ipcRenderer.invoke('repos:getGitUsername', args),
+
+  detectSpotlightServerScripts: (args: {
+    repoId: string
+  }): Promise<SpotlightServerScriptDetection> =>
+    ipcRenderer.invoke('repos:detectSpotlightServerScripts', args),
 
   getBaseRefDefault: (args: {
     repoId: string

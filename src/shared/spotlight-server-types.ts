@@ -16,3 +16,15 @@ export type SpotlightServerConfig = SpotlightServerCommands & {
 export function isSpotlightServerEnv(value: unknown): value is SpotlightServerEnv {
   return value === 'local' || value === 'dev' || value === 'prod'
 }
+
+/** Server commands read from a repo's package.json, plus every script worth suggesting in settings. */
+export type SpotlightServerScriptDetection = {
+  /** A command per environment whose script exists under exactly that name. */
+  detected: SpotlightServerCommands
+  /** Runnable commands for every script that looks like a server start (sorted). */
+  scriptCommands: string[]
+}
+
+export function emptySpotlightServerScriptDetection(): SpotlightServerScriptDetection {
+  return { detected: {}, scriptCommands: [] }
+}

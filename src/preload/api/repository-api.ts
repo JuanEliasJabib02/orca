@@ -24,6 +24,7 @@ import type {
   ProjectUpdateArgs
 } from '../../shared/project-types'
 import type { BaseRefDefaultResult, BaseRefSearchResult, Repo } from '../../shared/repo-types'
+import type { SpotlightServerScriptDetection } from '../../shared/spotlight-server-types'
 
 export type RepositoryApi = {
   list: () => Promise<Repo[]>
@@ -105,6 +106,10 @@ export type RepositoryApi = {
   getDefaultCreateProjectParent: () => Promise<string>
   onCloneProgress: (callback: (data: { phase: string; percent: number }) => void) => () => void
   getGitUsername: (args: { repoId: string }) => Promise<string>
+  // Why: empty result (never an error) for folder, SSH, or unreadable repos so settings can still render.
+  detectSpotlightServerScripts: (args: {
+    repoId: string
+  }) => Promise<SpotlightServerScriptDetection>
   getBaseRefDefault: (args: {
     repoId: string
     hostId?: ExecutionHostId

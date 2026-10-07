@@ -1,4 +1,3 @@
-import type { GhAccountBinding } from '../../../../shared/github/account-binding'
 import { useCallback, useRef, useState } from 'react'
 import type { OrcaHooks, RepoHookSettings } from '../../../../shared/orca-yaml-hook-types'
 import type { Project, ProjectUpdateArgs } from '../../../../shared/project-types'
@@ -31,19 +30,12 @@ import { RepositoryWindowsRuntimeSection } from './RepositoryWindowsRuntimeSecti
 import { matchesRepositoryIdentitySearch } from './repository-identity-search'
 import { RepositoryWorktreeDefaultsSection } from './RepositoryWorktreeDefaultsSection'
 import { RepositorySpotlightSection } from './RepositorySpotlightSection'
+import { isRepositorySpotlightSearchEntry } from './repository-spotlight-search-entries'
+import type { RepositoryPaneRepoUpdate } from './repository-pane-repo-update'
 import { getProjectRuntimeSessionSummary } from './repository-runtime-session-summary'
 import { getRepoOwnerWorktreeVisibilityDefaults } from '../../store/worktree-visibility-defaults-by-host'
 export { getRepositoryPaneSearchEntries }
 export { matchesRepositoryIdentitySearch } from './repository-identity-search'
-
-type RepositoryPaneRepoUpdate = Omit<
-  Partial<Repo>,
-  'sourceControlAi' | 'externalWorktreeVisibility' | 'ghAccount'
-> & {
-  sourceControlAi?: Repo['sourceControlAi'] | null
-  externalWorktreeVisibility?: Repo['externalWorktreeVisibility'] | null
-  ghAccount?: GhAccountBinding | null
-}
 
 const EMPTY_WSL_DISTROS: string[] = []
 
@@ -209,11 +201,7 @@ export function RepositoryPane({
   )
   const mcpEntries = allEntries.filter((entry) => entry.title === 'MCP Configs')
   const symlinkEntries = allEntries.filter((entry) => entry.title === 'Worktree Shared Paths')
-  const spotlightEntries = allEntries.filter(
-    (entry) =>
-      entry.title ===
-      translate('auto.components.settings.repository.search.spotlightTesting', 'Spotlight Testing')
-  )
+  const spotlightEntries = allEntries.filter(isRepositorySpotlightSearchEntry)
   const sourceControlAiEntries = allEntries.filter((entry) => entry.title === 'Git AI Author')
   const hostSetupEntries = allEntries.filter((entry) => entry.title === 'Available Hosts')
   const projectRuntimeEntries = allEntries.filter((entry) => entry.title === 'Project Runtime')

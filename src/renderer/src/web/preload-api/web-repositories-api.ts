@@ -1,6 +1,7 @@
 import type { PreloadApi } from '../../../../preload/api-types'
 import { legacyBaseRefSearchResult } from '../../../../shared/base-ref-search-result'
 import type { Repo } from '../../../../shared/repo-types'
+import { emptySpotlightServerScriptDetection } from '../../../../shared/spotlight-server-types'
 import { getDefaultCreateProjectParent } from '@/components/sidebar/create-project-defaults'
 import {
   callRuntimeResult,
@@ -104,6 +105,8 @@ export function createReposApi(): NonNullable<Partial<PreloadApi>['repos']> {
     },
     onCloneProgress: () => noopUnsubscribe,
     getGitUsername: () => Promise.resolve(''),
+    // Why: Spotlight runs on the desktop's local repos, so a paired web client has nothing to detect.
+    detectSpotlightServerScripts: () => Promise.resolve(emptySpotlightServerScriptDetection()),
     getBaseRefDefault: async ({ repoId }) =>
       callRuntimeResult('repo.baseRefDefault', { repo: repoId }),
     searchBaseRefs: async ({ repoId, query, limit }) =>
