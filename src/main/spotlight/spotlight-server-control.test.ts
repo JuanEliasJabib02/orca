@@ -33,7 +33,8 @@ import { startSpotlightLogCapture, stopSpotlightLogCapture } from './spotlight-l
 import { SPOTLIGHT_RESTART_TRIGGER_FILENAME } from './spotlight-restart-trigger'
 import {
   forgetSpotlightServerCommand,
-  getSpotlightServerCommand
+  getSpotlightServerCommand,
+  getSpotlightServerLaunchedCommand
 } from './spotlight-server-commands'
 import {
   normalizeSpotlightServerCommand,
@@ -412,5 +413,100 @@ describe('restartSpotlightServerForLockfileChange', () => {
     await reacting
 
     expect(writtenData()).toEqual([`${INSTALL}pnpm dev\r`])
+  })
+})
+
+describe('startSpotlightServer with restartIfDifferent (takeover into another environment)', () => {
+  async function startOrcaServer(command: string): Promise<void> {
+    await startSpotlightServer({ repoId: REPO_ID, command })
+    fakePty.writes.length = 0
+    fakePty.hasChildProcesses.mockResolvedValue(true)
+  }
+
+  it('replaces the server Orca started with the new command', async () => {
+    await startOrcaServer('pnpm local --port 3000')
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+
+    const result = await startSpotlightServer({
+      repoId: REPO_ID,
+      command: 'pnpm dev --port 3000',
+      restartIfDifferent: true
+    })
+    vi.advanceTimersByTime(RESTART_RERUN_DELAY_MS)
+
+    expect(result).toEqual({ ok: true, started: true, restarted: true })
+    expect(writtenData()).toEqual([INTERRUPT, 'pnpm dev --port 3000\r'])
+    expect(getSpotlightServerLaunchedCommand(REPO_ID)).toBe('pnpm dev --port 3000')
+  })
+
+  it('leaves the running server alone for the same command', async () => {
+    await startOrcaServer('pnpm local --port 3000')
+
+    const result = await startSpotlightServer({
+      repoId: REPO_ID,
+      command: 'pnpm local --port 3000',
+      restartIfDifferent: true
+    })
+
+    expect(result).toEqual({ ok: true, started: false, reason: 'busy' })
+    expect(fakePty.writes).toEqual([])
+  })
+
+  it('never touches a server started by hand, even after a busy start kept a command', async () => {
+    fakePty.hasChildProcesses.mockResolvedValue(true)
+    await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm local', restartIfDifferent: true })
+
+    const result = await startSpotlightServer({
+      repoId: REPO_ID,
+      command: 'pnpm dev',
+      restartIfDifferent: true
+    })
+
+    expect(result).toEqual({ ok: true, started: false, reason: 'busy' })
+    expect(fakePty.writes).toEqual([])
+    expect(getSpotlightServerLaunchedCommand(REPO_ID)).toBeUndefined()
+  })
+
+  it('keeps a different running command without the option', async () => {
+    await startOrcaServer('pnpm local')
+
+    const result = await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })
+
+    expect(result).toEqual({ ok: true, started: false, reason: 'busy' })
+    expect(fakePty.writes).toEqual([])
+  })
+
+  it('counts a queued startup command as started by Orca', async () => {
+    prepareSpotlightServerLaunch(REPO_ID, 'pnpm local')
+    fakePty.hasChildProcesses.mockResolvedValue(true)
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+
+    const result = await startSpotlightServer({
+      repoId: REPO_ID,
+      command: 'pnpm dev',
+      restartIfDifferent: true
+    })
+    vi.advanceTimersByTime(RESTART_RERUN_DELAY_MS)
+
+    expect(result).toEqual({ ok: true, started: true, restarted: true })
+    expect(writtenData()).toEqual([INTERRUPT, 'pnpm dev\r'])
+  })
+
+  it('counts a restart that re-ran the stored command as started by Orca', async () => {
+    fakePty.hasChildProcesses.mockResolvedValue(true)
+    await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm local' })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    restartSpotlightServer({ repoId: REPO_ID })
+    vi.advanceTimersByTime(RESTART_RERUN_DELAY_MS)
+
+    expect(getSpotlightServerLaunchedCommand(REPO_ID)).toBe('pnpm local')
+  })
+
+  it('forgets what Orca ran when Spotlight turns off', async () => {
+    await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm local' })
+
+    await stopSpotlightServer(REPO_ID)
+
+    expect(getSpotlightServerLaunchedCommand(REPO_ID)).toBeUndefined()
   })
 })

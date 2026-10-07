@@ -25,8 +25,17 @@ export type SpotlightApi = {
   setLogPty: (args: { repoId: string; ptyId: string }) => Promise<void>
   clearLogPty: (args: { repoId: string; ptyId?: string }) => Promise<void>
   /** Type the server command into the active Spotlight terminal, only when it is idle;
-   *  main keeps the command for later restarts. */
-  startServer: (args: { repoId: string; command: string }) => Promise<SpotlightServerStartResult>
+   *  main keeps the command for later restarts. `restartIfDifferent` also replaces a running
+   *  server Orca started for another command (never one started by hand). */
+  startServer: (args: {
+    repoId: string
+    command: string
+    restartIfDifferent?: boolean
+  }) => Promise<SpotlightServerStartResult>
+  /** For a Spotlight terminal with no PTY yet: the line to queue as its startup command (with a
+   *  pending install first); main keeps the command for restarts. Null when Spotlight is off for
+   *  the repo or the command is invalid. */
+  prepareServerLaunch: (args: { repoId: string; command: string }) => Promise<string | null>
   /** Ctrl-C, then re-run `command` (or the last one Orca ran; history recall when none). */
   restartServer: (args: {
     repoId: string

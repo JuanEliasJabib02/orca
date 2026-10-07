@@ -77,7 +77,8 @@ export type SpotlightChangedEvent = {
 export type SpotlightServerFailureReason = 'not-active' | 'no-terminal' | 'invalid-command'
 
 export type SpotlightServerStartResult =
-  | { ok: true; started: true }
+  /** `restarted`: Orca's own server for another command was interrupted and replaced. */
+  | { ok: true; started: true; restarted?: true }
   /** The terminal already runs something (e.g. a server started by hand); left alone. */
   | { ok: true; started: false; reason: 'busy' }
   | { ok: false; reason: SpotlightServerFailureReason }

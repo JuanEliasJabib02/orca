@@ -595,6 +595,8 @@
           "deactivateAnyway": "Turn off anyway",
           "activateAnyway": "Activate anyway",
           "activatedLogs": "Server logs are mirrored for agents at .orca/spotlight.log",
+          "activatedStarting": "Starting {{command}} — logs at .orca/spotlight.log",
+          "activatedRestarting": "Restarting with {{command}} — logs at .orca/spotlight.log",
           "forceSync": "Force sync",
           "forceSynced": "Spotlight re-synced — the root mirrors the workspace again",
           "untrackedCollision": "Untracked files in the project root would be overwritten. Move or delete them, or force the sync.",

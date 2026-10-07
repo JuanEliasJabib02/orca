@@ -8,6 +8,7 @@ import type {
   SpotlightRepoState
 } from '../../../../shared/spotlight'
 import { translate } from '@/i18n/i18n'
+import { toastSpotlightActivated } from './spotlight-activated-toast'
 
 const ERROR_TOAST_DURATION = 60_000
 
@@ -193,34 +194,14 @@ export const createSpotlightSlice: StateCreator<AppState, [], [], SpotlightSlice
         )
         return result
       }
-      // Dynamic import: open-spotlight-terminal-tab imports this store, so a
-      // static import would form an init-time cycle. Only claim log mirroring
-      // when a terminal actually exists to feed it.
-      const { openSpotlightTerminalTab } = await import('@/lib/open-spotlight-terminal-tab')
-      const opened = openSpotlightTerminalTab({ repoId, reveal: false })
-      if (opts?.quiet) {
-        return result
-      }
-      if (opened.ok) {
-        toast.success(
-          translate(
-            'auto.store.slices.spotlight.activated',
-            'Spotlight on — the project root now mirrors this workspace'
-          ),
-          {
-            description: translate(
-              'auto.store.slices.spotlight.activatedLogs',
-              'Server logs are mirrored for agents at .orca/spotlight.log'
-            )
-          }
-        )
-      } else {
-        toast.success(
-          translate(
-            'auto.store.slices.spotlight.activatedNoTerminal',
-            'Spotlight on — open the primary workspace and start your server there'
-          )
-        )
+      // Dynamic import: the autostart module imports this store, so a static
+      // import would form an init-time cycle. Quiet (whole-task) batches still
+      // start every repo's server; only the toast is theirs.
+      const { openSpotlightTerminalAndStartServer } =
+        await import('@/lib/spotlight-server-autostart')
+      const activation = await openSpotlightTerminalAndStartServer({ repoId, worktreeId })
+      if (!opts?.quiet) {
+        toastSpotlightActivated(activation)
       }
       return result
     },

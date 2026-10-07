@@ -10,7 +10,11 @@ import {
   startSpotlightLogCapture,
   stopSpotlightLogCapture
 } from '../spotlight/spotlight-log-mirror'
-import { restartSpotlightServer, startSpotlightServer } from '../spotlight/spotlight-server-control'
+import {
+  prepareSpotlightServerLaunch,
+  restartSpotlightServer,
+  startSpotlightServer
+} from '../spotlight/spotlight-server-control'
 
 // Module singleton with a mutable window ref: attachMainWindowServices re-runs on
 // macOS dock re-activation, and rebuilding the service would drop its per-repo
@@ -82,6 +86,7 @@ export function registerSpotlightHandlers(mainWindow: BrowserWindow, store: Stor
   ipcMain.removeHandler('spotlight:clearLogPty')
   ipcMain.removeHandler('spotlight:startServer')
   ipcMain.removeHandler('spotlight:restartServer')
+  ipcMain.removeHandler('spotlight:prepareServerLaunch')
 
   // Only while Spotlight is actually active for a local repo — the
   // spotlightRepoRoot tab flag persists across sessions, so without this a
@@ -117,11 +122,22 @@ export function registerSpotlightHandlers(mainWindow: BrowserWindow, store: Stor
     'spotlight:startServer',
     async (
       _event,
-      args: { repoId: string; command: string }
+      args: { repoId: string; command: string; restartIfDifferent?: boolean }
     ): Promise<SpotlightServerStartResult> =>
       isActiveLocalSpotlight(args.repoId)
-        ? startSpotlightServer(args)
+        ? startSpotlightServer({
+            repoId: args.repoId,
+            command: args.command,
+            restartIfDifferent: args.restartIfDifferent === true
+          })
         : { ok: false, reason: 'not-active' }
+  )
+  ipcMain.handle(
+    'spotlight:prepareServerLaunch',
+    (_event, args: { repoId: string; command: string }): string | null =>
+      isActiveLocalSpotlight(args.repoId)
+        ? prepareSpotlightServerLaunch(args.repoId, args.command)
+        : null
   )
   ipcMain.handle(
     'spotlight:restartServer',

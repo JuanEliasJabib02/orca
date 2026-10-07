@@ -8,7 +8,7 @@ const mockApi = {
 // @ts-expect-error test window mock
 globalThis.window = { api: mockApi }
 
-const openSpotlightTerminalTab = vi.fn()
+const openSpotlightTerminalAndStartServer = vi.fn()
 const toast = vi.hoisted(() => ({
   error: vi.fn<(title: string, options?: { action?: { onClick: () => void } }) => void>(),
   success: vi.fn(),
@@ -17,8 +17,9 @@ const toast = vi.hoisted(() => ({
 
 vi.mock('sonner', () => ({ toast }))
 
-vi.mock('@/lib/open-spotlight-terminal-tab', () => ({
-  openSpotlightTerminalTab: (...args: unknown[]) => openSpotlightTerminalTab(...args)
+vi.mock('@/lib/spotlight-server-autostart', () => ({
+  openSpotlightTerminalAndStartServer: (...args: unknown[]) =>
+    openSpotlightTerminalAndStartServer(...args)
 }))
 
 const OK: SpotlightOpResult = { ok: true, state: null }
@@ -30,7 +31,10 @@ const FAILED: SpotlightOpResult = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  openSpotlightTerminalTab.mockReturnValue({ ok: true, tabId: 'tab-1' })
+  openSpotlightTerminalAndStartServer.mockResolvedValue({
+    opened: { ok: true, tabId: 'tab-1' },
+    server: { kind: 'none' }
+  })
 })
 
 describe('activateSpotlight quiet option', () => {
@@ -51,7 +55,10 @@ describe('activateSpotlight quiet option', () => {
 
     expect(result).toEqual(OK)
     expect(toast.success).not.toHaveBeenCalled()
-    expect(openSpotlightTerminalTab).toHaveBeenCalledWith({ repoId: 'repo-1', reveal: false })
+    expect(openSpotlightTerminalAndStartServer).toHaveBeenCalledWith({
+      repoId: 'repo-1',
+      worktreeId: 'wt-1'
+    })
   })
 
   it('still toasts a failure', async () => {
@@ -79,6 +86,68 @@ describe('activateSpotlight quiet option', () => {
       worktreeId: 'wt-1',
       force: true
     })
+  })
+})
+
+describe('activateSpotlight server autostart', () => {
+  it('names the started command in the success toast', async () => {
+    mockApi.spotlight.activate.mockResolvedValue(OK)
+    openSpotlightTerminalAndStartServer.mockResolvedValue({
+      opened: { ok: true, tabId: 'tab-1' },
+      server: { kind: 'queued', command: 'pnpm local --port 3000' }
+    })
+
+    await createTestStore().getState().activateSpotlight('repo-1', 'wt-1')
+
+    expect(toast.success).toHaveBeenCalledWith(
+      'Spotlight on — the project root now mirrors this workspace',
+      { description: 'Starting pnpm local --port 3000 — logs at .orca/spotlight.log' }
+    )
+  })
+
+  it('says so when a takeover restarted the server with another command', async () => {
+    mockApi.spotlight.activate.mockResolvedValue(OK)
+    openSpotlightTerminalAndStartServer.mockResolvedValue({
+      opened: { ok: true, tabId: 'tab-1' },
+      server: { kind: 'restarted', command: 'pnpm dev --port 3000' }
+    })
+
+    await createTestStore().getState().activateSpotlight('repo-1', 'wt-1')
+
+    expect(toast.success).toHaveBeenCalledWith(expect.any(String), {
+      description: 'Restarting with pnpm dev --port 3000 — logs at .orca/spotlight.log'
+    })
+  })
+
+  it('keeps the log hint when nothing was started', async () => {
+    mockApi.spotlight.activate.mockResolvedValue(OK)
+
+    await createTestStore().getState().activateSpotlight('repo-1', 'wt-1')
+
+    expect(toast.success).toHaveBeenCalledWith(expect.any(String), {
+      description: 'Server logs are mirrored for agents at .orca/spotlight.log'
+    })
+  })
+
+  it('starts the server in a quiet (whole-task) batch without a toast', async () => {
+    mockApi.spotlight.activate.mockResolvedValue(OK)
+    openSpotlightTerminalAndStartServer.mockResolvedValue({
+      opened: { ok: true, tabId: 'tab-1' },
+      server: { kind: 'started', command: 'pnpm local' }
+    })
+
+    await createTestStore().getState().activateSpotlight('repo-1', 'wt-1', { quiet: true })
+
+    expect(openSpotlightTerminalAndStartServer).toHaveBeenCalledTimes(1)
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('starts nothing when the activation fails', async () => {
+    mockApi.spotlight.activate.mockResolvedValue(FAILED)
+
+    await createTestStore().getState().activateSpotlight('repo-1', 'wt-1')
+
+    expect(openSpotlightTerminalAndStartServer).not.toHaveBeenCalled()
   })
 })
 

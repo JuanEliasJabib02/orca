@@ -21,11 +21,15 @@ import {
 import {
   forgetSpotlightServerCommand,
   getSpotlightServerCommand,
+  getSpotlightServerLaunchedCommand,
+  markSpotlightServerLaunched,
   rememberSpotlightServerCommand
 } from './spotlight-server-commands'
 
 // Bound the foreground inspection so Spotlight off can't hang on an unresponsive PTY host.
 const BUSY_CHECK_TIMEOUT_MS = 3000
+
+const BUSY: SpotlightServerStartResult = { ok: true, started: false, reason: 'busy' }
 
 /** One non-empty line only: control bytes typed into the PTY would act as keystrokes. */
 export function normalizeSpotlightServerCommand(command: unknown): string | null {
@@ -62,10 +66,13 @@ function writeToTerminal(ptyId: string, data: string): boolean {
 }
 
 /** Type `command` into the repo's Spotlight terminal when it is idle; a busy terminal (e.g.
- *  a server started by hand) is left alone. The command is kept for later restarts. */
+ *  a server started by hand) is left alone. The command is kept for later restarts.
+ *  `restartIfDifferent`: a busy terminal running Orca's own server for another command is
+ *  restarted with this one (a takeover into another environment). */
 export async function startSpotlightServer(args: {
   repoId: string
   command: string
+  restartIfDifferent?: boolean
 }): Promise<SpotlightServerStartResult> {
   const command = normalizeSpotlightServerCommand(args.command)
   if (!command) {
@@ -83,8 +90,11 @@ export async function startSpotlightServer(args: {
     return { ok: false, reason: 'no-terminal' }
   }
   // A restart that started during the check re-runs the command itself.
-  if (busy || current.restartPending) {
-    return { ok: true, started: false, reason: 'busy' }
+  if (current.restartPending) {
+    return BUSY
+  }
+  if (busy) {
+    return args.restartIfDifferent ? replaceOrcaServer(args.repoId, command) : BUSY
   }
   const launch = `${takeSpotlightInstallPrefix(args.repoId)}${command}`
   if (!writeToTerminal(terminal.ptyId, `${launch}\r`)) {
@@ -94,8 +104,23 @@ export async function startSpotlightServer(args: {
     }
     return { ok: false, reason: 'no-terminal' }
   }
+  markSpotlightServerLaunched(args.repoId, command)
   void appendSpotlightLogNote(terminal.rootPath, `Server started by Orca ("${launch}")`)
   return { ok: true, started: true }
+}
+
+/** Busy terminal: restart only Orca's own server, and only for a different command. A server
+ *  started by hand is never touched; the same command keeps running (hot reload covers code). */
+function replaceOrcaServer(repoId: string, command: string): SpotlightServerStartResult {
+  const running = getSpotlightServerLaunchedCommand(repoId)
+  if (running === undefined || running === command) {
+    return BUSY
+  }
+  const outcome = restartSpotlightTerminalServer(repoId, 'by Orca')
+  if (outcome === 'no-terminal') {
+    return { ok: false, reason: 'no-terminal' }
+  }
+  return outcome === 'sent' ? { ok: true, started: true, restarted: true } : BUSY
 }
 
 /** For a Spotlight terminal whose PTY doesn't exist yet: the caller queues the returned text as
@@ -106,6 +131,7 @@ export function prepareSpotlightServerLaunch(repoId: string, command: string): s
     return null
   }
   rememberSpotlightServerCommand(repoId, normalized)
+  markSpotlightServerLaunched(repoId, normalized)
   return `${takeSpotlightInstallPrefix(repoId)}${normalized}`
 }
 
