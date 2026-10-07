@@ -13,7 +13,14 @@ import {
   restartSpotlightTerminalServer
 } from './spotlight-log-mirror'
 import {
+  clearSpotlightInstallPending,
+  isSpotlightInstallPending,
+  markSpotlightInstallPending,
+  takeSpotlightInstallPrefix
+} from './spotlight-lockfile-install'
+import {
   forgetSpotlightServerCommand,
+  getSpotlightServerCommand,
   rememberSpotlightServerCommand
 } from './spotlight-server-commands'
 
@@ -79,11 +86,27 @@ export async function startSpotlightServer(args: {
   if (busy || current.restartPending) {
     return { ok: true, started: false, reason: 'busy' }
   }
-  if (!writeToTerminal(terminal.ptyId, `${command}\r`)) {
+  const launch = `${takeSpotlightInstallPrefix(args.repoId)}${command}`
+  if (!writeToTerminal(terminal.ptyId, `${launch}\r`)) {
+    // The install never reached the terminal; keep it for the next command Orca types.
+    if (launch !== command) {
+      markSpotlightInstallPending(args.repoId)
+    }
     return { ok: false, reason: 'no-terminal' }
   }
-  void appendSpotlightLogNote(terminal.rootPath, `Server started by Orca ("${command}")`)
+  void appendSpotlightLogNote(terminal.rootPath, `Server started by Orca ("${launch}")`)
   return { ok: true, started: true }
+}
+
+/** For a Spotlight terminal whose PTY doesn't exist yet: the caller queues the returned text as
+ *  its startup command. Keeps the command for restarts and consumes a pending install. */
+export function prepareSpotlightServerLaunch(repoId: string, command: string): string | null {
+  const normalized = normalizeSpotlightServerCommand(command)
+  if (!normalized) {
+    return null
+  }
+  rememberSpotlightServerCommand(repoId, normalized)
+  return `${takeSpotlightInstallPrefix(repoId)}${normalized}`
 }
 
 /** Ctrl-C, then re-run `command` (kept for later restarts), else the last one Orca ran, else
@@ -112,10 +135,37 @@ export function restartSpotlightServer(args: {
     : { ok: true, restarted: false, reason: 'in-flight' }
 }
 
-/** Spotlight off: Ctrl-C a busy terminal (idle is left alone), forget the command, and block
- *  further server writes, a pending restart's re-run included. Await before tearing the capture down. */
+/** pnpm-lock.yaml changed under a running server: restart it so its re-run installs first. A server
+ *  Orca didn't start (no stored command) can't be re-run, so the change is only noted in the log. */
+export async function restartSpotlightServerForLockfileChange(repoId: string): Promise<void> {
+  const terminal = getSpotlightTerminal(repoId)
+  // A restart between interrupt and re-run already installs on its re-run; idle waits for a start.
+  if (!terminal || terminal.restartPending || !(await isTerminalBusy(terminal.ptyId))) {
+    return
+  }
+  // Re-read after the check: Spotlight may have turned off, or a start already took the install.
+  if (
+    getSpotlightTerminal(repoId)?.ptyId !== terminal.ptyId ||
+    !isSpotlightInstallPending(repoId)
+  ) {
+    return
+  }
+  if (getSpotlightServerCommand(repoId)) {
+    restartSpotlightTerminalServer(repoId, 'after a pnpm-lock.yaml change')
+    return
+  }
+  void appendSpotlightLogNote(
+    terminal.rootPath,
+    'pnpm-lock.yaml changed — stop the server, run "pnpm install", then start it again'
+  )
+}
+
+/** Spotlight off: Ctrl-C a busy terminal (idle is left alone), forget the command and any pending
+ *  install, and block further server writes, a pending restart's re-run included. Await before
+ *  tearing the capture down. */
 export async function stopSpotlightServer(repoId: string): Promise<boolean> {
   forgetSpotlightServerCommand(repoId)
+  clearSpotlightInstallPending(repoId)
   const terminal = releaseSpotlightTerminal(repoId)
   if (!terminal || !(await isTerminalBusy(terminal.ptyId))) {
     return false

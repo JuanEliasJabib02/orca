@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import nodePath from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,6 +24,11 @@ vi.mock('../git/runner', () => ({
   gitExecFileAsync: vi.fn(async () => ({ stdout: '.git/info/exclude', stderr: '' }))
 }))
 
+import {
+  clearSpotlightInstallPending,
+  isSpotlightInstallPending,
+  markSpotlightInstallPending
+} from './spotlight-lockfile-install'
 import { startSpotlightLogCapture, stopSpotlightLogCapture } from './spotlight-log-mirror'
 import { SPOTLIGHT_RESTART_TRIGGER_FILENAME } from './spotlight-restart-trigger'
 import {
@@ -32,7 +37,9 @@ import {
 } from './spotlight-server-commands'
 import {
   normalizeSpotlightServerCommand,
+  prepareSpotlightServerLaunch,
   restartSpotlightServer,
+  restartSpotlightServerForLockfileChange,
   startSpotlightServer,
   stopSpotlightServer
 } from './spotlight-server-control'
@@ -42,11 +49,16 @@ const PTY_ID = 'pty-1'
 const INTERRUPT = String.fromCharCode(3)
 const HISTORY_RECALL = '\u001b[A\r'
 const RESTART_RERUN_DELAY_MS = 700
+const INSTALL = 'pnpm install --frozen-lockfile && '
 
 let root = ''
 
 function writtenData(): string[] {
   return fakePty.writes.map((entry) => entry.data)
+}
+
+function spotlightLog(): string {
+  return readFileSync(nodePath.join(root, '.orca', 'spotlight.log'), 'utf-8')
 }
 
 beforeEach(async () => {
@@ -62,6 +74,7 @@ afterEach(async () => {
   vi.useRealTimers()
   stopSpotlightLogCapture({ repoId: REPO_ID })
   forgetSpotlightServerCommand(REPO_ID)
+  clearSpotlightInstallPending(REPO_ID)
   // Let fire-and-forget log notes land before the temp root goes away.
   await new Promise((resolve) => setTimeout(resolve, 50))
   rmSync(root, { recursive: true, force: true, maxRetries: 3 })
@@ -265,5 +278,139 @@ describe('.orca/spotlight-restart trigger', () => {
       timeout: 3000,
       interval: 50
     })
+  })
+})
+
+describe('pending install after a lockfile change', () => {
+  it('installs before the command an idle start types, once', async () => {
+    markSpotlightInstallPending(REPO_ID)
+
+    await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })
+    await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })
+
+    expect(writtenData()).toEqual([`${INSTALL}pnpm dev\r`, 'pnpm dev\r'])
+    expect(getSpotlightServerCommand(REPO_ID)).toBe('pnpm dev')
+  })
+
+  it('stays pending through a busy start and installs on the next restart', async () => {
+    markSpotlightInstallPending(REPO_ID)
+    fakePty.hasChildProcesses.mockResolvedValue(true)
+
+    await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })
+    expect(isSpotlightInstallPending(REPO_ID)).toBe(true)
+
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    restartSpotlightServer({ repoId: REPO_ID })
+    vi.advanceTimersByTime(RESTART_RERUN_DELAY_MS)
+
+    expect(writtenData()).toEqual([INTERRUPT, `${INSTALL}pnpm dev\r`])
+    expect(isSpotlightInstallPending(REPO_ID)).toBe(false)
+  })
+
+  it('stays pending through a history-recall restart', () => {
+    markSpotlightInstallPending(REPO_ID)
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+
+    restartSpotlightServer({ repoId: REPO_ID })
+    vi.advanceTimersByTime(RESTART_RERUN_DELAY_MS)
+
+    expect(writtenData()).toEqual([INTERRUPT, HISTORY_RECALL])
+    expect(isSpotlightInstallPending(REPO_ID)).toBe(true)
+  })
+
+  it('stays pending when the start could not write', async () => {
+    markSpotlightInstallPending(REPO_ID)
+    fakePty.write.mockReturnValueOnce(false)
+
+    expect(await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })).toEqual({
+      ok: false,
+      reason: 'no-terminal'
+    })
+    expect(isSpotlightInstallPending(REPO_ID)).toBe(true)
+  })
+
+  it('is forgotten when Spotlight turns off', async () => {
+    markSpotlightInstallPending(REPO_ID)
+
+    await stopSpotlightServer(REPO_ID)
+
+    expect(isSpotlightInstallPending(REPO_ID)).toBe(false)
+  })
+})
+
+describe('prepareSpotlightServerLaunch', () => {
+  it('returns the startup command with a pending install, once, and keeps the command', () => {
+    markSpotlightInstallPending(REPO_ID)
+
+    expect(prepareSpotlightServerLaunch(REPO_ID, '  pnpm local ')).toBe(`${INSTALL}pnpm local`)
+    expect(prepareSpotlightServerLaunch(REPO_ID, 'pnpm local')).toBe('pnpm local')
+    expect(getSpotlightServerCommand(REPO_ID)).toBe('pnpm local')
+    expect(fakePty.writes).toEqual([])
+  })
+
+  it('rejects an invalid command without consuming the install', () => {
+    markSpotlightInstallPending(REPO_ID)
+
+    expect(prepareSpotlightServerLaunch(REPO_ID, 'pnpm dev\nrm -rf .')).toBeNull()
+    expect(isSpotlightInstallPending(REPO_ID)).toBe(true)
+    expect(getSpotlightServerCommand(REPO_ID)).toBeUndefined()
+  })
+})
+
+describe('restartSpotlightServerForLockfileChange', () => {
+  it('restarts a running server Orca started, installing first', async () => {
+    fakePty.hasChildProcesses.mockResolvedValue(true)
+    await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })
+    markSpotlightInstallPending(REPO_ID)
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+
+    await restartSpotlightServerForLockfileChange(REPO_ID)
+    vi.advanceTimersByTime(RESTART_RERUN_DELAY_MS)
+
+    expect(writtenData()).toEqual([INTERRUPT, `${INSTALL}pnpm dev\r`])
+    expect(isSpotlightInstallPending(REPO_ID)).toBe(false)
+  })
+
+  it('leaves an idle terminal for the next start', async () => {
+    prepareSpotlightServerLaunch(REPO_ID, 'pnpm dev')
+    markSpotlightInstallPending(REPO_ID)
+
+    await restartSpotlightServerForLockfileChange(REPO_ID)
+
+    expect(fakePty.writes).toEqual([])
+    expect(isSpotlightInstallPending(REPO_ID)).toBe(true)
+  })
+
+  it('only notes the change for a server started by hand', async () => {
+    fakePty.hasChildProcesses.mockResolvedValue(true)
+    markSpotlightInstallPending(REPO_ID)
+
+    await restartSpotlightServerForLockfileChange(REPO_ID)
+
+    expect(fakePty.writes).toEqual([])
+    expect(isSpotlightInstallPending(REPO_ID)).toBe(true)
+    await vi.waitFor(() => expect(spotlightLog()).toContain('pnpm-lock.yaml changed'), {
+      timeout: 1000,
+      interval: 20
+    })
+  })
+
+  it('does not restart when a start took the install during the busy check', async () => {
+    prepareSpotlightServerLaunch(REPO_ID, 'pnpm dev')
+    markSpotlightInstallPending(REPO_ID)
+    let resolveCheck: (busy: boolean) => void = () => {}
+    fakePty.hasChildProcesses.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveCheck = resolve
+        })
+    )
+
+    const reacting = restartSpotlightServerForLockfileChange(REPO_ID)
+    await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })
+    resolveCheck(true)
+    await reacting
+
+    expect(writtenData()).toEqual([`${INSTALL}pnpm dev\r`])
   })
 })

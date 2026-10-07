@@ -41,6 +41,10 @@ vi.mock('../../shared/spotlight-sync-core', async (importOriginal) => ({
   }))
 }))
 
+import {
+  isSpotlightInstallPending,
+  markSpotlightInstallPending
+} from './spotlight-lockfile-install'
 import { getSpotlightTerminal, startSpotlightLogCapture } from './spotlight-log-mirror'
 import { getSpotlightServerCommand } from './spotlight-server-commands'
 import { startSpotlightServer } from './spotlight-server-control'
@@ -116,5 +120,13 @@ describe('SpotlightService.deactivate', () => {
     expect(fakePty.hasChildProcesses).toHaveBeenCalledWith(PTY_ID)
     expect(fakePty.writes).toEqual([])
     expect(getSpotlightTerminal(REPO_ID)).toBeNull()
+  })
+
+  it('forgets an install a lockfile change left pending', async () => {
+    markSpotlightInstallPending(REPO_ID)
+
+    await createService().deactivate(REPO_ID)
+
+    expect(isSpotlightInstallPending(REPO_ID)).toBe(false)
   })
 })

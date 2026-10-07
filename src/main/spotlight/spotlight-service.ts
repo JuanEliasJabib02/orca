@@ -13,6 +13,7 @@ import {
   syncSpotlightCore
 } from '../../shared/spotlight-sync-core'
 import { appendSpotlightLogNote, stopSpotlightLogCapture } from './spotlight-log-mirror'
+import { checkActivationLockfile, checkSyncLockfile } from './spotlight-lockfile-operation-checks'
 import { stopSpotlightServer } from './spotlight-server-control'
 import { writeSpotlightStateFile } from './spotlight-state-file'
 import {
@@ -122,6 +123,7 @@ export class SpotlightService {
             `Spotlight → workspace "${holderName}" now mirrors to the root`
           )
         }
+        await checkActivationLockfile({ repoId, resolved, previous, outcome })
         return { ok: true, state }
       } catch (error) {
         return this.failure(repoId, toSpotlightError(error), previous)
@@ -173,6 +175,7 @@ export class SpotlightService {
         this.store.setSpotlightState(repoId, next)
         this.emitChanged(repoId, next)
         void writeSpotlightStateFile(resolved.repo.path, next)
+        await checkSyncLockfile({ repoId, resolved, before: state, outcome })
         return { ok: true, state: next }
       } catch (error) {
         return this.failure(repoId, toSpotlightError(error), state)

@@ -17,7 +17,10 @@ import { stripTerminalSequences } from '../../shared/terminal-escape-stripping'
 import { gitExecFileAsync } from '../git/runner'
 import { getLocalPtyProvider, onLocalPtyProviderChanged } from '../ipc/pty'
 import { sendServerRestart, watchRestartTrigger } from './spotlight-restart-trigger'
-import { getSpotlightServerCommand } from './spotlight-server-commands'
+import {
+  getSpotlightServerCommand,
+  takeSpotlightServerRerunCommand
+} from './spotlight-server-commands'
 
 // Keep the log useful for `tail`/`grep` without growing unbounded: once it
 // passes MAX, rewrite it down to the most recent TRIM bytes.
@@ -319,14 +322,14 @@ export function releaseSpotlightTerminal(repoId: string): SpotlightTerminal | nu
  *  and log the attempt. Shared by the .orca/spotlight-restart trigger and Orca's own restart. */
 export function restartSpotlightTerminalServer(
   repoId: string,
-  requestedBy: 'from a workspace' | 'by Orca'
+  requestedBy: 'from a workspace' | 'by Orca' | 'after a pnpm-lock.yaml change'
 ): 'sent' | 'in-flight' | 'no-terminal' {
   const capture = capturesByRepoId.get(repoId)
   if (!capture || capture.released) {
     return 'no-terminal'
   }
   const wasInFlight = capture.restartInFlight
-  if (!sendServerRestart(capture, () => getSpotlightServerCommand(repoId))) {
+  if (!sendServerRestart(capture, () => takeSpotlightServerRerunCommand(repoId))) {
     return wasInFlight ? 'in-flight' : 'no-terminal'
   }
   const command = getSpotlightServerCommand(repoId)
