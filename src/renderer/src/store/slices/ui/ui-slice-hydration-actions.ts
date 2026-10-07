@@ -65,6 +65,7 @@ import { hydrateAgentReadState, sanitizeTaskResumeState } from './ui-slice-hydra
 import { hydrateStatusBarItems } from './ui-slice-hydration-status-bar-items'
 import { sanitizeComposerCompanionRepoIds } from './ui-slice-composer-companion-actions'
 import { sanitizeGroupByBySpaceId } from './ui-slice-sidebar-space-group-by-actions'
+import { sanitizeSpotlightEnvByTaskKey } from './ui-slice-spotlight-env-actions'
 
 const MAX_LEFT_SIDEBAR_WIDTH = 500
 const MAX_RIGHT_SIDEBAR_WIDTH = 4000
@@ -238,6 +239,7 @@ export function createUiHydrationActions(set: UISliceSet, _get: UISliceGet): Par
           composerCompanionRepoIdsByRepoId: sanitizeComposerCompanionRepoIds(
             ui.composerCompanionRepoIdsByRepoId
           ),
+          spotlightEnvByTaskKey: sanitizeSpotlightEnvByTaskKey(ui.spotlightEnvByTaskKey),
           setupGuideBrowserMilestoneMigrated: ui.setupGuideBrowserMilestoneMigrated === true,
           setupGuideBrowserMilestoneLegacyComplete:
             ui.setupGuideBrowserMilestoneLegacyComplete === true,

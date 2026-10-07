@@ -9,6 +9,8 @@ import { isFeatureInteractionId } from '../feature-interactions'
 import type { FeatureInteractionId } from '../feature-interactions'
 import { ACTIVITY_GROUP_BY_VALUES, THREAD_READ_FILTER_VALUES } from '../agents-view-thread-filters'
 import { isReleaseChannel } from '../release-channel'
+import { isSpotlightServerEnv } from '../spotlight-server-types'
+import type { SpotlightServerEnv } from '../spotlight-server-types'
 import { STATUS_BAR_ITEMS } from '../ui-chrome-types'
 import type { ReleaseChannel } from '../release-channel'
 import { ClientUiWorkspaceFilterFields } from './client-ui-workspace-filter-fields-params'
@@ -68,6 +70,10 @@ export const WorktreeGroupByParam = z.enum([
   'pr-status',
   'task'
 ])
+
+const SpotlightServerEnvParam = z.custom<SpotlightServerEnv>(isSpotlightServerEnv, {
+  message: 'Unknown Spotlight server environment'
+})
 
 export const StatusBarItem = z.enum(STATUS_BAR_ITEMS)
 
@@ -229,6 +235,7 @@ export const UiUpdateFields = z
     activeSidebarSpaceGroupId: NullableString.optional(),
     groupByBySpaceId: z.record(z.string(), WorktreeGroupByParam).optional(),
     composerCompanionRepoIdsByRepoId: z.record(z.string(), StringArray).optional(),
+    spotlightEnvByTaskKey: z.record(z.string(), SpotlightServerEnvParam).optional(),
     setupGuideBrowserMilestoneMigrated: z.boolean().optional(),
     setupGuideBrowserMilestoneLegacyComplete: z.boolean().optional(),
     browserImportHintHidden: z.boolean().optional(),

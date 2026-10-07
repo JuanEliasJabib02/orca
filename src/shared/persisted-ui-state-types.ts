@@ -7,6 +7,7 @@ import type { UsagePercentageDisplay } from './usage-percentage-display'
 import type { StatusBarUsageMode } from './status-bar-usage-mode'
 import type { PersistedTrustedOrcaHooks } from './orca-yaml-hook-types'
 import type { CustomPet } from './pet-types'
+import type { SpotlightServerEnv } from './spotlight-server-types'
 import type {
   ActivityGroupBy,
   AgentActivityDisplayMode,
@@ -83,6 +84,8 @@ export type PersistedUIState = {
   groupByBySpaceId?: Record<string, PersistedUIState['groupBy']>
   /** "Also create in" companions the new-workspace composer last used, keyed by primary repo id. */
   composerCompanionRepoIdsByRepoId?: Record<string, string[]>
+  /** Spotlight environment each task's servers run in, keyed by task key; absent entries mean `local`. */
+  spotlightEnvByTaskKey?: Record<string, SpotlightServerEnv>
   /** Agents-view host scope; deliberately separate from visibleWorkspaceHostIds so a monitoring surface never inherits nav filters silently. `null` = all hosts. */
   agentsVisibleHostIds?: VisibleWorkspaceHostIds
   /** Agents-view project filter; empty = all projects. Separate from filterRepoIds (workspace nav). */

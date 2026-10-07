@@ -20,6 +20,7 @@ import type { CustomPet } from '../../../../../shared/pet-types'
 import type { ReleaseChannel } from '../../../../../shared/release-channel'
 import type { ChangelogData, UpdateStatus } from '../../../../../shared/update-status-types'
 import type { StatusBarUsageMode } from '../../../../../shared/status-bar-usage-mode'
+import type { SpotlightServerEnv } from '../../../../../shared/spotlight-server-types'
 import type { PersistedUIWriteBaseline } from '../persisted-ui-write-baseline'
 import type { UISliceCore } from './ui-slice-contract-core'
 
@@ -152,6 +153,10 @@ export type UISliceSurfaces = {
   /** "Also create in" companions remembered per primary repo; ids may outlive their repos. */
   composerCompanionRepoIdsByRepoId: Record<string, string[]>
   setComposerCompanionRepoIds: (primaryRepoId: string, companionRepoIds: readonly string[]) => void
+  /** Spotlight environment each task's servers run in, keyed by task key; absent = `local`. */
+  spotlightEnvByTaskKey: Record<string, SpotlightServerEnv>
+  /** Choosing `local` drops the entry so the map only holds deviations. */
+  setSpotlightEnvForTask: (taskKey: string, env: SpotlightServerEnv) => void
   // Why: cleared by the diff decorator after it reveals the line, so the same id can be requested again without a stale value.
   scrollToDiffCommentId: string | null
   setScrollToDiffCommentId: (id: string | null) => void

@@ -16,6 +16,7 @@ import { createUiHydrationActions } from './ui/ui-slice-hydration-actions'
 import { createUiUpdateActions } from './ui/ui-slice-update-actions'
 import { createUiComposerCompanionActions } from './ui/ui-slice-composer-companion-actions'
 import { createUiSidebarSpaceGroupByActions } from './ui/ui-slice-sidebar-space-group-by-actions'
+import { createUiSpotlightEnvActions } from './ui/ui-slice-spotlight-env-actions'
 
 export type {
   AgentSendPopoverTargetMode,
@@ -44,5 +45,6 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get)
     ...createUiHydrationActions(set, get),
     ...createUiUpdateActions(set, get),
     ...createUiComposerCompanionActions(set, get),
-    ...createUiSidebarSpaceGroupByActions(set, get)
+    ...createUiSidebarSpaceGroupByActions(set, get),
+    ...createUiSpotlightEnvActions(set, get)
   }) as UISlice
