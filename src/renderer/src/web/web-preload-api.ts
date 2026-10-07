@@ -96,6 +96,8 @@ function createWebPreloadApi(): Partial<PreloadApi> {
       deactivate: async () => webSpotlightUnavailable(),
       setLogPty: async () => {},
       clearLogPty: async () => {},
+      startServer: async () => ({ ok: false, reason: 'not-active' }),
+      restartServer: async () => ({ ok: false, reason: 'not-active' }),
       onChanged: () => () => {}
     },
     worktrees: createWorktreesApi(),

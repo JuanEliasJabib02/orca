@@ -17,6 +17,7 @@ import { stripTerminalSequences } from '../../shared/terminal-escape-stripping'
 import { gitExecFileAsync } from '../git/runner'
 import { getLocalPtyProvider, onLocalPtyProviderChanged } from '../ipc/pty'
 import { sendServerRestart, watchRestartTrigger } from './spotlight-restart-trigger'
+import { getSpotlightServerCommand } from './spotlight-server-commands'
 
 // Keep the log useful for `tail`/`grep` without growing unbounded: once it
 // passes MAX, rewrite it down to the most recent TRIM bytes.
@@ -56,6 +57,7 @@ function capPendingBytes(text: string): string {
 type LogCapture = {
   repoId: string
   ptyId: string
+  rootPath: string
   logPath: string
   unsubscribe: () => void
   /** Raw, unstripped PTY data awaiting the next flush. */
@@ -73,6 +75,8 @@ type LogCapture = {
   /** Watches .orca/ for the agent-written restart trigger file. */
   triggerWatcher: FSWatcher | null
   restartInFlight: boolean
+  /** Spotlight is turning off: no more server writes (start, restart re-run) to this terminal. */
+  released: boolean
   stopped: boolean
 }
 
@@ -247,6 +251,7 @@ export async function startSpotlightLogCapture(args: {
   const capture: LogCapture = {
     repoId: args.repoId,
     ptyId: args.ptyId,
+    rootPath: args.rootPath,
     logPath,
     unsubscribe: () => {},
     pending: '',
@@ -258,12 +263,13 @@ export async function startSpotlightLogCapture(args: {
     bytesOnDisk,
     triggerWatcher: null,
     restartInFlight: false,
+    released: false,
     stopped: false
   }
   subscribeCapture(capture)
   capture.triggerWatcher = watchRestartTrigger(
     path.dirname(logPath),
-    () => restartSpotlightServer(capture.repoId),
+    () => restartSpotlightTerminalServer(capture.repoId, 'from a workspace'),
     captureStartedAtMs
   )
   capturesByRepoId.set(args.repoId, capture)
@@ -281,21 +287,55 @@ export async function startSpotlightLogCapture(args: {
   }
 }
 
-/** Restart the repo's Spotlight server (interrupt + history recall) and log the
- *  attempt. Driven by the .orca/spotlight-restart file watcher below. */
-function restartSpotlightServer(repoId: string): boolean {
+/** The repo's Spotlight terminal as server control sees it. */
+export type SpotlightTerminal = { ptyId: string; rootPath: string; restartPending: boolean }
+
+/** The live Spotlight terminal for a repo; null when none is registered or Spotlight is
+ *  turning off. The capture stays the single owner of repoId→ptyId. */
+export function getSpotlightTerminal(repoId: string): SpotlightTerminal | null {
   const capture = capturesByRepoId.get(repoId)
-  if (!capture) {
-    return false
+  if (!capture || capture.released) {
+    return null
   }
-  const started = sendServerRestart(capture)
-  if (started) {
-    void appendSpotlightLogNote(
-      path.dirname(path.dirname(capture.logPath)),
-      'Server restart requested from a workspace (interrupt + history recall sent)'
-    )
+  return {
+    ptyId: capture.ptyId,
+    rootPath: capture.rootPath,
+    restartPending: capture.restartInFlight
   }
-  return started
+}
+
+/** Spotlight off: block further server writes to the terminal (including a pending restart's
+ *  re-run) and hand it back once for the final interrupt. */
+export function releaseSpotlightTerminal(repoId: string): SpotlightTerminal | null {
+  const terminal = getSpotlightTerminal(repoId)
+  const capture = capturesByRepoId.get(repoId)
+  if (terminal && capture) {
+    capture.released = true
+  }
+  return terminal
+}
+
+/** Restart the repo's Spotlight server (interrupt, then the stored command or history recall)
+ *  and log the attempt. Shared by the .orca/spotlight-restart trigger and Orca's own restart. */
+export function restartSpotlightTerminalServer(
+  repoId: string,
+  requestedBy: 'from a workspace' | 'by Orca'
+): 'sent' | 'in-flight' | 'no-terminal' {
+  const capture = capturesByRepoId.get(repoId)
+  if (!capture || capture.released) {
+    return 'no-terminal'
+  }
+  const wasInFlight = capture.restartInFlight
+  if (!sendServerRestart(capture, () => getSpotlightServerCommand(repoId))) {
+    return wasInFlight ? 'in-flight' : 'no-terminal'
+  }
+  const command = getSpotlightServerCommand(repoId)
+  const rerun = command ? `"${command}"` : 'history recall'
+  void appendSpotlightLogNote(
+    capture.rootPath,
+    `Server restart requested ${requestedBy} (interrupt + ${rerun} sent)`
+  )
+  return 'sent'
 }
 
 /** Write a marker line into the log (holder switches, spotlight off) so agents
@@ -312,6 +352,7 @@ export async function appendSpotlightLogNote(rootPath: string, note: string): Pr
 
 function teardownCapture(capture: LogCapture): void {
   capture.stopped = true
+  capture.released = true
   capture.unsubscribe()
   capture.triggerWatcher?.close()
   capture.triggerWatcher = null

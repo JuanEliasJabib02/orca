@@ -1,6 +1,8 @@
 import type {
   SpotlightChangedEvent,
   SpotlightOpResult,
+  SpotlightServerRestartResult,
+  SpotlightServerStartResult,
   SpotlightStateSnapshot
 } from '../../shared/spotlight'
 
@@ -22,5 +24,13 @@ export type SpotlightApi = {
    *  Spotlight terminal) so agents in any worktree can read server logs. */
   setLogPty: (args: { repoId: string; ptyId: string }) => Promise<void>
   clearLogPty: (args: { repoId: string; ptyId?: string }) => Promise<void>
+  /** Type the server command into the active Spotlight terminal, only when it is idle;
+   *  main keeps the command for later restarts. */
+  startServer: (args: { repoId: string; command: string }) => Promise<SpotlightServerStartResult>
+  /** Ctrl-C, then re-run `command` (or the last one Orca ran; history recall when none). */
+  restartServer: (args: {
+    repoId: string
+    command?: string
+  }) => Promise<SpotlightServerRestartResult>
   onChanged: (callback: (event: SpotlightChangedEvent) => void) => () => void
 }

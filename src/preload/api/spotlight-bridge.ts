@@ -15,6 +15,10 @@ export const spotlightApi = {
 
   clearLogPty: (args) => ipcRenderer.invoke('spotlight:clearLogPty', args),
 
+  startServer: (args) => ipcRenderer.invoke('spotlight:startServer', args),
+
+  restartServer: (args) => ipcRenderer.invoke('spotlight:restartServer', args),
+
   onChanged: (callback: (event: SpotlightChangedEvent) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, data: SpotlightChangedEvent) =>
       callback(data)

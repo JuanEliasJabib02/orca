@@ -72,6 +72,22 @@ export type SpotlightChangedEvent = {
   state: SpotlightRepoState | null
 }
 
+/** Why Orca couldn't type into the Spotlight terminal: Spotlight is off for the repo,
+ *  no live Spotlight terminal is registered, or the command is empty / not one line. */
+export type SpotlightServerFailureReason = 'not-active' | 'no-terminal' | 'invalid-command'
+
+export type SpotlightServerStartResult =
+  | { ok: true; started: true }
+  /** The terminal already runs something (e.g. a server started by hand); left alone. */
+  | { ok: true; started: false; reason: 'busy' }
+  | { ok: false; reason: SpotlightServerFailureReason }
+
+export type SpotlightServerRestartResult =
+  | { ok: true; restarted: true }
+  /** A restart is already between its interrupt and re-run; it re-runs the latest command. */
+  | { ok: true; restarted: false; reason: 'in-flight' }
+  | { ok: false; reason: SpotlightServerFailureReason }
+
 /** What the spotlight refs in the repo actually say — source of truth for reconcile. */
 export type SpotlightRefsSnapshot = {
   snapshotSha: string | null

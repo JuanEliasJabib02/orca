@@ -13,6 +13,7 @@ import {
   syncSpotlightCore
 } from '../../shared/spotlight-sync-core'
 import { appendSpotlightLogNote, stopSpotlightLogCapture } from './spotlight-log-mirror'
+import { stopSpotlightServer } from './spotlight-server-control'
 import { writeSpotlightStateFile } from './spotlight-state-file'
 import {
   activeStateFromActivation,
@@ -195,7 +196,7 @@ export class SpotlightService {
         const outcome = await deactivateSpotlightCore(resolved.ctx, resolved.repo.path, {
           force: opts.force
         })
-        this.clearSpotlightRecord(repoId, resolved.repo.path)
+        await this.clearSpotlightRecord(repoId, resolved.repo.path)
         void appendSpotlightLogNote(
           resolved.repo.path,
           outcome.branchMissing
@@ -218,7 +219,7 @@ export class SpotlightService {
         const spotlightError = toSpotlightError(error)
         if (spotlightError.code === 'not-active') {
           // The refs are already gone (manual cleanup); drop the stale record.
-          this.clearSpotlightRecord(repoId, resolved.repo.path)
+          await this.clearSpotlightRecord(repoId, resolved.repo.path)
           return { ok: true, state: null }
         }
         return this.failure(repoId, spotlightError, state)
@@ -255,7 +256,7 @@ export class SpotlightService {
           }
           // Refs were removed outside Orca — the repo is no longer in Spotlight
           // mode, so the persisted record is stale.
-          this.clearSpotlightRecord(repoId, resolved.repo.path)
+          await this.clearSpotlightRecord(repoId, resolved.repo.path)
           return
         }
         if (refs.rootHeadSha !== refs.snapshotSha) {
@@ -285,8 +286,10 @@ export class SpotlightService {
   }
 
   /** Tear down all Spotlight resources for a repo once its refs are gone/restored.
-   *  Main owns the lifecycle (not the PTY), so it also stops the log capture. */
-  private clearSpotlightRecord(repoId: string, rootPath: string | null): void {
+   *  Main owns the lifecycle (not the PTY), so it also stops the server, then the log capture. */
+  private async clearSpotlightRecord(repoId: string, rootPath: string | null): Promise<void> {
+    // The root is back on its own code; a server left running would silently serve it.
+    await stopSpotlightServer(repoId)
     stopSpotlightLogCapture({ repoId })
     this.lastCheckpointByRepo.delete(repoId)
     this.store.clearSpotlightState(repoId)
@@ -302,11 +305,11 @@ export class SpotlightService {
     await this.withRepoLock(repoId, async () => {
       const resolved = this.resolveRepoContext(repoId, { requireEnabled: false })
       if ('error' in resolved) {
-        this.clearSpotlightRecord(repoId, null)
+        await this.clearSpotlightRecord(repoId, null)
         return
       }
       await purgeSpotlightRefsCore(resolved.ctx, resolved.repo.path)
-      this.clearSpotlightRecord(repoId, resolved.repo.path)
+      await this.clearSpotlightRecord(repoId, resolved.repo.path)
     })
   }
 

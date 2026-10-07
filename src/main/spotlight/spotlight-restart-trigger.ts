@@ -21,20 +21,25 @@ const STALE_TRIGGER_GRACE_MS = 5000
 export type RestartTarget = {
   ptyId: string
   restartInFlight: boolean
+  /** Spotlight turned off (or the capture was torn down): a pending re-run is dropped. */
+  released: boolean
 }
 
-/** Interrupt the Spotlight terminal's foreground process, then re-run the last
- *  command via the shell's in-memory history (up-arrow + enter). Best-effort:
- *  a SIGINT-trapping TUI or a Windows cmd 'Terminate batch job (Y/N)?' prompt
- *  will consume the keys instead, so the caller logs 'requested', not 'done'.
- *  Returns false when a restart is already in flight. */
-export function sendServerRestart(target: RestartTarget): boolean {
+/** Interrupt the Spotlight terminal's foreground process, then re-run the
+ *  server command — resolved when the re-run fires, so a newer command wins —
+ *  or, when none is known, the last command via the shell's in-memory history
+ *  (up-arrow + enter). Best-effort: a SIGINT-trapping TUI or a Windows cmd
+ *  'Terminate batch job (Y/N)?' prompt will consume the keys instead, so the
+ *  caller logs 'requested', not 'done'. Returns false when a restart is already
+ *  in flight or the interrupt couldn't be written. */
+export function sendServerRestart(
+  target: RestartTarget,
+  resolveCommand?: () => string | undefined
+): boolean {
   if (target.restartInFlight) {
     return false
   }
   target.restartInFlight = true
-  // history recall: up-arrow then enter. Interpreted by bash/zsh/fish and, on
-  // Windows, PowerShell (PSReadLine) and cmd's doskey history alike.
   try {
     getLocalPtyProvider().write(target.ptyId, '\x03')
   } catch {
@@ -43,7 +48,13 @@ export function sendServerRestart(target: RestartTarget): boolean {
   }
   setTimeout(() => {
     try {
-      getLocalPtyProvider().write(target.ptyId, '\x1b[A\r')
+      // Spotlight may have turned off during the delay; never relaunch on the root's own code.
+      if (!target.released) {
+        const command = resolveCommand?.()
+        // '\r' submits in bash/zsh/fish, PowerShell and cmd alike; history recall (up-arrow)
+        // is interpreted by all of them too (PSReadLine, cmd's doskey).
+        getLocalPtyProvider().write(target.ptyId, command ? `${command}\r` : '\x1b[A\r')
+      }
     } catch {
       // PTY died between interrupt and re-run; nothing else to do.
     } finally {
