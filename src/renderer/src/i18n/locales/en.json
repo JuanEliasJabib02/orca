@@ -6528,6 +6528,18 @@
           "actionsFor": "Task actions for {{task}}",
           "deleteTask": "Delete task…"
         },
+        "TaskNoteActionLabel": {
+          "add": "Add note…",
+          "edit": "Edit note…"
+        },
+        "TaskNoteDialog": {
+          "title": "Note for {{task}}",
+          "description": "Kept only in Orca, never written to Jira or your repos. Shown when you hover the task header. Save it empty to remove it.",
+          "label": "Note",
+          "placeholder": "e.g. POS Action Wear",
+          "cancel": "Cancel",
+          "save": "Save"
+        },
         "RepoScanUnavailableIndicator": {
           "title": "Worktree scan failed for {{value0}}",
           "retry": "Retry scan",

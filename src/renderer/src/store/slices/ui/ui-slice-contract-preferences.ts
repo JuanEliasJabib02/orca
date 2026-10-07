@@ -157,6 +157,10 @@ export type UISliceSurfaces = {
   spotlightEnvByTaskKey: Record<string, SpotlightServerEnv>
   /** Choosing `local` drops the entry so the map only holds deviations. */
   setSpotlightEnvForTask: (taskKey: string, env: SpotlightServerEnv) => void
+  /** Private note per task, keyed by task key; shown as a tooltip on the task header. */
+  taskNoteByTaskKey: Record<string, string>
+  /** An empty or blank note removes the entry. */
+  setTaskNote: (taskKey: string, note: string) => void
   // Why: cleared by the diff decorator after it reveals the line, so the same id can be requested again without a stale value.
   scrollToDiffCommentId: string | null
   setScrollToDiffCommentId: (id: string | null) => void

@@ -86,6 +86,8 @@ export type PersistedUIState = {
   composerCompanionRepoIdsByRepoId?: Record<string, string[]>
   /** Spotlight environment each task's servers run in, keyed by task key; absent entries mean `local`. */
   spotlightEnvByTaskKey?: Record<string, SpotlightServerEnv>
+  /** Private note per task, keyed by task key; absent entries mean no note. */
+  taskNoteByTaskKey?: Record<string, string>
   /** Agents-view host scope; deliberately separate from visibleWorkspaceHostIds so a monitoring surface never inherits nav filters silently. `null` = all hosts. */
   agentsVisibleHostIds?: VisibleWorkspaceHostIds
   /** Agents-view project filter; empty = all projects. Separate from filterRepoIds (workspace nav). */

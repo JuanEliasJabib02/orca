@@ -236,6 +236,7 @@ export const UiUpdateFields = z
     groupByBySpaceId: z.record(z.string(), WorktreeGroupByParam).optional(),
     composerCompanionRepoIdsByRepoId: z.record(z.string(), StringArray).optional(),
     spotlightEnvByTaskKey: z.record(z.string(), SpotlightServerEnvParam).optional(),
+    taskNoteByTaskKey: z.record(z.string(), z.string()).optional(),
     setupGuideBrowserMilestoneMigrated: z.boolean().optional(),
     setupGuideBrowserMilestoneLegacyComplete: z.boolean().optional(),
     browserImportHintHidden: z.boolean().optional(),

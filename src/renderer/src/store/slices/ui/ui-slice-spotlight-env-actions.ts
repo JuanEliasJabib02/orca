@@ -4,14 +4,7 @@ import {
   type SpotlightServerEnv
 } from '../../../../../shared/spotlight-server-types'
 import type { UISlice, UISliceGet, UISliceSet } from './ui-slice-contract'
-
-const MAX_TASK_KEY_LENGTH = 200
-const MAX_ENTRIES = 500
-const UNSAFE_RECORD_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
-
-function isUsableTaskKey(taskKey: string): boolean {
-  return taskKey !== '' && taskKey.length <= MAX_TASK_KEY_LENGTH && !UNSAFE_RECORD_KEYS.has(taskKey)
-}
+import { isUsableTaskKey, MAX_TASK_KEYED_ENTRIES } from './ui-slice-task-key-record'
 
 /** Keeps known environments under usable task keys; ui.json is hand-editable and may come from another build. */
 export function sanitizeSpotlightEnvByTaskKey(value: unknown): Record<string, SpotlightServerEnv> {
@@ -21,7 +14,7 @@ export function sanitizeSpotlightEnvByTaskKey(value: unknown): Record<string, Sp
   const sanitized: Record<string, SpotlightServerEnv> = {}
   let count = 0
   for (const [taskKey, env] of Object.entries(value)) {
-    if (count >= MAX_ENTRIES) {
+    if (count >= MAX_TASK_KEYED_ENTRIES) {
       break
     }
     if (isUsableTaskKey(taskKey) && isSpotlightServerEnv(env)) {

@@ -22,6 +22,7 @@ vi.mock('@/components/ui/dropdown-menu', async () => {
     DropdownMenu: passthrough,
     DropdownMenuTrigger: passthrough,
     DropdownMenuContent: passthrough,
+    DropdownMenuSeparator: () => null,
     DropdownMenuItem: ({
       children,
       disabled,
@@ -41,6 +42,7 @@ vi.mock('@/components/ui/dropdown-menu', async () => {
 
 const initialState = useAppStore.getInitialState()
 const roots: Root[] = []
+const uiSet = vi.fn(() => Promise.resolve())
 
 const TASK: TaskSectionInfo = {
   taskKey: 'AX-3450',
@@ -85,14 +87,32 @@ function getTrigger(container: HTMLElement): HTMLButtonElement | null {
   return container.querySelector<HTMLButtonElement>('[data-repo-header-action]')
 }
 
+function getMenuItems(container: HTMLElement): HTMLButtonElement[] {
+  return Array.from(container.querySelectorAll<HTMLButtonElement>('[data-menu-item]'))
+}
+
 function getDeleteItem(container: HTMLElement): HTMLButtonElement | null {
-  return container.querySelector<HTMLButtonElement>('[data-menu-item]')
+  return getMenuItems(container).find((item) => item.textContent === 'Delete task…') ?? null
+}
+
+function getNoteItem(container: HTMLElement): HTMLButtonElement | null {
+  return getMenuItems(container).find((item) => /^(Add|Edit) note…$/.test(item.textContent)) ?? null
+}
+
+/** The `onDeleted` callback the delete flow was handed; the flow calls it as worktrees go. */
+function getOnDeleted(): (targets: { id: string; executionHostId: null }[]) => void {
+  const options = runWorktreeBatchDelete.mock.calls[0]?.[1]
+  if (typeof options?.onDeleted !== 'function') {
+    throw new Error('runWorktreeBatchDelete was not given onDeleted')
+  }
+  return options.onDeleted
 }
 
 describe('TaskHeaderMenu', () => {
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
     vi.clearAllMocks()
+    vi.stubGlobal('api', { ui: { set: uiSet } })
     useAppStore.setState(initialState, true)
   })
 
@@ -101,6 +121,7 @@ describe('TaskHeaderMenu', () => {
       await act(async () => root.unmount())
     }
     document.body.innerHTML = ''
+    vi.unstubAllGlobals()
     useAppStore.setState(initialState, true)
   })
 
@@ -135,7 +156,7 @@ describe('TaskHeaderMenu', () => {
         { id: 'be-1', instanceId: 'inst-be', hostId: undefined },
         { id: 'ad-1', instanceId: 'inst-ad', hostId: undefined }
       ],
-      { forceConfirm: true }
+      { forceConfirm: true, onDeleted: expect.any(Function) }
     )
   })
 
@@ -169,5 +190,88 @@ describe('TaskHeaderMenu', () => {
     })
 
     expect(onParentClick).not.toHaveBeenCalled()
+  })
+
+  describe('task note', () => {
+    it('offers "Add note…" while the task has no note', async () => {
+      seedStore()
+
+      const container = await render()
+
+      expect(getNoteItem(container)?.textContent).toBe('Add note…')
+    })
+
+    it('offers "Edit note…" once the task has a note', async () => {
+      seedStore()
+      useAppStore.setState({ taskNoteByTaskKey: { 'AX-3450': 'POS Action Wear' } })
+
+      const container = await render()
+
+      expect(getNoteItem(container)?.textContent).toBe('Edit note…')
+    })
+
+    it('opens the note dialog for the task', async () => {
+      seedStore()
+      const openModal = vi.fn()
+      useAppStore.setState({ openModal })
+      const container = await render()
+
+      await act(async () => {
+        getNoteItem(container)?.click()
+      })
+
+      expect(openModal).toHaveBeenCalledWith('edit-task-note', { taskKey: 'AX-3450' })
+      expect(runWorktreeBatchDelete).not.toHaveBeenCalled()
+    })
+
+    it('removes the note once every worktree of the task was deleted', async () => {
+      seedStore()
+      useAppStore.setState({ taskNoteByTaskKey: { 'AX-3450': 'POS Action Wear', 'AX-1': 'Other' } })
+      const container = await render()
+      await act(async () => {
+        getDeleteItem(container)?.click()
+      })
+
+      await act(async () => {
+        getOnDeleted()([
+          { id: 'be-1', executionHostId: null },
+          { id: 'ad-1', executionHostId: null }
+        ])
+      })
+
+      expect(useAppStore.getState().taskNoteByTaskKey).toEqual({ 'AX-1': 'Other' })
+      expect(uiSet).toHaveBeenLastCalledWith({ taskNoteByTaskKey: { 'AX-1': 'Other' } })
+    })
+
+    it('keeps the note after a partial delete, and removes it when the rest follow', async () => {
+      seedStore()
+      useAppStore.setState({ taskNoteByTaskKey: { 'AX-3450': 'POS Action Wear' } })
+      const container = await render()
+      await act(async () => {
+        getDeleteItem(container)?.click()
+      })
+
+      await act(async () => {
+        getOnDeleted()([{ id: 'be-1', executionHostId: null }])
+      })
+      expect(useAppStore.getState().taskNoteByTaskKey).toEqual({ 'AX-3450': 'POS Action Wear' })
+
+      await act(async () => {
+        getOnDeleted()([{ id: 'ad-1', executionHostId: null }])
+      })
+      expect(useAppStore.getState().taskNoteByTaskKey).toEqual({})
+    })
+
+    it('keeps the note when the delete is cancelled', async () => {
+      seedStore()
+      useAppStore.setState({ taskNoteByTaskKey: { 'AX-3450': 'POS Action Wear' } })
+      const container = await render()
+
+      await act(async () => {
+        getDeleteItem(container)?.click()
+      })
+
+      expect(useAppStore.getState().taskNoteByTaskKey).toEqual({ 'AX-3450': 'POS Action Wear' })
+    })
   })
 })

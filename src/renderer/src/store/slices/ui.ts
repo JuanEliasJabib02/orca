@@ -17,6 +17,7 @@ import { createUiUpdateActions } from './ui/ui-slice-update-actions'
 import { createUiComposerCompanionActions } from './ui/ui-slice-composer-companion-actions'
 import { createUiSidebarSpaceGroupByActions } from './ui/ui-slice-sidebar-space-group-by-actions'
 import { createUiSpotlightEnvActions } from './ui/ui-slice-spotlight-env-actions'
+import { createUiTaskNoteActions } from './ui/ui-slice-task-note-actions'
 
 export type {
   AgentSendPopoverTargetMode,
@@ -46,5 +47,6 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get)
     ...createUiUpdateActions(set, get),
     ...createUiComposerCompanionActions(set, get),
     ...createUiSidebarSpaceGroupByActions(set, get),
-    ...createUiSpotlightEnvActions(set, get)
+    ...createUiSpotlightEnvActions(set, get),
+    ...createUiTaskNoteActions(set, get)
   }) as UISlice

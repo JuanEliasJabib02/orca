@@ -33,6 +33,7 @@ export type UISliceContextual = {
     | 'none'
     | 'create-worktree'
     | 'edit-meta'
+    | 'edit-task-note'
     | 'delete-worktree'
     | 'preserved-branch-review'
     | 'forget-ssh-workspace'
