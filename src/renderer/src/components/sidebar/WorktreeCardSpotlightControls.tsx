@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
 import { cn } from '@/lib/utils'
 import { openSpotlightTerminalTab } from '@/lib/open-spotlight-terminal-tab'
 import { useSpotlightHolderName } from './spotlight-row-hooks'
+import { useSpotlightServerStatus, type SpotlightServerStatus } from './spotlight-server-status'
 import { formatTimeAgo } from '@/components/status-bar/tooltip'
 import { translate } from '@/i18n/i18n'
 
@@ -30,6 +31,53 @@ function stopCardActivation(event: React.SyntheticEvent): void {
   // Why: these controls live inside the clickable workspace row; toggling
   // Spotlight must not also activate the workspace.
   event.stopPropagation()
+}
+
+/** Tooltip sentence for the Spotlight server state; null while it is unknown. */
+function spotlightServerStatusLabel({ running, port }: SpotlightServerStatus): string | null {
+  if (running === null) {
+    return null
+  }
+  if (!running) {
+    return translate(
+      'auto.components.sidebar.WorktreeCardSpotlightControls.serverStopped',
+      'Server stopped.'
+    )
+  }
+  return port
+    ? translate(
+        'auto.components.sidebar.WorktreeCardSpotlightControls.serverRunningOnPort',
+        'Server running on port {{port}}.'
+      ).replace('{{port}}', String(port))
+    : translate(
+        'auto.components.sidebar.WorktreeCardSpotlightControls.serverRunning',
+        'Server running.'
+      )
+}
+
+/** Filled dot = server running, hollow = stopped; nothing while unknown. Shape
+ *  carries the state too, so it doesn't rely on color alone. */
+function SpotlightServerDot({
+  running,
+  className
+}: {
+  running: boolean | null
+  className?: string
+}): React.JSX.Element | null {
+  if (running === null) {
+    return null
+  }
+  return (
+    <span
+      aria-hidden="true"
+      data-spotlight-server-dot={running ? 'running' : 'stopped'}
+      className={cn(
+        'pointer-events-none block size-1.5 shrink-0 rounded-full',
+        running ? 'bg-status-success' : 'border border-muted-foreground',
+        className
+      )}
+    />
+  )
 }
 
 /** Per-workspace Spotlight toggle: hover-revealed when idle, illuminated and
@@ -68,8 +116,10 @@ export function SpotlightQuickAction({
   const heldHere = view.held
   const syncing = view.syncing
   const syncError = view.errorMsg
+  // Only the holder row shows the server state, so other rows neither poll nor re-render.
+  const server = useSpotlightServerStatus(repo.id, heldHere)
 
-  const tooltip = syncing
+  const baseTooltip = syncing
     ? translate('auto.components.sidebar.WorktreeCardSpotlightControls.syncing', 'Syncing…')
     : syncError
       ? `${translate(
@@ -97,6 +147,8 @@ export function SpotlightQuickAction({
               'auto.components.sidebar.WorktreeCardSpotlightControls.activate',
               'Spotlight this workspace — mirror its changes onto the project root for testing.'
             )
+  const serverLabel = heldHere ? spotlightServerStatusLabel(server) : null
+  const tooltip = serverLabel ? `${baseTooltip} ${serverLabel}` : baseTooltip
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>): void => {
     stopCardActivation(event)
@@ -123,7 +175,7 @@ export function SpotlightQuickAction({
           aria-label={tooltip}
           aria-pressed={heldHere}
           className={cn(
-            'inline-flex size-4 items-center justify-center rounded bg-transparent transition-colors transition-opacity',
+            'relative inline-flex size-4 items-center justify-center rounded bg-transparent transition-colors transition-opacity',
             heldHere || syncing
               ? 'opacity-100'
               : 'opacity-0 group-hover/worktree-card:opacity-100 group-focus-within/worktree-card:opacity-100 focus-visible:opacity-100',
@@ -139,6 +191,12 @@ export function SpotlightQuickAction({
           ) : (
             <Flashlight className="size-3.5" />
           )}
+          {heldHere ? (
+            <SpotlightServerDot
+              running={server.running}
+              className="absolute -bottom-px -right-px"
+            />
+          ) : null}
         </button>
       </TooltipTrigger>
       <TooltipContent side="right" sideOffset={8} className="max-w-72">
@@ -158,10 +216,12 @@ export function SpotlightPrimaryBadge({ repo }: { repo: Repo }): React.JSX.Eleme
   const active = useAppStore((s) => Boolean(s.spotlightByRepo?.[repo.id]))
   const syncing = useAppStore((s) => s.spotlightByRepo?.[repo.id]?.status === 'syncing')
   const holderName = useSpotlightHolderName(repo.id)
+  const server = useSpotlightServerStatus(repo.id, active)
 
   if (!active) {
     return null
   }
+  const serverLabel = spotlightServerStatusLabel(server)
 
   return (
     <span className="inline-flex shrink-0 items-center gap-0.5">
@@ -175,10 +235,15 @@ export function SpotlightPrimaryBadge({ repo }: { repo: Repo }): React.JSX.Eleme
               stopCardActivation(event)
               openSpotlightTerminalTab({ repoId: repo.id, reveal: true })
             }}
-            aria-label={translate(
-              'auto.components.sidebar.WorktreeCardSpotlightControls.primaryBadgeAria',
-              'Spotlight is on. Click to open the server terminal.'
-            )}
+            aria-label={[
+              translate(
+                'auto.components.sidebar.WorktreeCardSpotlightControls.primaryBadgeAria',
+                'Spotlight is on. Click to open the server terminal.'
+              ),
+              serverLabel
+            ]
+              .filter(Boolean)
+              .join(' ')}
             className="shrink-0"
           >
             <Badge
@@ -194,6 +259,7 @@ export function SpotlightPrimaryBadge({ repo }: { repo: Repo }): React.JSX.Eleme
                 'auto.components.sidebar.WorktreeCardSpotlightControls.badgeLabel',
                 'spotlight'
               )}
+              <SpotlightServerDot running={server.running} className="ml-0.5" />
             </Badge>
           </button>
         </TooltipTrigger>
@@ -202,6 +268,7 @@ export function SpotlightPrimaryBadge({ repo }: { repo: Repo }): React.JSX.Eleme
             'auto.components.sidebar.WorktreeCardSpotlightControls.primaryBadgeTooltip',
             'The project root mirrors "{{holder}}". Click to open the server terminal.'
           ).replace('{{holder}}', holderName ?? '…')}
+          {serverLabel ? ` ${serverLabel}` : ''}
         </TooltipContent>
       </Tooltip>
       <Tooltip>
