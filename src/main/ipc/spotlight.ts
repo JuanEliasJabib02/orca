@@ -1,9 +1,10 @@
 import { ipcMain } from 'electron'
 import type { BrowserWindow } from 'electron'
-import type { SpotlightServerStartResult } from '../../shared/spotlight'
+import type { SpotlightServerStartResult, SpotlightServerState } from '../../shared/spotlight'
 import type { Store } from '../persistence'
 import { SpotlightService } from '../spotlight/spotlight-service'
 import {
+  getSpotlightTerminal,
   startSpotlightLogCapture,
   stopSpotlightLogCapture
 } from '../spotlight/spotlight-log-mirror'
@@ -15,6 +16,11 @@ import {
 } from '../spotlight/spotlight-server-control'
 import { watchLateSpotlightTerminal } from '../spotlight/spotlight-server-turn-off'
 import { configureSpotlightTerminalShell } from '../spotlight/spotlight-terminal-shell'
+import { readSpotlightServerState } from '../spotlight/spotlight-terminal-inspection'
+import {
+  configureSpotlightTerminalOutputSource,
+  type SpotlightTerminalOutputSource
+} from '../spotlight/spotlight-terminal-output-source'
 
 // Module singleton with a mutable window ref: attachMainWindowServices re-runs on
 // macOS dock re-activation, and rebuilding the service would drop its per-repo
@@ -69,7 +75,11 @@ export async function deactivateSpotlightIfHolder(
   stopSpotlightLogCapture({ repoId })
 }
 
-export function registerSpotlightHandlers(mainWindow: BrowserWindow, store: Store): void {
+export function registerSpotlightHandlers(
+  mainWindow: BrowserWindow,
+  store: Store,
+  runtime?: SpotlightTerminalOutputSource
+): void {
   currentWindow = mainWindow
   if (!service) {
     service = new SpotlightService(store, () =>
@@ -78,6 +88,7 @@ export function registerSpotlightHandlers(mainWindow: BrowserWindow, store: Stor
   }
   const spotlight = service
   configureSpotlightTerminalShell(() => store.getSettings())
+  configureSpotlightTerminalOutputSource(runtime ?? null)
 
   ipcMain.removeHandler('spotlight:getState')
   ipcMain.removeHandler('spotlight:activate')
@@ -88,6 +99,7 @@ export function registerSpotlightHandlers(mainWindow: BrowserWindow, store: Stor
   ipcMain.removeHandler('spotlight:startServer')
   ipcMain.removeHandler('spotlight:prepareServerLaunch')
   ipcMain.removeHandler('spotlight:cancelPreparedServerLaunch')
+  ipcMain.removeHandler('spotlight:serverState')
 
   // Only while Spotlight is actually active for a local repo — the
   // spotlightRepoRoot tab flag persists across sessions, so without this a
@@ -153,6 +165,14 @@ export function registerSpotlightHandlers(mainWindow: BrowserWindow, store: Stor
       cancelPreparedSpotlightServerLaunch(args.repoId)
     }
   })
+  // Only the repo's registered Spotlight terminal: the renderer can't probe arbitrary PTYs here.
+  ipcMain.handle(
+    'spotlight:serverState',
+    async (_event, args: { repoId: string; ptyId: string }): Promise<SpotlightServerState> =>
+      isActiveLocalSpotlight(args.repoId) && getSpotlightTerminal(args.repoId)?.ptyId === args.ptyId
+        ? readSpotlightServerState(args.ptyId)
+        : 'unknown'
+  )
 
   // Why: the git refs are the source of truth and may have changed while Orca
   // was closed (manual git use, crashes). One reconcile pass per app run.

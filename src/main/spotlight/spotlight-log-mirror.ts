@@ -15,12 +15,12 @@ import path from 'node:path'
 import { SPOTLIGHT_LOG_RELATIVE_PATH } from '../../shared/spotlight'
 import { stripTerminalSequences } from '../../shared/terminal-escape-stripping'
 import { gitExecFileAsync } from '../git/runner'
-import { getLocalPtyProvider, onLocalPtyProviderChanged } from '../ipc/pty'
 import { sendServerRestart, watchRestartTrigger } from './spotlight-restart-trigger'
 import {
   getSpotlightServerCommand,
   takeSpotlightServerRerunCommand
 } from './spotlight-server-commands'
+import { observeSpotlightTerminalOutput } from './spotlight-terminal-output-source'
 
 // Keep the log useful for `tail`/`grep` without growing unbounded: once it
 // passes MAX, rewrite it down to the most recent TRIM bytes.
@@ -84,14 +84,10 @@ type LogCapture = {
 }
 
 const capturesByRepoId = new Map<string, LogCapture>()
-let providerRebindInstalled = false
 
 function subscribeCapture(capture: LogCapture): void {
-  capture.unsubscribe = getLocalPtyProvider().onData((payload: { id: string; data: string }) => {
-    if (payload.id !== capture.ptyId) {
-      return
-    }
-    capture.pending += payload.data
+  capture.unsubscribe = observeSpotlightTerminalOutput(capture.ptyId, (data) => {
+    capture.pending += data
     scheduleFlush(capture)
   })
 }
@@ -223,6 +219,11 @@ export async function startSpotlightLogCapture(args: {
   const captureStartedAtMs = Date.now()
   const existing = capturesByRepoId.get(args.repoId)
   if (existing?.ptyId === args.ptyId) {
+    // Why: re-registering retries a daemon attach that could not run before (session unknown yet).
+    if (!existing.stopped) {
+      existing.unsubscribe()
+      subscribeCapture(existing)
+    }
     return
   }
   // Fully tear down the previous capture (listener, flush handle, AND the
@@ -276,18 +277,6 @@ export async function startSpotlightLogCapture(args: {
     captureStartedAtMs
   )
   capturesByRepoId.set(args.repoId, capture)
-
-  if (!providerRebindInstalled) {
-    providerRebindInstalled = true
-    // A daemon swap replaces the provider instance; re-subscribe every live
-    // capture on the new one so daemon restarts don't silently end mirroring.
-    onLocalPtyProviderChanged(() => {
-      for (const live of capturesByRepoId.values()) {
-        live.unsubscribe()
-        subscribeCapture(live)
-      }
-    })
-  }
 }
 
 /** The repo's Spotlight terminal as server control sees it. */

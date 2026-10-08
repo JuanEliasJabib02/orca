@@ -8,6 +8,7 @@ type RuntimeTerminalViewSubscriberDependencies = {
 export class RuntimeTerminalViewSubscribers {
   private readonly remoteCounts = new Map<string, number>()
   private readonly rawCounts = new Map<string, number>()
+  private readonly observerCounts = new Map<string, number>()
   private readonly providerAttaches = new Map<string, Promise<boolean>>()
   private readonly attachInventoryWaiters = new Set<string>()
   private readonly spawnPublishedPtys = new Set<string>()
@@ -28,6 +29,15 @@ export class RuntimeTerminalViewSubscribers {
   clearSubscribers(ptyId: string): void {
     this.remoteCounts.delete(ptyId)
     this.rawCounts.delete(ptyId)
+    this.observerCounts.delete(ptyId)
+  }
+
+  /** A main-side output consumer that is not a view: it needs the daemon to emit, so it drives the
+   *  attach, but leaves query authority and stream thinning to the views. */
+  registerObserver(ptyId: string): () => void {
+    this.observerCounts.set(ptyId, (this.observerCounts.get(ptyId) ?? 0) + 1)
+    this.ensureProviderAttach(ptyId)
+    return this.releaseOnce(() => this.decrement(this.observerCounts, ptyId))
   }
 
   registerRemote(ptyId: string): () => void {
@@ -70,7 +80,7 @@ export class RuntimeTerminalViewSubscribers {
   }
 
   reconcileProviderAttach(ptyId: string): void {
-    if (!this.hasRemote(ptyId)) {
+    if (!this.needsProviderAttach(ptyId)) {
       return
     }
     const pending = this.providerAttaches.get(ptyId)
@@ -84,7 +94,7 @@ export class RuntimeTerminalViewSubscribers {
     this.attachInventoryWaiters.add(ptyId)
     void pending.then((attached) => {
       this.attachInventoryWaiters.delete(ptyId)
-      if (attached || !this.hasRemote(ptyId)) {
+      if (attached || !this.needsProviderAttach(ptyId)) {
         return
       }
       if (this.providerAttaches.get(ptyId) === pending) {
@@ -92,6 +102,10 @@ export class RuntimeTerminalViewSubscribers {
       }
       this.ensureProviderAttach(ptyId)
     })
+  }
+
+  private needsProviderAttach(ptyId: string): boolean {
+    return this.hasRemote(ptyId) || (this.observerCounts.get(ptyId) ?? 0) > 0
   }
 
   private ensureProviderAttach(ptyId: string): void {

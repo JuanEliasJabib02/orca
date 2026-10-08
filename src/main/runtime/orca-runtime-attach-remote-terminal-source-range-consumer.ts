@@ -85,6 +85,12 @@ export class OrcaRuntimeWithAttachRemoteTerminalSourceRangeConsumer extends Orca
     this.terminalViewSubscribers.reconcileProviderAttach(ptyId)
   }
 
+  /** A main-side output consumer that is not a view (the Spotlight log mirror): attaches a daemon
+   *  session no pane attached so it emits, without taking query authority or changing thinning. */
+  registerTerminalOutputObserver(ptyId: string): () => void {
+    return this.terminalViewSubscribers.registerObserver(ptyId)
+  }
+
   /** Mark a raw-output viewer without transferring terminal query authority. */
   registerRawTerminalViewSubscriber(ptyId: string): () => void {
     return this.terminalViewSubscribers.registerRaw(ptyId)
