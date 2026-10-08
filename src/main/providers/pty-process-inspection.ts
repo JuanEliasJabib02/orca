@@ -26,6 +26,8 @@ export type PtyProcessInspectionOptions = {
   /** A self-correcting cadence poll that reads only the process name: licenses a host to answer
    *  from a cheap capture and OMIT evidence. Never set by a caller that consumes evidence. */
   steadyState?: boolean
+  /** Ask for `foregroundGroup` where it costs a process-table read; the daemon sets it on every full read. */
+  observeForegroundGroup?: boolean
 }
 
 export async function inspectPtyProviderProcess(

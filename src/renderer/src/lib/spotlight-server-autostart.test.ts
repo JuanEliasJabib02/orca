@@ -383,6 +383,49 @@ describe('openSpotlightTerminalAndStartServer', () => {
     expect(api.spotlight.startServer).toHaveBeenCalledTimes(2)
   })
 
+  it('stale PTY main proves gone: forgets it, then prepares, queues and mounts a new one', async () => {
+    seed({ tabsByWorktree: { [MAIN.id]: [liveSpotlightTab()] } })
+    api.spotlight.startServer.mockResolvedValueOnce({ ok: false, reason: 'terminal-gone' })
+
+    const activation = await openSpotlightTerminalAndStartServer({
+      repoId: REPO,
+      worktreeId: TICKET.id
+    })
+
+    expect(api.spotlight.startServer).toHaveBeenCalledTimes(1)
+    expect(spotlightTerminalTestStore.getState().clearTabPtyId).toHaveBeenCalledWith(
+      'spot',
+      'pty-1'
+    )
+    expect(spotlightTerminalEvents).toEqual(['clearPty', 'prepare', 'queue', 'mount'])
+    expect(mountRequests).toEqual([
+      { pending: { command: 'pnpm local --port 3000' }, tabIds: ['spot'] }
+    ])
+    expect(spotlightTerminalTestStore.getState().pendingInitialCwdByTabId).toEqual({
+      spot: MAIN.path
+    })
+    expect(activation.server).toEqual({ kind: 'queued', command: 'pnpm local --port 3000' })
+    expect(activation.opened).toMatchObject({ ok: true, ptyId: null, startupQueued: true })
+  })
+
+  it('gives up after one respawn when the store keeps the dead PTY', async () => {
+    seed({ tabsByWorktree: { [MAIN.id]: [liveSpotlightTab()] } })
+    api.spotlight.startServer
+      .mockResolvedValueOnce({ ok: false, reason: 'terminal-gone' })
+      .mockResolvedValueOnce({ ok: false, reason: 'terminal-gone' })
+    spotlightTerminalTestStore.getState().clearTabPtyId.mockImplementation(() => {})
+
+    const activation = await openSpotlightTerminalAndStartServer({
+      repoId: REPO,
+      worktreeId: TICKET.id
+    })
+
+    expect(api.spotlight.startServer).toHaveBeenCalledTimes(2)
+    expect(api.spotlight.prepareServerLaunch).not.toHaveBeenCalled()
+    expect(mountRequests).toEqual([])
+    expect(activation.server).toEqual({ kind: 'none' })
+  })
+
   it('never throws when the start IPC fails', async () => {
     seed({ tabsByWorktree: { [MAIN.id]: [liveSpotlightTab()] } })
     api.spotlight.startServer.mockRejectedValueOnce(new Error('ipc gone'))

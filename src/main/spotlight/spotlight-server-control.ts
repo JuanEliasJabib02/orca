@@ -10,7 +10,8 @@ import { getLocalPtyProvider } from '../ipc/pty'
 import {
   appendSpotlightLogNote,
   getSpotlightTerminal,
-  restartSpotlightTerminalServer
+  restartSpotlightTerminalServer,
+  stopSpotlightLogCapture
 } from './spotlight-log-mirror'
 import {
   chainSpotlightInstall,
@@ -38,6 +39,7 @@ import {
   resolveSpotlightQueuedLaunchShell
 } from './spotlight-terminal-shell'
 import {
+  isSpotlightTerminalGone,
   readSpotlightTerminal,
   type SpotlightTerminalReading
 } from './spotlight-terminal-inspection'
@@ -84,10 +86,9 @@ export function normalizeSpotlightServerCommand(command: unknown): string | null
   return trimmed && !hasControlChar ? trimmed : null
 }
 
-/** The shell's name when it provably owns the foreground, else null (busy, or unknown). */
-async function findIdleShell(ptyId: string): Promise<string | null> {
-  const reading = await readSpotlightTerminal(ptyId)
-  return reading.kind === 'idle' ? reading.shell : null
+/** The shell provably owns the foreground (not busy, not unknown). */
+async function readsIdle(ptyId: string): Promise<boolean> {
+  return (await readSpotlightTerminal(ptyId)).kind === 'idle'
 }
 
 /** Orca typed a line moments ago: the terminal counts as busy whatever the check says. */
@@ -106,7 +107,8 @@ export function writeToSpotlightTerminal(ptyId: string, data: string): boolean {
 /** Type `command` into the repo's Spotlight terminal when it is idle; a busy terminal (e.g.
  *  a server started by hand) is left alone. The command is kept for later restarts.
  *  `restartIfDifferent`: a busy terminal running Orca's own server for another command is
- *  restarted with this one (a takeover into another environment). */
+ *  restarted with this one (a takeover into another environment). A terminal whose PTY no longer
+ *  exists stops being mirrored and answers `terminal-gone`. */
 export function startSpotlightServer(args: {
   repoId: string
   command: string
@@ -137,14 +139,21 @@ async function startServerNow(
   if (queued === 'unregistered' || queued === 'settling') {
     return BUSY
   }
-  const reading: SpotlightTerminalReading =
-    terminal.restartPending || isSpotlightLaunchSettling(repoId)
-      ? { kind: 'unknown' }
-      : await readSpotlightTerminal(terminal.ptyId)
+  const checked = !terminal.restartPending && !isSpotlightLaunchSettling(repoId)
+  const reading: SpotlightTerminalReading = checked
+    ? await readSpotlightTerminal(terminal.ptyId)
+    : { kind: 'unknown' }
+  // A restored tab may hold a PTY that no longer exists, which reads unknown; its tab must respawn.
+  const gone =
+    checked && reading.kind === 'unknown' && (await isSpotlightTerminalGone(terminal.ptyId))
   // Re-read after the check: Spotlight may have turned off or the PTY been replaced meanwhile.
   const current = getSpotlightTerminal(repoId)
   if (current?.ptyId !== terminal.ptyId) {
     return { ok: false, reason: 'no-terminal' }
+  }
+  if (gone) {
+    stopSpotlightLogCapture({ repoId, ptyId: terminal.ptyId })
+    return { ok: false, reason: 'terminal-gone' }
   }
   // Only busy readings that persist show the queued line ran; until then the shell may be starting.
   if (queued === 'pending' && !noteQueuedLaunchReading(repoId, reading)) {
@@ -158,7 +167,9 @@ async function startServerNow(
     return restartIfDifferent ? replaceOrcaServer(repoId, command) : BUSY
   }
   const idleShell = reading.shell
-  rememberSpotlightTerminalShell(repoId, idleShell)
+  if (idleShell) {
+    rememberSpotlightTerminalShell(repoId, idleShell)
+  }
   const launch = takeSpotlightLaunchLine(repoId, command, idleShell)
   if (!writeToSpotlightTerminal(terminal.ptyId, `${launch}\r`)) {
     // The install never reached the terminal; keep it for the next command Orca types.
@@ -302,7 +313,7 @@ async function restartForLockfileChangeNow(repoId: string): Promise<void> {
   if (
     !terminal ||
     terminal.restartPending ||
-    (!isSpotlightLaunchSettling(repoId) && (await findIdleShell(terminal.ptyId)))
+    (!isSpotlightLaunchSettling(repoId) && (await readsIdle(terminal.ptyId)))
   ) {
     return
   }

@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
+import type { SpotlightServerState } from '../../../../shared/spotlight'
 import type { TerminalTab } from '../../../../shared/terminal-tab-types'
 import {
   holdersByRepo,
@@ -19,7 +20,8 @@ import {
 
 const initialState = useAppStore.getInitialState()
 const roots: Root[] = []
-const hasChildProcesses = vi.fn<(ptyId: string) => Promise<boolean>>()
+const serverState =
+  vi.fn<(args: { repoId: string; ptyId: string }) => Promise<SpotlightServerState>>()
 
 function makeTab(overrides: Partial<TerminalTab> = {}): TerminalTab {
   return {
@@ -96,11 +98,11 @@ describe('useSpotlightServerStatus', () => {
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
     vi.useFakeTimers()
-    hasChildProcesses.mockReset()
-    hasChildProcesses.mockResolvedValue(true)
+    serverState.mockReset()
+    serverState.mockResolvedValue('running')
     Object.defineProperty(window, 'api', {
       configurable: true,
-      value: { pty: { hasChildProcesses } }
+      value: { spotlight: { serverState } }
     })
     useAppStore.setState(initialState, true)
   })
@@ -120,13 +122,13 @@ describe('useSpotlightServerStatus', () => {
 
     const probe = await mountProbe()
 
-    expect(hasChildProcesses).toHaveBeenCalledWith('pty-1')
+    expect(serverState).toHaveBeenCalledWith({ repoId: 'repo-a', ptyId: 'pty-1' })
     expect(probe.latest()).toEqual({ running: true, port: 3000 })
   })
 
-  it('reports the server stopped when the terminal has no child process', async () => {
+  it('reports the server stopped when main reads the shell at its prompt', async () => {
     seedStore()
-    hasChildProcesses.mockResolvedValue(false)
+    serverState.mockResolvedValue('stopped')
 
     const probe = await mountProbe()
 
@@ -146,18 +148,18 @@ describe('useSpotlightServerStatus', () => {
 
     await mountProbe()
     await mountProbe()
-    expect(hasChildProcesses).toHaveBeenCalledTimes(1)
+    expect(serverState).toHaveBeenCalledTimes(1)
 
     await advance(SPOTLIGHT_SERVER_POLL_INTERVAL_MS)
-    expect(hasChildProcesses).toHaveBeenCalledTimes(2)
+    expect(serverState).toHaveBeenCalledTimes(2)
 
     await advance(SPOTLIGHT_SERVER_POLL_INTERVAL_MS)
-    expect(hasChildProcesses).toHaveBeenCalledTimes(3)
+    expect(serverState).toHaveBeenCalledTimes(3)
   })
 
   it('follows the server as it starts and stops', async () => {
     seedStore()
-    hasChildProcesses.mockResolvedValueOnce(false)
+    serverState.mockResolvedValueOnce('stopped')
 
     const probe = await mountProbe()
     expect(probe.latest()?.running).toBe(false)
@@ -173,11 +175,11 @@ describe('useSpotlightServerStatus', () => {
 
     await first.unmount()
     await advance(SPOTLIGHT_SERVER_POLL_INTERVAL_MS)
-    expect(hasChildProcesses).toHaveBeenCalledTimes(2)
+    expect(serverState).toHaveBeenCalledTimes(2)
 
     await second.unmount()
     await advance(SPOTLIGHT_SERVER_POLL_INTERVAL_MS * 3)
-    expect(hasChildProcesses).toHaveBeenCalledTimes(2)
+    expect(serverState).toHaveBeenCalledTimes(2)
   })
 
   it('does not poll while the repo has no Spotlight', async () => {
@@ -186,7 +188,7 @@ describe('useSpotlightServerStatus', () => {
     const probe = await mountProbe()
     await advance(SPOTLIGHT_SERVER_POLL_INTERVAL_MS * 3)
 
-    expect(hasChildProcesses).not.toHaveBeenCalled()
+    expect(serverState).not.toHaveBeenCalled()
     expect(probe.latest()?.running).toBeNull()
   })
 
@@ -196,7 +198,7 @@ describe('useSpotlightServerStatus', () => {
     const probe = await mountProbe()
     await advance(SPOTLIGHT_SERVER_POLL_INTERVAL_MS * 3)
 
-    expect(hasChildProcesses).not.toHaveBeenCalled()
+    expect(serverState).not.toHaveBeenCalled()
     expect(probe.latest()?.running).toBeNull()
   })
 
@@ -207,7 +209,7 @@ describe('useSpotlightServerStatus', () => {
 
     await mountProbe()
 
-    expect(hasChildProcesses).not.toHaveBeenCalled()
+    expect(serverState).not.toHaveBeenCalled()
   })
 
   it('does not poll when the row opts out', async () => {
@@ -216,7 +218,7 @@ describe('useSpotlightServerStatus', () => {
     const probe = await mountProbe({ enabled: false })
     await advance(SPOTLIGHT_SERVER_POLL_INTERVAL_MS * 2)
 
-    expect(hasChildProcesses).not.toHaveBeenCalled()
+    expect(serverState).not.toHaveBeenCalled()
     expect(probe.latest()).toEqual({ running: null, port: undefined })
   })
 
@@ -230,7 +232,7 @@ describe('useSpotlightServerStatus', () => {
     })
     await advance(SPOTLIGHT_SERVER_POLL_INTERVAL_MS * 3)
 
-    expect(hasChildProcesses).toHaveBeenCalledTimes(1)
+    expect(serverState).toHaveBeenCalledTimes(1)
     expect(probe.latest()?.running).toBeNull()
   })
 
@@ -243,14 +245,14 @@ describe('useSpotlightServerStatus', () => {
     })
     await advance(SPOTLIGHT_SERVER_POLL_INTERVAL_MS)
 
-    expect(hasChildProcesses).toHaveBeenCalledWith('pty-2')
-    const callsForOldPty = hasChildProcesses.mock.calls.filter(([id]) => id === 'pty-1')
+    expect(serverState).toHaveBeenCalledWith({ repoId: 'repo-a', ptyId: 'pty-2' })
+    const callsForOldPty = serverState.mock.calls.filter(([args]) => args.ptyId === 'pty-1')
     expect(callsForOldPty).toHaveLength(1)
   })
 
   it('reports unknown when the check fails, then recovers', async () => {
     seedStore()
-    hasChildProcesses.mockResolvedValueOnce(true).mockRejectedValueOnce(new Error('pty gone'))
+    serverState.mockResolvedValueOnce('running').mockRejectedValueOnce(new Error('pty gone'))
 
     const probe = await mountProbe()
     expect(probe.latest()?.running).toBe(true)
@@ -262,13 +264,51 @@ describe('useSpotlightServerStatus', () => {
     expect(probe.latest()?.running).toBe(true)
   })
 
+  it('reports unknown when main cannot read the terminal', async () => {
+    seedStore()
+    serverState.mockResolvedValue('unknown')
+
+    const probe = await mountProbe()
+
+    expect(probe.latest()?.running).toBeNull()
+  })
+
+  it('checks every repo on one shared tick', async () => {
+    seedStore({
+      repos: [makeSpotlightRepo('repo-a'), makeSpotlightRepo('repo-b')],
+      worktreesByRepo: {
+        'repo-a': [
+          makeTaskWorktree('main-1', 'repo-a', { isMainWorktree: true }),
+          makeTaskWorktree('feature-1', 'repo-a')
+        ],
+        'repo-b': [
+          makeTaskWorktree('main-2', 'repo-b', { isMainWorktree: true }),
+          makeTaskWorktree('feature-2', 'repo-b')
+        ]
+      },
+      tabsByWorktree: {
+        'main-1': [makeTab()],
+        'main-2': [makeTab({ id: 'tab-2', worktreeId: 'main-2', ptyId: 'pty-2' })]
+      },
+      spotlightByRepo: holdersByRepo({ 'repo-a': 'feature-1', 'repo-b': 'feature-2' })
+    })
+    await mountProbe()
+    await advance(SPOTLIGHT_SERVER_POLL_INTERVAL_MS / 2)
+    await mountProbe({ repoId: 'repo-b' })
+    serverState.mockClear()
+
+    await advance(SPOTLIGHT_SERVER_POLL_INTERVAL_MS / 2)
+
+    expect(serverState.mock.calls.map(([args]) => args.ptyId).sort()).toEqual(['pty-1', 'pty-2'])
+  })
+
   it('does not stack checks while one is still pending', async () => {
     seedStore()
-    hasChildProcesses.mockReturnValue(new Promise(() => {}))
+    serverState.mockReturnValue(new Promise(() => {}))
 
     await mountProbe()
     await advance(SPOTLIGHT_SERVER_POLL_INTERVAL_MS * 3)
 
-    expect(hasChildProcesses).toHaveBeenCalledTimes(1)
+    expect(serverState).toHaveBeenCalledTimes(1)
   })
 })

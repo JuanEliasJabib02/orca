@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
 import type { Repo } from '../../../../shared/repo-types'
+import type { SpotlightServerState } from '../../../../shared/spotlight'
 import type { TerminalTab } from '../../../../shared/terminal-tab-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 import {
@@ -28,7 +29,8 @@ vi.mock('@/components/ui/tooltip', () => ({
 
 const initialState = useAppStore.getInitialState()
 const roots: Root[] = []
-const hasChildProcesses = vi.fn<(ptyId: string) => Promise<boolean>>()
+const serverState =
+  vi.fn<(args: { repoId: string; ptyId: string }) => Promise<SpotlightServerState>>()
 
 const HOLDER = makeTaskWorktree('feature-1', 'repo-a')
 const OTHER = makeTaskWorktree('feature-2', 'repo-a')
@@ -98,11 +100,11 @@ function tooltipText(container: HTMLElement): string {
 describe('Spotlight server status on the flashlight', () => {
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
-    hasChildProcesses.mockReset()
-    hasChildProcesses.mockResolvedValue(true)
+    serverState.mockReset()
+    serverState.mockResolvedValue('running')
     Object.defineProperty(window, 'api', {
       configurable: true,
-      value: { pty: { hasChildProcesses } }
+      value: { spotlight: { serverState } }
     })
     useAppStore.setState(initialState, true)
   })
@@ -141,7 +143,7 @@ describe('Spotlight server status on the flashlight', () => {
 
     it('shows a stopped dot when the terminal runs nothing', async () => {
       seedStore()
-      hasChildProcesses.mockResolvedValue(false)
+      serverState.mockResolvedValue('stopped')
 
       const container = await quickAction(HOLDER)
 
@@ -151,7 +153,7 @@ describe('Spotlight server status on the flashlight', () => {
 
     it('shows no dot and no server text while the state is unknown', async () => {
       seedStore()
-      hasChildProcesses.mockRejectedValue(new Error('pty gone'))
+      serverState.mockRejectedValue(new Error('pty gone'))
 
       const container = await quickAction(HOLDER)
 
@@ -174,7 +176,7 @@ describe('Spotlight server status on the flashlight', () => {
 
       expect(dot(container)).toBeNull()
       expect(tooltipText(container)).not.toContain('Server')
-      expect(hasChildProcesses).not.toHaveBeenCalled()
+      expect(serverState).not.toHaveBeenCalled()
     })
 
     it('looks unchanged when the repo has no Spotlight', async () => {
@@ -184,7 +186,7 @@ describe('Spotlight server status on the flashlight', () => {
 
       expect(dot(container)).toBeNull()
       expect(tooltipText(container)).not.toContain('Server')
-      expect(hasChildProcesses).not.toHaveBeenCalled()
+      expect(serverState).not.toHaveBeenCalled()
     })
   })
 
@@ -206,7 +208,7 @@ describe('Spotlight server status on the flashlight', () => {
 
     it('shows a stopped dot', async () => {
       seedStore()
-      hasChildProcesses.mockResolvedValue(false)
+      serverState.mockResolvedValue('stopped')
 
       const container = await render(<SpotlightPrimaryBadge repo={repoOf(HOLDER)} />)
 
@@ -216,7 +218,7 @@ describe('Spotlight server status on the flashlight', () => {
 
     it('shows no dot while the state is unknown', async () => {
       seedStore()
-      hasChildProcesses.mockRejectedValue(new Error('pty gone'))
+      serverState.mockRejectedValue(new Error('pty gone'))
 
       const container = await render(<SpotlightPrimaryBadge repo={repoOf(HOLDER)} />)
 
@@ -233,7 +235,7 @@ describe('Spotlight server status on the flashlight', () => {
       const container = await render(<SpotlightPrimaryBadge repo={repoOf(HOLDER)} />)
 
       expect(container.innerHTML).toBe('')
-      expect(hasChildProcesses).not.toHaveBeenCalled()
+      expect(serverState).not.toHaveBeenCalled()
     })
 
     it('polls once for the badge and the holder flashlight together', async () => {
@@ -246,7 +248,7 @@ describe('Spotlight server status on the flashlight', () => {
         </>
       )
 
-      expect(hasChildProcesses).toHaveBeenCalledTimes(1)
+      expect(serverState).toHaveBeenCalledTimes(1)
     })
   })
 })

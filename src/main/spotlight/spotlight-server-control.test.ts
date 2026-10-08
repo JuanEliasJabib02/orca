@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import nodePath from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { PtyProcessInspection } from '../providers/pty-process-inspection'
 
 const fakePty = vi.hoisted(() => {
   const writes: { id: string; data: string }[] = []
@@ -13,6 +14,7 @@ const fakePty = vi.hoisted(() => {
     }),
     hasChildProcesses: vi.fn(async (_id: string): Promise<boolean> => false),
     getForegroundProcess: vi.fn(async (_id: string): Promise<string | null> => 'zsh'),
+    inspectProcess: vi.fn<(id: string, options?: unknown) => Promise<PtyProcessInspection>>(),
     confirmShellForeground: undefined as ((id: string) => Promise<boolean>) | undefined,
     onData: vi.fn(() => () => {})
   }
@@ -27,6 +29,7 @@ vi.mock('../git/runner', () => ({
   gitExecFileAsync: vi.fn(async () => ({ stdout: '.git/info/exclude', stderr: '' }))
 }))
 
+import { inspectFakeSpotlightPty } from './spotlight-terminal-test-pty'
 import {
   clearSpotlightInstallPending,
   isSpotlightInstallPending,
@@ -80,6 +83,8 @@ beforeEach(async () => {
   fakePty.hasChildProcesses.mockResolvedValue(false)
   fakePty.getForegroundProcess.mockReset()
   fakePty.getForegroundProcess.mockResolvedValue('zsh')
+  fakePty.inspectProcess.mockReset()
+  fakePty.inspectProcess.mockImplementation((id: string) => inspectFakeSpotlightPty(fakePty, id))
   fakePty.confirmShellForeground = undefined
   root = mkdtempSync(nodePath.join(tmpdir(), 'orca-spotlight-server-'))
   await startSpotlightLogCapture({ repoId: REPO_ID, ptyId: PTY_ID, rootPath: root })

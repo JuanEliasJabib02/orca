@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
   startSpotlightLogCapture: vi.fn(async (_args: unknown) => {}),
   stopSpotlightLogCapture: vi.fn<(args: { repoId: string; ptyId?: string }) => void>(),
   watchLateSpotlightTerminal: vi.fn<(repoId: string, ptyId: string) => void>(),
-  startSpotlightServer: vi.fn(async (_args: unknown) => ({ ok: true, started: true }))
+  startSpotlightServer: vi.fn(async (_args: unknown) => ({ ok: true, started: true })),
+  getSpotlightTerminal: vi.fn<(repoId: string) => { ptyId: string } | null>(),
+  readSpotlightServerState: vi.fn(async (_ptyId: string) => 'running')
 }))
 
 vi.mock('electron', () => ({
@@ -29,6 +31,7 @@ vi.mock('../spotlight/spotlight-service', () => ({
 }))
 
 vi.mock('../spotlight/spotlight-log-mirror', () => ({
+  getSpotlightTerminal: mocks.getSpotlightTerminal,
   startSpotlightLogCapture: mocks.startSpotlightLogCapture,
   stopSpotlightLogCapture: mocks.stopSpotlightLogCapture
 }))
@@ -38,6 +41,10 @@ vi.mock('../spotlight/spotlight-server-control', () => ({
   prepareSpotlightServerLaunch: mocks.prepareSpotlightServerLaunch,
   startSpotlightServer: mocks.startSpotlightServer,
   trackRegisteredSpotlightLaunch: mocks.trackRegisteredSpotlightLaunch
+}))
+
+vi.mock('../spotlight/spotlight-terminal-inspection', () => ({
+  readSpotlightServerState: mocks.readSpotlightServerState
 }))
 
 vi.mock('../spotlight/spotlight-server-turn-off', () => ({
@@ -65,6 +72,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.getState.mockReturnValue({ holderWorktreeId: 'wt-1' })
   mocks.prepareSpotlightServerLaunch.mockResolvedValue('pnpm local')
+  mocks.getSpotlightTerminal.mockReturnValue({ ptyId: 'pty-1' })
   const store = { getRepo: (repoId: string) => REPOS.get(repoId) }
   // @ts-expect-error minimal window and store fakes; the handlers only read these members
   registerSpotlightHandlers({ isDestroyed: () => false }, store)
@@ -193,5 +201,39 @@ describe('spotlight:startServer', () => {
       await invoke('spotlight:startServer', { repoId: LOCAL_REPO.id, command: 'pnpm dev' })
     ).toEqual({ ok: false, reason: 'not-active' })
     expect(mocks.startSpotlightServer).not.toHaveBeenCalled()
+  })
+})
+
+describe('spotlight:serverState', () => {
+  it('reads the registered Spotlight terminal of an active local Spotlight', async () => {
+    expect(await invoke('spotlight:serverState', { repoId: LOCAL_REPO.id, ptyId: 'pty-1' })).toBe(
+      'running'
+    )
+    expect(mocks.readSpotlightServerState).toHaveBeenCalledWith('pty-1')
+  })
+
+  it('answers unknown for any other PTY, without reading it', async () => {
+    expect(await invoke('spotlight:serverState', { repoId: LOCAL_REPO.id, ptyId: 'pty-9' })).toBe(
+      'unknown'
+    )
+    mocks.getSpotlightTerminal.mockReturnValue(null)
+    expect(await invoke('spotlight:serverState', { repoId: LOCAL_REPO.id, ptyId: 'pty-1' })).toBe(
+      'unknown'
+    )
+    expect(mocks.readSpotlightServerState).not.toHaveBeenCalled()
+  })
+
+  it('answers unknown while Spotlight is off, or for SSH and unknown repos', async () => {
+    expect(await invoke('spotlight:serverState', { repoId: SSH_REPO.id, ptyId: 'pty-1' })).toBe(
+      'unknown'
+    )
+    expect(await invoke('spotlight:serverState', { repoId: 'missing', ptyId: 'pty-1' })).toBe(
+      'unknown'
+    )
+    mocks.getState.mockReturnValue(null)
+    expect(await invoke('spotlight:serverState', { repoId: LOCAL_REPO.id, ptyId: 'pty-1' })).toBe(
+      'unknown'
+    )
+    expect(mocks.readSpotlightServerState).not.toHaveBeenCalled()
   })
 })

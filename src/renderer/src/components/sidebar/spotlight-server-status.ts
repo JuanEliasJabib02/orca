@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
+import type { SpotlightServerState } from '../../../../shared/spotlight'
 
 export const SPOTLIGHT_SERVER_POLL_INTERVAL_MS = 3000
 
@@ -11,15 +12,17 @@ export type SpotlightServerStatus = {
 }
 
 type PollEntry = {
+  repoId: string
   running: boolean | null
   listeners: Set<() => void>
-  timer: ReturnType<typeof setInterval>
   inFlight: boolean
 }
 
 // Keyed by PTY: a repo has one Spotlight terminal, so one PTY is one poll no
 // matter how many rows show its status.
 const entries = new Map<string, PollEntry>()
+// One timer for every repo, so their checks land together and share the host's process-table read.
+let pollTimer: ReturnType<typeof setInterval> | null = null
 
 const NOOP = (): void => {}
 
@@ -40,6 +43,10 @@ export function findSpotlightTerminalPtyId(
   return tab?.ptyId ?? null
 }
 
+function toRunning(state: SpotlightServerState): boolean | null {
+  return state === 'running' ? true : state === 'stopped' ? false : null
+}
+
 async function pollOnce(ptyId: string, entry: PollEntry): Promise<void> {
   if (entry.inFlight) {
     return
@@ -47,7 +54,8 @@ async function pollOnce(ptyId: string, entry: PollEntry): Promise<void> {
   entry.inFlight = true
   let next: boolean | null
   try {
-    next = await window.api.pty.hasChildProcesses(ptyId)
+    // Main reads process groups: a `sh` script (a `pnpm` shim) running there counts as running.
+    next = toRunning(await window.api.spotlight.serverState({ repoId: entry.repoId, ptyId }))
   } catch {
     next = null
   }
@@ -62,17 +70,19 @@ async function pollOnce(ptyId: string, entry: PollEntry): Promise<void> {
   }
 }
 
-function subscribeToServerStatus(ptyId: string, listener: () => void): () => void {
+function pollAll(): void {
+  for (const [ptyId, entry] of entries) {
+    void pollOnce(ptyId, entry)
+  }
+}
+
+function subscribeToServerStatus(repoId: string, ptyId: string, listener: () => void): () => void {
   let entry = entries.get(ptyId)
   if (!entry) {
-    const created: PollEntry = {
-      running: null,
-      listeners: new Set(),
-      timer: setInterval(() => void pollOnce(ptyId, created), SPOTLIGHT_SERVER_POLL_INTERVAL_MS),
-      inFlight: false
-    }
+    const created: PollEntry = { repoId, running: null, listeners: new Set(), inFlight: false }
     entries.set(ptyId, created)
     entry = created
+    pollTimer ??= setInterval(pollAll, SPOTLIGHT_SERVER_POLL_INTERVAL_MS)
     void pollOnce(ptyId, created)
   }
   entry.listeners.add(listener)
@@ -82,9 +92,12 @@ function subscribeToServerStatus(ptyId: string, listener: () => void): () => voi
     if (subscribed.listeners.size > 0) {
       return
     }
-    clearInterval(subscribed.timer)
     if (entries.get(ptyId) === subscribed) {
       entries.delete(ptyId)
+    }
+    if (entries.size === 0 && pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = null
     }
   }
 }
@@ -93,8 +106,8 @@ function readServerRunning(ptyId: string | null): boolean | null {
   return ptyId ? (entries.get(ptyId)?.running ?? null) : null
 }
 
-/** Whether the repo's dev server runs in its Spotlight terminal, polled from the
- *  PTY's child processes. Pass `enabled: false` from rows that don't show it so
+/** Whether the repo's dev server runs in its Spotlight terminal, polled from main's
+ *  reading of that terminal. Pass `enabled: false` from rows that don't show it so
  *  they neither poll nor re-render on its changes. */
 export function useSpotlightServerStatus(repoId: string, enabled = true): SpotlightServerStatus {
   const ptyId = useAppStore((s) => (enabled ? findSpotlightTerminalPtyId(s, repoId) : null))
@@ -102,8 +115,8 @@ export function useSpotlightServerStatus(repoId: string, enabled = true): Spotli
     enabled ? s.repos?.find((repo) => repo.id === repoId)?.spotlightServer?.port : undefined
   )
   const subscribe = useCallback(
-    (listener: () => void) => (ptyId ? subscribeToServerStatus(ptyId, listener) : NOOP),
-    [ptyId]
+    (listener: () => void) => (ptyId ? subscribeToServerStatus(repoId, ptyId, listener) : NOOP),
+    [repoId, ptyId]
   )
   const running = useSyncExternalStore(
     subscribe,

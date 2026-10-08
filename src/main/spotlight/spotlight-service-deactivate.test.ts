@@ -2,6 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import nodePath from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { PtyProcessInspection } from '../providers/pty-process-inspection'
 import type { SpotlightRepoState } from '../../shared/spotlight'
 import type * as SpotlightSyncCore from '../../shared/spotlight-sync-core'
 import type { Store } from '../persistence'
@@ -16,6 +17,7 @@ const fakePty = vi.hoisted(() => {
     }),
     hasChildProcesses: vi.fn(async (_id: string): Promise<boolean> => false),
     getForegroundProcess: vi.fn(async (_id: string): Promise<string | null> => 'zsh'),
+    inspectProcess: vi.fn<(id: string, options?: unknown) => Promise<PtyProcessInspection>>(),
     onData: vi.fn(() => () => {})
   }
 })
@@ -49,6 +51,7 @@ vi.mock('../../shared/spotlight-sync-core', async (importOriginal) => ({
   }))
 }))
 
+import { inspectFakeSpotlightPty } from './spotlight-terminal-test-pty'
 import {
   assertSpotlightDeactivatableCore,
   deactivateSpotlightCore,
@@ -105,6 +108,8 @@ beforeEach(async () => {
   fakePty.hasChildProcesses.mockResolvedValue(false)
   fakePty.getForegroundProcess.mockReset()
   fakePty.getForegroundProcess.mockResolvedValue('zsh')
+  fakePty.inspectProcess.mockReset()
+  fakePty.inspectProcess.mockImplementation((id: string) => inspectFakeSpotlightPty(fakePty, id))
   root = mkdtempSync(nodePath.join(tmpdir(), 'orca-spotlight-deactivate-'))
   state = {
     repoId: REPO_ID,

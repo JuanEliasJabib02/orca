@@ -1,7 +1,11 @@
-import type { PtyChildProcessVerdict } from '../../shared/terminal-process-inspection'
+import type {
+  PtyChildProcessVerdict,
+  PtyForegroundGroup
+} from '../../shared/terminal-process-inspection'
 import { recognizeAgentProcessFromCommandLine } from '../../shared/agent-process-recognition'
 import { getCheapProcessTableSnapshot } from '../../shared/cheap-process-table-snapshot-reader'
 import {
+  getFreshShellForegroundSnapshot,
   getProcessTableSnapshot,
   getStrictProcessTableSnapshotWithAge
 } from '../../shared/process-table-snapshot-reader'
@@ -15,6 +19,7 @@ import {
   inspectSpawnFileWindowsChildProcesses
 } from '../daemon/pty-subprocess/spawn-file-child-processes'
 import { buildPaneProcessFingerprint } from './posix-pane-foreground-fingerprint'
+import { resolvePtyForegroundGroup } from './posix-shell-foreground-group'
 import { isRetiredPtyMaster } from '../pty/node-pty-master-fd-retirement'
 import { ptyShellProcessId } from '../windows/windows-pty-job'
 import { resolveForegroundFallbackProcess } from './local-pty-launch-helpers'
@@ -297,4 +302,19 @@ export async function confirmLocalPtyShellForeground(id: string): Promise<boolea
       : {}
   )
   return ptyProcesses.get(id) === proc && confirmed
+}
+
+/** POSIX only, from a capture taken after the call; null when it can't be read for this pane. */
+export async function readLocalPtyForegroundGroup(id: string): Promise<PtyForegroundGroup | null> {
+  const proc = ptyProcesses.get(id)
+  if (!proc || process.platform === 'win32' || isRetiredPtyMaster(proc)) {
+    return null
+  }
+  try {
+    const group = resolvePtyForegroundGroup(await getFreshShellForegroundSnapshot(), proc.pid)
+    // A capture can outlive this PTY id; never answer for a replacement pane.
+    return ptyProcesses.get(id) === proc ? group : null
+  } catch {
+    return null
+  }
 }

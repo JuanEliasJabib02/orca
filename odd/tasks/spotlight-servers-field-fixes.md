@@ -31,12 +31,11 @@ Diagnosis, all read-only:
 
 ## Tasks
 
-- [ ] **1. A + B: real idle detection and dead-terminal respawn** (one coder: they share
-  server control and the autostart path)
+- [x] **1. A + B: real idle detection and dead-terminal respawn** (coder opus; idle = foreground group is the shell's own group via process table, `foregroundGroup` on the inspect response; dead PTY → `terminal-gone` → `clearTabPtyId` → queued respawn; flashlight via gated `spotlight:serverState`)
   - Check: unit tests for a `sh`/`bash` child in the foreground → busy, prompt → idle,
     turn-off Ctrl-C, flashlight status; dead PTY → no-terminal → stale `ptyId` cleared →
     prepare/queue/background mount.
-- [ ] **2. C: log mirror receives output from unattached terminals**
+- [x] **2. C: log mirror receives output from unattached terminals** (coder opus, `681d13cf0e`; daemon streams only to attached clients and nothing re-attached background Spotlight sessions after a restart → mirror reads the runtime data feed via a non-view output observer that triggers the existing subscriber-driven attach)
   - Check: a test proving data from a background (unattached) daemon session reaches the
     mirror; the existing log-mirror tests stay green.
 

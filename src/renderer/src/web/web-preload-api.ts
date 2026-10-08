@@ -99,6 +99,7 @@ function createWebPreloadApi(): Partial<PreloadApi> {
       startServer: async () => ({ ok: false, reason: 'not-active' }),
       prepareServerLaunch: async () => null,
       cancelPreparedServerLaunch: async () => {},
+      serverState: async () => 'unknown',
       onChanged: () => () => {}
     },
     worktrees: createWorktreesApi(),

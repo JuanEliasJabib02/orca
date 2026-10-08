@@ -146,26 +146,22 @@ function spawnInBackground(
   }
 }
 
-/**
- * Opens the repo's Spotlight terminal after a successful activation and starts its server there.
- * A terminal that must spawn gets the command queued before its pane can mount; a live one gets
- * it typed by main. Never throws for the server part: a failure leaves just the terminal.
- */
-export async function openSpotlightTerminalAndStartServer(args: {
-  repoId: string
-  worktreeId: string
-}): Promise<SpotlightActivationTerminal> {
-  const { repoId, worktreeId } = args
-  let command: string | null = null
-  try {
-    command = await resolveSpotlightActivationCommand(repoId, worktreeId)
-  } catch (error) {
-    console.warn('[spotlight] Could not resolve the server command:', error)
-  }
-  if (!command) {
-    return { opened: openSpotlightTerminalTab({ repoId, reveal: false }), server: NO_SERVER }
-  }
+type OpenAndStartOutcome = {
+  activation: SpotlightActivationTerminal
+  /** Main says the tab's PTY no longer exists, so nothing was typed. */
+  deadPtyId: string | null
+}
 
+/** One pass: a terminal that must spawn gets the command queued before its pane can mount; a live
+ *  one gets it typed by main. */
+async function openAndStart(repoId: string, command: string): Promise<OpenAndStartOutcome> {
+  const done = (
+    opened: OpenSpotlightTerminalTabResult,
+    server = NO_SERVER
+  ): OpenAndStartOutcome => ({
+    activation: { opened, server },
+    deadPtyId: null
+  })
   const plan = planSpotlightTerminal(useAppStore.getState(), repoId)
   // Why before opening: the async prepare must finish so the tab is created and queued in one tick.
   const launch =
@@ -182,19 +178,62 @@ export async function openSpotlightTerminalAndStartServer(args: {
     await cancelPreparedLaunch(repoId)
   }
   if (!opened.ok) {
-    return { opened, server: NO_SERVER }
+    return done(opened)
   }
   if (opened.startupQueued) {
     spawnInBackground(repoId, command, opened.worktreeId, opened.tabId)
-    return { opened, server: { kind: 'queued', command } }
+    return done(opened, { kind: 'queued', command })
   }
   if (opened.ptyId === null) {
     // Prepare was refused (Spotlight went off meanwhile); the tab spawns idle when visited.
-    return { opened, server: NO_SERVER }
+    return done(opened)
   }
   // Live PTY (or one that bound while preparing): main can type only once it mirrors it.
   await opened.logPtyRegistered
-  return { opened, server: describeStart(await startServerInTerminal(repoId, command), command) }
+  const result = await startServerInTerminal(repoId, command)
+  if (result?.ok === false && result.reason === 'terminal-gone') {
+    return { activation: { opened, server: NO_SERVER }, deadPtyId: opened.ptyId }
+  }
+  return done(opened, describeStart(result, command))
+}
+
+/** Forget a PTY main proved gone, exactly as its exit would, so the tab spawns a new one. */
+function forgetDeadPty(tabId: string, ptyId: string): boolean {
+  try {
+    useAppStore.getState().clearTabPtyId(tabId, ptyId)
+    return true
+  } catch (error) {
+    console.warn('[spotlight] Could not forget the dead Spotlight terminal PTY:', error)
+    return false
+  }
+}
+
+/**
+ * Opens the repo's Spotlight terminal after a successful activation and starts its server there.
+ * A tab restored with a PTY that no longer exists is respawned with the command queued, like a new
+ * one. Never throws for the server part: a failure leaves just the terminal.
+ */
+export async function openSpotlightTerminalAndStartServer(args: {
+  repoId: string
+  worktreeId: string
+}): Promise<SpotlightActivationTerminal> {
+  const { repoId, worktreeId } = args
+  let command: string | null = null
+  try {
+    command = await resolveSpotlightActivationCommand(repoId, worktreeId)
+  } catch (error) {
+    console.warn('[spotlight] Could not resolve the server command:', error)
+  }
+  if (!command) {
+    return { opened: openSpotlightTerminalTab({ repoId, reveal: false }), server: NO_SERVER }
+  }
+  const first = await openAndStart(repoId, command)
+  const { opened } = first.activation
+  if (first.deadPtyId === null || !opened.ok || !forgetDeadPty(opened.tabId, first.deadPtyId)) {
+    return first.activation
+  }
+  // Once only: a PTY the store won't let go of answers gone again and is left as it is.
+  return (await openAndStart(repoId, command)).activation
 }
 
 /**

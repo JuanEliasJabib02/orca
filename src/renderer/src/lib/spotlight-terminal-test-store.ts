@@ -111,6 +111,7 @@ type SpotlightTerminalTestActions = {
     (tabId: string, expected?: { command: string }) => { command: string } | null
   >
   queueTabInitialCwd: Mock<(tabId: string, cwd: string) => void>
+  clearTabPtyId: Mock<(tabId: string, ptyId?: string) => void>
   markTabSpotlightRepoRoot: Mock<(tabId: string) => void>
   setTabCustomTitle: Mock<(...args: unknown[]) => void>
   setActiveTabForWorktree: Mock<(...args: unknown[]) => void>
@@ -157,6 +158,18 @@ function createActions(): SpotlightTerminalTestActions {
     ),
     queueTabInitialCwd: vi.fn((tabId: string, cwd: string) => {
       setState({ pendingInitialCwdByTabId: { ...state.pendingInitialCwdByTabId, [tabId]: cwd } })
+    }),
+    clearTabPtyId: vi.fn((tabId: string, ptyId?: string) => {
+      spotlightTerminalEvents.push('clearPty')
+      for (const worktreeId of Object.keys(state.tabsByWorktree)) {
+        updateTabs(worktreeId, (tabs) =>
+          tabs.map((tab) =>
+            tab.id === tabId && (ptyId === undefined || tab.ptyId === ptyId)
+              ? { ...tab, ptyId: null }
+              : tab
+          )
+        )
+      }
     }),
     markTabSpotlightRepoRoot: vi.fn((tabId: string) => {
       for (const worktreeId of Object.keys(state.tabsByWorktree)) {

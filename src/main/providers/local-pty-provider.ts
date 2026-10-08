@@ -10,10 +10,11 @@ import {
   confirmLocalPtyShellForeground,
   getLocalPtyForegroundProcess,
   hasLocalPtyChildProcesses,
-  inspectLocalPtyChildProcesses
+  inspectLocalPtyChildProcesses,
+  readLocalPtyForegroundGroup
 } from './local-pty-foreground-inspection'
 import type { LocalPtyProviderOptions } from './local-pty-provider-types'
-import type { PtyProcessInspection } from './pty-process-inspection'
+import type { PtyProcessInspection, PtyProcessInspectionOptions } from './pty-process-inspection'
 import type { TerminalOscColorQueryReplyColors } from '../../shared/terminal-osc-color-reply'
 import {
   _resetPtyOwnerHostColorsForTest,
@@ -139,10 +140,17 @@ export class LocalPtyProvider implements IPtyProvider {
     return hasLocalPtyChildProcesses(id)
   }
 
-  async inspectProcess(id: string): Promise<PtyProcessInspection> {
+  async inspectProcess(
+    id: string,
+    options?: PtyProcessInspectionOptions
+  ): Promise<PtyProcessInspection> {
     const proc = ptyProcesses.get(id)
     const foregroundProcess = await getLocalPtyForegroundProcess(id)
     const childProcessEvidence = await inspectLocalPtyChildProcesses(id)
+    // Only on request: it costs a whole process-table read here.
+    const foregroundGroup = options?.observeForegroundGroup
+      ? await readLocalPtyForegroundGroup(id)
+      : null
     // Neither asynchronous inspection may publish a replacement pane's identity.
     if (ptyProcesses.get(id) !== proc) {
       return {
@@ -154,7 +162,8 @@ export class LocalPtyProvider implements IPtyProvider {
     return {
       foregroundProcess,
       hasChildProcesses: childProcessEvidence !== 'no-children',
-      childProcessEvidence
+      childProcessEvidence,
+      ...(foregroundGroup === null ? {} : { foregroundGroup })
     }
   }
 

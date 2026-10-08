@@ -1,11 +1,15 @@
 import { isShellProcess } from '../../shared/agent-detection'
 import { recognizeAgentProcess } from '../../shared/agent-process-recognition'
-import type { PtyChildProcessVerdict } from '../../shared/terminal-process-inspection'
+import type {
+  PtyChildProcessVerdict,
+  PtyForegroundGroup
+} from '../../shared/terminal-process-inspection'
 import type { RemoteForegroundEvidence } from '../../shared/foreground-process-evidence'
 import { getCheapProcessTableSnapshot } from '../../shared/cheap-process-table-snapshot-reader'
 import { getStrictProcessTableSnapshotWithAge } from '../../shared/process-table-snapshot-reader'
 import { resolveRemoteForegroundEvidence } from '../providers/agent-foreground-process'
 import { buildPaneProcessFingerprint } from '../providers/posix-pane-foreground-fingerprint'
+import { resolvePtyForegroundGroup } from '../providers/posix-shell-foreground-group'
 import type { Session } from './session'
 import { resolveSpawnFileForegroundFromRows } from './pty-subprocess/spawn-file-foreground-process'
 import { inspectSpawnFileChildProcessesFromRows } from './pty-subprocess/spawn-file-child-processes'
@@ -20,6 +24,7 @@ export type TerminalHostProcessInspection = {
   foregroundProcess: string | null
   hasChildProcesses: boolean
   childProcessEvidence?: PtyChildProcessVerdict
+  foregroundGroup?: PtyForegroundGroup
   foregroundProcessEvidence?: RemoteForegroundEvidence
 }
 
@@ -89,6 +94,7 @@ export async function inspectTerminalHostProcess(args: {
     childProcessEvidence = session.inspectChildProcesses()
   }
   let evidence: RemoteForegroundEvidence
+  let foregroundGroup: PtyForegroundGroup | null = null
   if (!incarnationMatches) {
     evidence = unverifiableEvidence(args, session, 'incarnation_mismatch')
   } else {
@@ -118,6 +124,9 @@ export async function inspectTerminalHostProcess(args: {
         },
         snapshot.rows
       )
+      // Free with the capture already paid for; tells a `sh` script running in front from a prompt.
+      foregroundGroup =
+        process.platform === 'win32' ? null : resolvePtyForegroundGroup(snapshot.rows, session.pid)
       await rememberSteadyStateAnchor(session, evidence, snapshot.rows)
     } catch {
       evidence = unverifiableEvidence(args, session, 'process_table_unreadable')
@@ -138,6 +147,7 @@ export async function inspectTerminalHostProcess(args: {
         ? nonShellForeground
         : childProcessEvidence !== 'no-children',
     ...(childProcessEvidence === undefined ? {} : { childProcessEvidence }),
+    ...(foregroundGroup === null ? {} : { foregroundGroup }),
     foregroundProcessEvidence: evidence
   }
 }

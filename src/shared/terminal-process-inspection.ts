@@ -10,6 +10,14 @@ import type { RemoteForegroundEvidence } from './foreground-process-evidence'
  */
 export type PtyChildProcessVerdict = 'children' | 'no-children' | 'unverifiable'
 
+/**
+ * Which process group owns a POSIX PTY's terminal foreground (its `tpgid`): the PTY's own shell's
+ * group (`shell`, a free prompt), or any other (`job`: a command runs in front, even a `sh` script,
+ * or a job sits stopped). The shell is found by process ids in the PTY's tree, never by the
+ * foreground's name. Readers must treat absence, or an arm they don't know, as unobserved.
+ */
+export type PtyForegroundGroup = 'shell' | 'job'
+
 /** Reasons the renderer could not observe the execution host. */
 export type ClientOnlyUnverifiableReason =
   | 'transport_loss'
@@ -28,6 +36,7 @@ export type ClientOnlyUnverifiableInspection = {
   reason: string
   foregroundProcessEvidence?: never
   childProcessEvidence?: never
+  foregroundGroup?: never
   authorityGeneration?: never
   observationEpoch?: never
   capturedAgeMs?: never
@@ -43,6 +52,8 @@ export type HostProcessInspection = {
   foregroundProcessEvidence?: RemoteForegroundEvidence
   /** Absent on hosts that predate the member, and on answers the host did not pay to observe. */
   childProcessEvidence?: PtyChildProcessVerdict
+  /** Absent on hosts that predate the member, off POSIX, and on answers the host could not observe. */
+  foregroundGroup?: PtyForegroundGroup
   verdict?: never
   reason?: never
 }

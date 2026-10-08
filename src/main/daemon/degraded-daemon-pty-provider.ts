@@ -188,9 +188,9 @@ export class DegradedDaemonPtyProvider implements IPtyProvider {
   async getForegroundProcess(id: string): Promise<string | null> {
     return this.providerFor(id).getForegroundProcess(id)
   }
-  inspectProcess(id: string) {
+  inspectProcess(id: string, options?: Parameters<typeof inspectPtyProviderProcess>[2]) {
     return this.hasPty(id)
-      ? inspectPtyProviderProcess(this.providerFor(id), id)
+      ? inspectPtyProviderProcess(this.providerFor(id), id, options)
       : Promise.reject(new Error('terminal_gone'))
   }
   async confirmForegroundProcess(id: string): Promise<string | null> {

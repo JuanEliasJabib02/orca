@@ -2,6 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import nodePath from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { PtyProcessInspection } from '../providers/pty-process-inspection'
 import type { SpotlightRepoState } from '../../shared/spotlight'
 import type * as SpotlightSyncCore from '../../shared/spotlight-sync-core'
 import type { Store } from '../persistence'
@@ -16,6 +17,7 @@ const fakePty = vi.hoisted(() => {
     }),
     hasChildProcesses: vi.fn(async (_id: string): Promise<boolean> => false),
     getForegroundProcess: vi.fn(async (_id: string): Promise<string | null> => 'zsh'),
+    inspectProcess: vi.fn<(id: string, options?: unknown) => Promise<PtyProcessInspection>>(),
     onData: vi.fn(() => () => {})
   }
 })
@@ -59,6 +61,7 @@ vi.mock('../../shared/spotlight-sync-core', async (importOriginal) => ({
   syncSpotlightCore: core.syncSpotlightCore
 }))
 
+import { inspectFakeSpotlightPty } from './spotlight-terminal-test-pty'
 import {
   clearSpotlightInstallPending,
   isSpotlightInstallPending
@@ -139,6 +142,8 @@ beforeEach(async () => {
   fakePty.writes.length = 0
   fakePty.hasChildProcesses.mockReset()
   fakePty.hasChildProcesses.mockResolvedValue(false)
+  fakePty.inspectProcess.mockReset()
+  fakePty.inspectProcess.mockImplementation((id: string) => inspectFakeSpotlightPty(fakePty, id))
   fakeGit.calls.length = 0
   fakeGit.lockfileChanged = true
   core.activateSpotlightCore.mockReset()

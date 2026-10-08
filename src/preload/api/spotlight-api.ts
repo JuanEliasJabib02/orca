@@ -2,6 +2,7 @@ import type {
   SpotlightChangedEvent,
   SpotlightOpResult,
   SpotlightServerStartResult,
+  SpotlightServerState,
   SpotlightStateSnapshot
 } from '../../shared/spotlight'
 
@@ -39,5 +40,8 @@ export type SpotlightApi = {
    *  stops counting it as Orca's server and puts back the install it took. Call before any
    *  fallback start, so that start installs first. */
   cancelPreparedServerLaunch: (args: { repoId: string }) => Promise<void>
+  /** Whether the server runs in `ptyId`, read like start and turn-off read it. `unknown` unless
+   *  Spotlight is on for the repo and `ptyId` is its registered Spotlight terminal. */
+  serverState: (args: { repoId: string; ptyId: string }) => Promise<SpotlightServerState>
   onChanged: (callback: (event: SpotlightChangedEvent) => void) => () => void
 }

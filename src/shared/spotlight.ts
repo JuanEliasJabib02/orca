@@ -82,6 +82,11 @@ export type SpotlightServerStartResult =
   /** The terminal already runs something (e.g. a server started by hand); left alone. */
   | { ok: true; started: false; reason: 'busy' }
   | { ok: false; reason: SpotlightServerFailureReason }
+  /** The PTY host says the registered terminal no longer exists: the tab must spawn a new one. */
+  | { ok: false; reason: 'terminal-gone' }
+
+/** Whether the server runs in the repo's Spotlight terminal, as start and turn-off read it. */
+export type SpotlightServerState = 'running' | 'stopped' | 'unknown'
 
 export type SpotlightServerRestartResult =
   | { ok: true; restarted: true }

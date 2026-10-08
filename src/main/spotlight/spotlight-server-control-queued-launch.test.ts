@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import nodePath from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { PtyProcessInspection } from '../providers/pty-process-inspection'
 
 const fakePty = vi.hoisted(() => {
   const writes: { id: string; data: string }[] = []
@@ -13,6 +14,7 @@ const fakePty = vi.hoisted(() => {
     }),
     hasChildProcesses: vi.fn(async (_id: string): Promise<boolean> => false),
     getForegroundProcess: vi.fn(async (_id: string): Promise<string | null> => 'zsh'),
+    inspectProcess: vi.fn<(id: string, options?: unknown) => Promise<PtyProcessInspection>>(),
     onData: vi.fn(() => () => {})
   }
 })
@@ -26,6 +28,7 @@ vi.mock('../git/runner', () => ({
   gitExecFileAsync: vi.fn(async () => ({ stdout: '.git/info/exclude', stderr: '' }))
 }))
 
+import { inspectFakeSpotlightPty } from './spotlight-terminal-test-pty'
 import { SPOTLIGHT_STRAY_STARTUP_WATCH_MS } from '../../shared/spotlight-stray-startup'
 import { startSpotlightLogCapture, stopSpotlightLogCapture } from './spotlight-log-mirror'
 import {
@@ -90,6 +93,8 @@ beforeEach(async () => {
   fakePty.hasChildProcesses.mockImplementation(async () => childRunning)
   fakePty.getForegroundProcess.mockReset()
   fakePty.getForegroundProcess.mockResolvedValue('zsh')
+  fakePty.inspectProcess.mockReset()
+  fakePty.inspectProcess.mockImplementation((id: string) => inspectFakeSpotlightPty(fakePty, id))
   root = mkdtempSync(nodePath.join(tmpdir(), 'orca-spotlight-queued-'))
   await startSpotlightLogCapture({ repoId: REPO_ID, ptyId: PTY_ID, rootPath: root })
 })
