@@ -24,6 +24,12 @@ const EMPTY_WORKTREE_ID_SET: ReadonlySet<string> = new Set()
 const EMPTY_RUNTIME_ENVIRONMENTS: AppState['runtimeEnvironments'] = []
 const EMPTY_RUNTIME_STATUS_BY_ENVIRONMENT_ID: AppState['runtimeStatusByEnvironmentId'] = new Map()
 
+// Why: a repo's primary checkout is not a task workspace; provisioned roots are the recipe-created
+// workspace itself, so they stay (same carve-out as isDefaultBranchWorkspace).
+function isHiddenFromBoardAsPrimary(worktree: Worktree): boolean {
+  return worktree.isMainWorktree && worktree.ephemeralVmCheckoutMode !== 'provisioned-root'
+}
+
 export function useVisibleWorkspaceKanbanWorktreeIds({
   allWorktrees,
   repoMap
@@ -120,7 +126,9 @@ export function useVisibleWorkspaceKanbanWorktreeIds({
         // Why: the board has no nested lineage presentation. Ancestor injection
         // would make filtered-out parents appear as ordinary cards.
         injectLineageAncestors: false
-      }).map(getWorktreeHostIdentity)
+      })
+        .filter((worktree) => !isHiddenFromBoardAsPrimary(worktree))
+        .map(getWorktreeHostIdentity)
     )
   }, [
     allWorktrees,
