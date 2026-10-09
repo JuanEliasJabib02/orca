@@ -17,6 +17,7 @@ import { createUiUpdateActions } from './ui/ui-slice-update-actions'
 import { createUiComposerCompanionActions } from './ui/ui-slice-composer-companion-actions'
 import { createUiSidebarSpaceGroupByActions } from './ui/ui-slice-sidebar-space-group-by-actions'
 import { createUiSpotlightEnvActions } from './ui/ui-slice-spotlight-env-actions'
+import { createUiSpotlightVariantActions } from './ui/ui-slice-spotlight-variant-actions'
 import { createUiTaskNoteActions } from './ui/ui-slice-task-note-actions'
 
 export type {
@@ -48,5 +49,6 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get)
     ...createUiComposerCompanionActions(set, get),
     ...createUiSidebarSpaceGroupByActions(set, get),
     ...createUiSpotlightEnvActions(set, get),
+    ...createUiSpotlightVariantActions(set, get),
     ...createUiTaskNoteActions(set, get)
   }) as UISlice

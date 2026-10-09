@@ -6518,7 +6518,10 @@
           "lastSynced": "Last synced {{when}}.",
           "serverStopped": "Server stopped.",
           "serverRunningOnPort": "Server running on port {{port}}.",
-          "serverRunning": "Server running."
+          "serverRunning": "Server running.",
+          "serverStoppedVariant": "Server stopped ({{variant}}).",
+          "serverRunningVariantOnPort": "Server running: {{variant}} on :{{port}}.",
+          "serverRunningVariant": "Server running: {{variant}}."
         },
         "TaskSpotlightButton": {
           "updating": "Updating Spotlight…",
@@ -6541,6 +6544,14 @@
           "local": "Local",
           "dev": "Dev",
           "prod": "Prod"
+        },
+        "SpotlightVariantTag": {
+          "chosen": "Spotlight variant: {{variant}}. Click to switch.",
+          "unset": "No Spotlight variant picked yet. Click to pick one."
+        },
+        "SpotlightVariantPrompt": {
+          "title": "Pick a variant for {{project}}",
+          "description": "Its Spotlight server starts with the one you pick, and this task keeps it."
         },
         "TaskNoteActionLabel": {
           "add": "Add note…",
@@ -12364,7 +12375,8 @@
           "notStarted": "Not started",
           "portLabel": "Port",
           "portDescription": "Appended to the command as --port N. Leave empty to keep the command’s own port.",
-          "portPlaceholder": "Command default"
+          "portPlaceholder": "Command default",
+          "variantHelp": "This project runs one of {{variants}} at a time. Write {{placeholder}} in a command to run the one each task uses: Orca picks it from the apps the task’s branch changed, or asks."
         },
         "contrast": {
           "title": "Color Contrast",

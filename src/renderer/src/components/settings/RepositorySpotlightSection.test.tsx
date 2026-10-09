@@ -190,6 +190,29 @@ describe('RepositorySpotlightSection server fields', () => {
     })
   })
 
+  it('explains {variant} and lists the variants when the repo has them', async () => {
+    detectSpotlightServerScripts.mockResolvedValue({
+      detected: { dev: 'pnpm dev:{variant}', prod: 'pnpm prod:{variant}' },
+      scriptCommands: ['pnpm dev:do', 'pnpm dev:pt'],
+      variants: ['do', 'pt']
+    })
+    renderSection()
+
+    await waitFor(() => expect(input('Dev').placeholder).toBe('pnpm dev:{variant}'))
+    const help = document.querySelector('[data-spotlight-variant-help]')
+    expect(help?.textContent).toContain('DO, PT')
+    expect(help?.textContent).toContain('{variant}')
+    expect(input('Local').placeholder).toBe('pnpm dev:{variant}')
+    expect(input('Prod').placeholder).toBe('pnpm prod:{variant}')
+  })
+
+  it('says nothing about variants for a repo without them', async () => {
+    renderSection()
+    await waitForDetection()
+
+    expect(document.querySelector('[data-spotlight-variant-help]')).toBeNull()
+  })
+
   it('clears a saved port when the port field is emptied', async () => {
     const updateRepo = renderSection({ spotlightServer: { dev: 'ax-dev-back', port: 3004 } })
     await waitForDetection()

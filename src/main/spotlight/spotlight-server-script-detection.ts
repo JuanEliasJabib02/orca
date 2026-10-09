@@ -6,6 +6,10 @@ import {
   SPOTLIGHT_SERVER_ENVS,
   type SpotlightServerScriptDetection
 } from '../../shared/spotlight-server-types'
+import {
+  detectSpotlightServerVariants,
+  spotlightVariantScriptTemplates
+} from './spotlight-server-variant-detection'
 
 const PACKAGE_JSON = 'package.json'
 // Same cap as repo-icon-autodetect: a bigger package.json is not a normal project manifest.
@@ -84,6 +88,11 @@ export async function detectSpotlightServerScripts(
   if (scriptNames.length === 0) {
     return result
   }
+  // Why before the runner: a `{variant}` command typed in settings needs them whatever the manager.
+  const variants = await detectSpotlightServerVariants(repoRoot, scriptNames)
+  if (variants.length > 0) {
+    result.variants = variants
+  }
   // The package.json was already read under the size cap, so the shared inspector reuses that text.
   const candidate = await inspectPackageManagerSetupCandidate(
     async (relativePath) => (relativePath === PACKAGE_JSON ? packageJsonText : null),
@@ -96,9 +105,12 @@ export async function detectSpotlightServerScripts(
   }
 
   const names = new Set(scriptNames)
+  const templates = spotlightVariantScriptTemplates(scriptNames, variants)
   for (const env of SPOTLIGHT_SERVER_ENVS) {
-    if (names.has(env)) {
-      result.detected[env] = buildScriptCommand(runner, env)
+    // An exact script wins; else the variant family (`pnpm dev:{variant}`) when the repo has one.
+    const script = names.has(env) ? env : templates[env]
+    if (script) {
+      result.detected[env] = buildScriptCommand(runner, script)
     }
   }
   result.scriptCommands = scriptNames

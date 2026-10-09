@@ -4,6 +4,7 @@ import {
   type SpotlightServerConfig,
   type SpotlightServerEnv
 } from './spotlight-server-types'
+import { fillSpotlightVariant } from './spotlight-server-variant'
 
 const MAX_SPOTLIGHT_SERVER_COMMAND_LENGTH = 2000
 
@@ -62,12 +63,16 @@ function pickCommand(
   return normalizeCommand(config?.[env]) ?? normalizeCommand(detected?.[env])
 }
 
-/** The command that starts a repo's Spotlight server in `env`, or null when it isn't started there. */
-export function resolveSpotlightServerCommand(args: {
+type SpotlightServerCommandArgs = {
   config?: SpotlightServerConfig
   detected?: SpotlightServerCommands
   env: SpotlightServerEnv
-}): string | null {
+}
+
+/** The command for `env` as configured, `{variant}` left in place; null when it isn't started there. */
+export function resolveSpotlightServerCommandTemplate(
+  args: SpotlightServerCommandArgs
+): string | null {
   const { config, detected, env } = args
   // Why: some repos (e.g. landing) have no Local script and run their Dev one locally.
   const command =
@@ -78,4 +83,13 @@ export function resolveSpotlightServerCommand(args: {
   }
   const port = normalizePort(config?.port)
   return port === undefined ? command : `${command} --port ${port}`
+}
+
+/** The command that starts a repo's Spotlight server in `env`, or null when it isn't started there.
+ *  A command holding `{variant}` also resolves to null until a safe `variant` is chosen. */
+export function resolveSpotlightServerCommand(
+  args: SpotlightServerCommandArgs & { variant?: string | null }
+): string | null {
+  const template = resolveSpotlightServerCommandTemplate(args)
+  return template === null ? null : fillSpotlightVariant(template, args.variant)
 }

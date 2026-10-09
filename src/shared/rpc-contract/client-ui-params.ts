@@ -11,6 +11,7 @@ import { ACTIVITY_GROUP_BY_VALUES, THREAD_READ_FILTER_VALUES } from '../agents-v
 import { isReleaseChannel } from '../release-channel'
 import { isSpotlightServerEnv } from '../spotlight-server-types'
 import type { SpotlightServerEnv } from '../spotlight-server-types'
+import { isSafeSpotlightVariant } from '../spotlight-server-variant'
 import { STATUS_BAR_ITEMS } from '../ui-chrome-types'
 import type { ReleaseChannel } from '../release-channel'
 import { ClientUiWorkspaceFilterFields } from './client-ui-workspace-filter-fields-params'
@@ -73,6 +74,10 @@ export const WorktreeGroupByParam = z.enum([
 
 const SpotlightServerEnvParam = z.custom<SpotlightServerEnv>(isSpotlightServerEnv, {
   message: 'Unknown Spotlight server environment'
+})
+
+const SpotlightVariantParam = z.custom<string>(isSafeSpotlightVariant, {
+  message: 'Unsafe Spotlight server variant'
 })
 
 export const StatusBarItem = z.enum(STATUS_BAR_ITEMS)
@@ -236,6 +241,7 @@ export const UiUpdateFields = z
     groupByBySpaceId: z.record(z.string(), WorktreeGroupByParam).optional(),
     composerCompanionRepoIdsByRepoId: z.record(z.string(), StringArray).optional(),
     spotlightEnvByTaskKey: z.record(z.string(), SpotlightServerEnvParam).optional(),
+    spotlightVariantByTaskRepo: z.record(z.string(), SpotlightVariantParam).optional(),
     taskNoteByTaskKey: z.record(z.string(), z.string()).optional(),
     setupGuideBrowserMilestoneMigrated: z.boolean().optional(),
     setupGuideBrowserMilestoneLegacyComplete: z.boolean().optional(),

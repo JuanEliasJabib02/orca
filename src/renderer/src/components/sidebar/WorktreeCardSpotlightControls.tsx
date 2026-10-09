@@ -9,6 +9,9 @@ import { cn } from '@/lib/utils'
 import { openSpotlightTerminalTab } from '@/lib/open-spotlight-terminal-tab'
 import { useSpotlightHolderName } from './spotlight-row-hooks'
 import { useSpotlightServerStatus, type SpotlightServerStatus } from './spotlight-server-status'
+import { SpotlightVariantTag } from './SpotlightVariantTag'
+import { useSpotlightHolderVariant } from './use-spotlight-holder-variant'
+import { formatSpotlightVariant } from '../../../../shared/spotlight-server-variant'
 import { formatTimeAgo } from '@/components/status-bar/tooltip'
 import { translate } from '@/i18n/i18n'
 
@@ -33,10 +36,17 @@ function stopCardActivation(event: React.SyntheticEvent): void {
   event.stopPropagation()
 }
 
-/** Tooltip sentence for the Spotlight server state; null while it is unknown. */
-function spotlightServerStatusLabel({ running, port }: SpotlightServerStatus): string | null {
+/** Tooltip sentence for the Spotlight server state; null while it is unknown. `variant` is the
+ *  one the holder row's task runs, e.g. "DO on :3001". */
+function spotlightServerStatusLabel(
+  { running, port }: SpotlightServerStatus,
+  variant: string | null = null
+): string | null {
   if (running === null) {
     return null
+  }
+  if (variant !== null) {
+    return spotlightServerVariantLabel(running, port, formatSpotlightVariant(variant))
   }
   if (!running) {
     return translate(
@@ -52,6 +62,31 @@ function spotlightServerStatusLabel({ running, port }: SpotlightServerStatus): s
     : translate(
         'auto.components.sidebar.WorktreeCardSpotlightControls.serverRunning',
         'Server running.'
+      )
+}
+
+function spotlightServerVariantLabel(
+  running: boolean,
+  port: number | undefined,
+  variant: string
+): string {
+  if (!running) {
+    return translate(
+      'auto.components.sidebar.WorktreeCardSpotlightControls.serverStoppedVariant',
+      'Server stopped ({{variant}}).',
+      { variant }
+    )
+  }
+  return port
+    ? translate(
+        'auto.components.sidebar.WorktreeCardSpotlightControls.serverRunningVariantOnPort',
+        'Server running: {{variant}} on :{{port}}.',
+        { variant, port: String(port) }
+      )
+    : translate(
+        'auto.components.sidebar.WorktreeCardSpotlightControls.serverRunningVariant',
+        'Server running: {{variant}}.',
+        { variant }
       )
 }
 
@@ -118,6 +153,7 @@ export function SpotlightQuickAction({
   const syncError = view.errorMsg
   // Only the holder row shows the server state, so other rows neither poll nor re-render.
   const server = useSpotlightServerStatus(repo.id, heldHere)
+  const holderVariant = useSpotlightHolderVariant(repo.id, worktree, heldHere)
 
   const baseTooltip = syncing
     ? translate('auto.components.sidebar.WorktreeCardSpotlightControls.syncing', 'Syncing…')
@@ -147,7 +183,7 @@ export function SpotlightQuickAction({
               'auto.components.sidebar.WorktreeCardSpotlightControls.activate',
               'Spotlight this workspace — mirror its changes onto the project root for testing.'
             )
-  const serverLabel = heldHere ? spotlightServerStatusLabel(server) : null
+  const serverLabel = heldHere ? spotlightServerStatusLabel(server, holderVariant.variant) : null
   const tooltip = serverLabel ? `${baseTooltip} ${serverLabel}` : baseTooltip
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>): void => {
@@ -164,45 +200,55 @@ export function SpotlightQuickAction({
   }
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          data-workspace-board-preserve-open=""
-          onPointerDown={stopCardActivation}
-          onClick={handleClick}
-          disabled={syncing}
-          aria-label={tooltip}
-          aria-pressed={heldHere}
-          className={cn(
-            'relative inline-flex size-4 items-center justify-center rounded bg-transparent transition-colors transition-opacity',
-            heldHere || syncing
-              ? 'opacity-100'
-              : 'opacity-0 group-hover/worktree-card:opacity-100 group-focus-within/worktree-card:opacity-100 focus-visible:opacity-100',
-            syncError
-              ? 'text-destructive hover:bg-destructive/10'
-              : heldHere
-                ? 'text-amber-400 hover:bg-amber-500/10'
-                : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground focus-visible:bg-accent/60 focus-visible:text-foreground'
-          )}
-        >
-          {syncing && heldHere ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <Flashlight className="size-3.5" />
-          )}
-          {heldHere ? (
-            <SpotlightServerDot
-              running={server.running}
-              className="absolute -bottom-px -right-px"
-            />
-          ) : null}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="right" sideOffset={8} className="max-w-72">
-        {tooltip}
-      </TooltipContent>
-    </Tooltip>
+    <>
+      {heldHere && holderVariant.variants.length > 0 ? (
+        <SpotlightVariantTag
+          repoId={repo.id}
+          worktreeId={worktree.id}
+          variants={holderVariant.variants}
+          variant={holderVariant.variant}
+        />
+      ) : null}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            data-workspace-board-preserve-open=""
+            onPointerDown={stopCardActivation}
+            onClick={handleClick}
+            disabled={syncing}
+            aria-label={tooltip}
+            aria-pressed={heldHere}
+            className={cn(
+              'relative inline-flex size-4 items-center justify-center rounded bg-transparent transition-colors transition-opacity',
+              heldHere || syncing
+                ? 'opacity-100'
+                : 'opacity-0 group-hover/worktree-card:opacity-100 group-focus-within/worktree-card:opacity-100 focus-visible:opacity-100',
+              syncError
+                ? 'text-destructive hover:bg-destructive/10'
+                : heldHere
+                  ? 'text-amber-400 hover:bg-amber-500/10'
+                  : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground focus-visible:bg-accent/60 focus-visible:text-foreground'
+            )}
+          >
+            {syncing && heldHere ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Flashlight className="size-3.5" />
+            )}
+            {heldHere ? (
+              <SpotlightServerDot
+                running={server.running}
+                className="absolute -bottom-px -right-px"
+              />
+            ) : null}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right" sideOffset={8} className="max-w-72">
+          {tooltip}
+        </TooltipContent>
+      </Tooltip>
+    </>
   )
 }
 

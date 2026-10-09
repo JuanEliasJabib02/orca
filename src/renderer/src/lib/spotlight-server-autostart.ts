@@ -1,12 +1,13 @@
 // Turning a Spotlight on starts the repo's dev server in its Spotlight terminal, in the background,
-// with the command for the activated worktree's task environment.
+// with the command for the activated worktree's task environment (and variant, when it has one).
 import { useAppStore } from '@/store'
 import type { SpotlightServerStartResult } from '../../../shared/spotlight'
-import { resolveSpotlightServerCommand } from '../../../shared/spotlight-server-command'
-import type { SpotlightServerCommands } from '../../../shared/spotlight-server-types'
-import type { Worktree } from '../../../shared/worktree/types'
-import { getSpotlightEnvForTask } from '@/store/slices/ui/ui-slice-spotlight-env-actions'
+import { isSafeSpotlightVariant } from '../../../shared/spotlight-server-variant'
 import { buildWorktreeTaskKeys } from '@/components/sidebar/worktree-list/grouping/worktree-task-keys'
+import {
+  dismissSpotlightVariantPrompt,
+  showSpotlightVariantPrompt
+} from '@/components/sidebar/spotlight-variant-prompt-toast'
 import { requestBackgroundTerminalWorktreeMount } from '@/components/terminal/background-terminal-worktree-mount'
 import {
   openSpotlightTerminalTab,
@@ -14,7 +15,14 @@ import {
   type OpenSpotlightTerminalTabResult
 } from '@/lib/open-spotlight-terminal-tab'
 import { getSpotlightEnvKey, toSpotlightEnvKey } from '@/lib/spotlight-env-key'
+import {
+  listAllWorktrees,
+  planSpotlightActivationCommand,
+  type SpotlightActivationCommandPlan
+} from '@/lib/spotlight-server-command-plan'
 import { watchSpotlightStartupClaim } from '@/lib/spotlight-startup-claim-watch'
+
+export { resolveSpotlightActivationCommand } from '@/lib/spotlight-server-command-plan'
 
 /** What happened to the server after the activation; `command` is the one Orca runs. */
 export type SpotlightServerAutostart =
@@ -31,41 +39,6 @@ const NO_SERVER: SpotlightServerAutostart = { kind: 'none' }
 // `no-terminal` right after a spawn means main is still registering the new PTY's log capture.
 const START_ATTEMPTS = 5
 export const SPOTLIGHT_START_RETRY_DELAY_MS = 400
-
-async function detectServerCommands(repoId: string): Promise<SpotlightServerCommands | undefined> {
-  try {
-    return (await window.api.repos.detectSpotlightServerScripts({ repoId })).detected
-  } catch (error) {
-    console.warn('[spotlight] Server script detection failed:', error)
-    return undefined
-  }
-}
-
-// Why every repo: a branch-name task is only a task when it spans 2+ repos, like in the sidebar.
-function listAllWorktrees(): Worktree[] {
-  return Object.values(useAppStore.getState().worktreesByRepo)
-    .flat()
-    .filter((entry) => !entry.isArchived)
-}
-
-/** The activated worktree's server command: repo config, else detected scripts, in the environment
- *  of its task (or of the workspace itself when it has none). Null when the repo isn't started
- *  there (e.g. the backend in Dev). */
-export async function resolveSpotlightActivationCommand(
-  repoId: string,
-  worktreeId: string
-): Promise<string | null> {
-  const state = useAppStore.getState()
-  const repo = state.repos.find((entry) => entry.id === repoId)
-  if (!repo) {
-    return null
-  }
-  const worktree = state.worktreesByRepo[repoId]?.find((entry) => entry.id === worktreeId)
-  const envKey = worktree ? getSpotlightEnvKey(worktree, listAllWorktrees()) : null
-  const env = getSpotlightEnvForTask(state.spotlightEnvByTaskKey, envKey)
-  const detected = await detectServerCommands(repoId)
-  return resolveSpotlightServerCommand({ config: repo.spotlightServer, detected, env })
-}
 
 async function prepareLaunch(repoId: string, command: string): Promise<string | null> {
   try {
@@ -208,25 +181,48 @@ function forgetDeadPty(tabId: string, ptyId: string): boolean {
   }
 }
 
+/** Prompts for the variant; picking one starts the server. Never throws. */
+function askForVariant(repoId: string, worktreeId: string, candidates: readonly string[]): void {
+  try {
+    const repo = useAppStore.getState().repos.find((entry) => entry.id === repoId)
+    showSpotlightVariantPrompt({
+      repoId,
+      projectName: repo?.displayName ?? repoId,
+      candidates,
+      onPick: (variant) => void chooseSpotlightVariant({ repoId, worktreeId, variant })
+    })
+  } catch (error) {
+    console.warn('[spotlight] Could not ask for the server variant:', error)
+  }
+}
+
 /**
  * Opens the repo's Spotlight terminal after a successful activation and starts its server there.
  * A tab restored with a PTY that no longer exists is respawned with the command queued, like a new
- * one. Never throws for the server part: a failure leaves just the terminal.
+ * one. A command that needs a variant nobody chose asks for it and starts nothing yet. Never throws
+ * for the server part: a failure leaves just the terminal.
  */
 export async function openSpotlightTerminalAndStartServer(args: {
   repoId: string
   worktreeId: string
+  /** A variant the user just picked; otherwise the task's remembered or inferred one. */
+  variant?: string
 }): Promise<SpotlightActivationTerminal> {
   const { repoId, worktreeId } = args
-  let command: string | null = null
+  let plan: SpotlightActivationCommandPlan = { kind: 'none' }
   try {
-    command = await resolveSpotlightActivationCommand(repoId, worktreeId)
+    plan = await planSpotlightActivationCommand(repoId, worktreeId, args.variant)
   } catch (error) {
     console.warn('[spotlight] Could not resolve the server command:', error)
   }
-  if (!command) {
-    return { opened: openSpotlightTerminalTab({ repoId, reveal: false }), server: NO_SERVER }
+  if (plan.kind !== 'command') {
+    const opened = openSpotlightTerminalTab({ repoId, reveal: false })
+    if (plan.kind === 'ask-variant') {
+      askForVariant(repoId, worktreeId, plan.candidates)
+    }
+    return { opened, server: NO_SERVER }
   }
+  const { command } = plan
   const first = await openAndStart(repoId, command)
   const { opened } = first.activation
   if (first.deadPtyId === null || !opened.ok || !forgetDeadPty(opened.tabId, first.deadPtyId)) {
@@ -237,9 +233,42 @@ export async function openSpotlightTerminalAndStartServer(args: {
 }
 
 /**
+ * The user picked the variant a repo's Spotlight server runs for the worktree's task: remembers it,
+ * then starts the server, or replaces the one Orca runs, while that worktree still holds the
+ * Spotlight. Never throws.
+ */
+export async function chooseSpotlightVariant(args: {
+  repoId: string
+  worktreeId: string
+  variant: string
+}): Promise<void> {
+  const { repoId, worktreeId, variant } = args
+  if (!isSafeSpotlightVariant(variant)) {
+    return
+  }
+  try {
+    dismissSpotlightVariantPrompt(repoId)
+    const state = useAppStore.getState()
+    const worktree = state.worktreesByRepo[repoId]?.find((entry) => entry.id === worktreeId)
+    const envKey = worktree ? getSpotlightEnvKey(worktree, listAllWorktrees()) : null
+    if (envKey !== null) {
+      state.setSpotlightVariantForTaskRepo(envKey, repoId, variant)
+    }
+    // Why: a prompt answered after a turn-off or takeover must not start a server for the old holder.
+    if (useAppStore.getState().spotlightByRepo[repoId]?.holderWorktreeId !== worktreeId) {
+      return
+    }
+    await openSpotlightTerminalAndStartServer({ repoId, worktreeId, variant })
+  } catch (error) {
+    console.warn('[spotlight] Could not apply the chosen server variant:', error)
+  }
+}
+
+/**
  * After an environment switch: for every repo whose Spotlight is held by a workspace with this env
  * key, starts the command of the new environment (main replaces only a server Orca launched).
- * A repo with no command there is left running. Never throws.
+ * A repo with no command there is left running; one whose command needs an unknown variant asks
+ * for it first. Never throws.
  */
 export async function applySpotlightEnvChange(envKey: string): Promise<void> {
   try {
@@ -256,9 +285,11 @@ export async function applySpotlightEnvChange(envKey: string): Promise<void> {
     }
     await Promise.all(
       holders.map(async ({ repoId, worktreeId }) => {
-        const command = await resolveSpotlightActivationCommand(repoId, worktreeId)
-        if (command) {
-          await startServerInTerminal(repoId, command)
+        const plan = await planSpotlightActivationCommand(repoId, worktreeId)
+        if (plan.kind === 'command') {
+          await startServerInTerminal(repoId, plan.command)
+        } else if (plan.kind === 'ask-variant') {
+          askForVariant(repoId, worktreeId, plan.candidates)
         }
       })
     )

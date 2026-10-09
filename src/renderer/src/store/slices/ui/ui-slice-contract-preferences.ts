@@ -157,6 +157,10 @@ export type UISliceSurfaces = {
   spotlightEnvByTaskKey: Record<string, SpotlightServerEnv>
   /** Choosing `local` drops the entry so the map only holds deviations. */
   setSpotlightEnvForTask: (taskKey: string, env: SpotlightServerEnv) => void
+  /** Variant (e.g. landing's country) each task runs per repo, keyed `<envKey>::<repoId>`. */
+  spotlightVariantByTaskRepo: Record<string, string>
+  /** Ignored for an unsafe variant or a key that can't be stored. */
+  setSpotlightVariantForTaskRepo: (envKey: string, repoId: string, variant: string) => void
   /** Private note per task, keyed by task key; shown as a tooltip on the task header. */
   taskNoteByTaskKey: Record<string, string>
   /** An empty or blank note removes the entry. */

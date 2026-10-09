@@ -45,12 +45,11 @@ Juan also asked for:
 
 ## Tasks
 
-- [ ] **1. Install when `node_modules` is missing + main-side busy fallback** (main
-  Spotlight server code)
-- [ ] **2. Variants (countries): detection, `{variant}`, inference, per-task memory,
-  prompt, tag + menu**
-- [ ] **3. Task switch turns off the previous task in the same space**
-- [ ] **4. Workspace board hides primary worktrees**
+- [x] **1. Install when `node_modules` is missing + main-side busy fallback** (coder opus, `0c8ac93835`; pid from the inspect fence or listSessions, shared strict process-table capture)
+- [x] **2. Variants (countries): detection, `{variant}`, inference, per-task memory,
+  prompt, tag + menu** (coder opus; variants need ≥2 codes, no plain `dev`, and an `apps/<V>` folder when `apps/` exists; inference diffs merge-base vs the working tree under `apps/`; IPC `spotlight:inferServerVariant`; ui.json `spotlightVariantByTaskRepo`)
+- [x] **3. Task switch turns off the previous task in the same space** (coder, `1619cf15ca`)
+- [x] **4. Workspace board hides primary worktrees** (coder, board ids filter `isMainWorktree` except provisioned roots)
 
 ## Verification rule
 

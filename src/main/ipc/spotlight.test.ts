@@ -12,7 +12,12 @@ const mocks = vi.hoisted(() => ({
   watchLateSpotlightTerminal: vi.fn<(repoId: string, ptyId: string) => void>(),
   startSpotlightServer: vi.fn(async (_args: unknown) => ({ ok: true, started: true })),
   getSpotlightTerminal: vi.fn<(repoId: string) => { ptyId: string } | null>(),
-  readSpotlightServerState: vi.fn(async (_ptyId: string) => 'running')
+  readSpotlightServerState: vi.fn(async (_ptyId: string) => 'running'),
+  detectSpotlightServerScripts: vi.fn(async (_root: string) => ({
+    detected: {},
+    scriptCommands: [],
+    variants: ['do', 'pt']
+  }))
 }))
 
 vi.mock('electron', () => ({
@@ -49,6 +54,10 @@ vi.mock('../spotlight/spotlight-terminal-inspection', () => ({
 
 vi.mock('../spotlight/spotlight-server-turn-off', () => ({
   watchLateSpotlightTerminal: mocks.watchLateSpotlightTerminal
+}))
+
+vi.mock('../spotlight/spotlight-server-script-detection', () => ({
+  detectSpotlightServerScripts: mocks.detectSpotlightServerScripts
 }))
 
 import { registerSpotlightHandlers } from './spotlight'
@@ -235,5 +244,36 @@ describe('spotlight:serverState', () => {
       'unknown'
     )
     expect(mocks.readSpotlightServerState).not.toHaveBeenCalled()
+  })
+})
+
+describe('spotlight:inferServerVariant', () => {
+  const HOLDER = `${LOCAL_REPO.id}::/work/landing-ax`
+
+  it('reads only the worktree that holds an active local Spotlight', async () => {
+    mocks.getState.mockReturnValue({ holderWorktreeId: HOLDER })
+
+    await invoke('spotlight:inferServerVariant', { repoId: LOCAL_REPO.id, worktreeId: HOLDER })
+
+    expect(mocks.detectSpotlightServerScripts).toHaveBeenCalledWith(LOCAL_REPO.path)
+  })
+
+  it('answers ambiguous without reading anything for any other worktree, repo or state', async () => {
+    const none = { kind: 'ambiguous', candidates: [] }
+    mocks.getState.mockReturnValue({ holderWorktreeId: HOLDER })
+    const other = `${LOCAL_REPO.id}::/work/landing-other`
+
+    expect(
+      await invoke('spotlight:inferServerVariant', { repoId: LOCAL_REPO.id, worktreeId: other })
+    ).toEqual(none)
+    expect(
+      await invoke('spotlight:inferServerVariant', { repoId: SSH_REPO.id, worktreeId: HOLDER })
+    ).toEqual(none)
+    expect(await invoke('spotlight:inferServerVariant', { repoId: LOCAL_REPO.id })).toEqual(none)
+    mocks.getState.mockReturnValue(null)
+    expect(
+      await invoke('spotlight:inferServerVariant', { repoId: LOCAL_REPO.id, worktreeId: HOLDER })
+    ).toEqual(none)
+    expect(mocks.detectSpotlightServerScripts).not.toHaveBeenCalled()
   })
 })

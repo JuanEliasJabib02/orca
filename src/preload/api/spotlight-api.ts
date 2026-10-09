@@ -5,6 +5,7 @@ import type {
   SpotlightServerState,
   SpotlightStateSnapshot
 } from '../../shared/spotlight'
+import type { SpotlightVariantInference } from '../../shared/spotlight-server-variant'
 
 export type SpotlightApi = {
   /** Main is the source of truth; the renderer hydrates this snapshot at startup. */
@@ -43,5 +44,11 @@ export type SpotlightApi = {
   /** Whether the server runs in `ptyId`, read like start and turn-off read it. `unknown` unless
    *  Spotlight is on for the repo and `ptyId` is its registered Spotlight terminal. */
   serverState: (args: { repoId: string; ptyId: string }) => Promise<SpotlightServerState>
+  /** The variant (`apps/<V>/`) the holder worktree's branch changed: one is inferred, several or none
+   *  are ambiguous. Ambiguous with no candidates unless `worktreeId` holds the repo's local Spotlight. */
+  inferServerVariant: (args: {
+    repoId: string
+    worktreeId: string
+  }) => Promise<SpotlightVariantInference>
   onChanged: (callback: (event: SpotlightChangedEvent) => void) => () => void
 }

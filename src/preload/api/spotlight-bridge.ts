@@ -24,6 +24,8 @@ export const spotlightApi = {
 
   serverState: (args) => ipcRenderer.invoke('spotlight:serverState', args),
 
+  inferServerVariant: (args) => ipcRenderer.invoke('spotlight:inferServerVariant', args),
+
   onChanged: (callback: (event: SpotlightChangedEvent) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, data: SpotlightChangedEvent) =>
       callback(data)

@@ -23,6 +23,9 @@ export type SpotlightServerScriptDetection = {
   detected: SpotlightServerCommands
   /** Runnable commands for every script that looks like a server start (sorted). */
   scriptCommands: string[]
+  /** Apps one server runs one at a time (`dev:<v>` scripts), sorted; absent when the repo has none.
+   *  Optional so an older main's answer still parses. */
+  variants?: string[]
 }
 
 export function emptySpotlightServerScriptDetection(): SpotlightServerScriptDetection {

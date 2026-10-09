@@ -1,9 +1,13 @@
 import { useEffect, useId, useState } from 'react'
 import type { Repo } from '../../../../shared/repo-types'
 import {
-  resolveSpotlightServerCommand,
+  resolveSpotlightServerCommandTemplate,
   sanitizeSpotlightServerConfig
 } from '../../../../shared/spotlight-server-command'
+import {
+  formatSpotlightVariant,
+  SPOTLIGHT_VARIANT_PLACEHOLDER
+} from '../../../../shared/spotlight-server-variant'
 import {
   emptySpotlightServerScriptDetection,
   SPOTLIGHT_SERVER_ENVS,
@@ -149,14 +153,16 @@ export function RepositorySpotlightServerFields({
     if (!detection) {
       return ''
     }
+    // Why the template: `{variant}` is filled per task, so the placeholder shows it unfilled.
     return (
-      resolveSpotlightServerCommand({
+      resolveSpotlightServerCommandTemplate({
         config: commandsExcluding(saved, env),
         detected: detection.detected,
         env
       }) ?? notStarted
     )
   }
+  const variants = detection?.variants ?? []
 
   return (
     <div className="space-y-2">
@@ -170,6 +176,18 @@ export function RepositorySpotlightServerFields({
             'Orca starts this command in the Spotlight terminal when Spotlight turns on and appends --port N. An empty field uses the script detected in package.json. Local falls back to Dev.'
           )}
         </p>
+        {variants.length > 0 ? (
+          <p data-spotlight-variant-help="" className="text-xs text-muted-foreground">
+            {translate(
+              'auto.components.settings.RepositorySpotlightSection.variantHelp',
+              'This project runs one of {{variants}} at a time. Write {{placeholder}} in a command to run the one each task uses: Orca picks it from the apps the task’s branch changed, or asks.',
+              {
+                variants: variants.map(formatSpotlightVariant).join(', '),
+                placeholder: SPOTLIGHT_VARIANT_PLACEHOLDER
+              }
+            )}
+          </p>
+        ) : null}
       </div>
       <datalist id={suggestionsId}>
         {detection?.scriptCommands.map((command) => (

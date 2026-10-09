@@ -21,6 +21,7 @@ import {
   configureSpotlightTerminalOutputSource,
   type SpotlightTerminalOutputSource
 } from '../spotlight/spotlight-terminal-output-source'
+import { registerSpotlightVariantHandler } from './spotlight-variant-handler'
 
 // Module singleton with a mutable window ref: attachMainWindowServices re-runs on
 // macOS dock re-activation, and rebuilding the service would drop its per-repo
@@ -172,6 +173,12 @@ export function registerSpotlightHandlers(
       isActiveLocalSpotlight(args.repoId) && getSpotlightTerminal(args.repoId)?.ptyId === args.ptyId
         ? readSpotlightServerState(args.ptyId)
         : 'unknown'
+  )
+  // Reads only the holder's own checkout, so the renderer can't point it at another worktree.
+  registerSpotlightVariantHandler(
+    store,
+    (repoId, worktreeId) =>
+      isActiveLocalSpotlight(repoId) && spotlight.getState(repoId)?.holderWorktreeId === worktreeId
   )
 
   // Why: the git refs are the source of truth and may have changed while Orca

@@ -621,6 +621,10 @@ describe('client UI RPC methods', () => {
     ['groupBy task', { groupBy: 'task' }],
     ['groupByBySpaceId', { groupByBySpaceId: { 'group-1': 'task', 'group-2': 'repo' } }],
     ['spotlightEnvByTaskKey', { spotlightEnvByTaskKey: { 'AX-3447': 'dev', 'AX-3500': 'prod' } }],
+    [
+      'spotlightVariantByTaskRepo',
+      { spotlightVariantByTaskRepo: { 'AX-3447::landing': 'do', 'AX-3500::landing': 'pt' } }
+    ],
     ['taskNoteByTaskKey', { taskNoteByTaskKey: { 'AX-3447': 'POS Action Wear' } }],
     ['setupGuideBrowserMilestoneMigrated', { setupGuideBrowserMilestoneMigrated: true }],
     [

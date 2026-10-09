@@ -6,13 +6,15 @@ import type { SpotlightRepoState } from '../../../shared/spotlight'
 import type { SpotlightServerEnv } from '../../../shared/spotlight-server-types'
 import type { TerminalTab } from '../../../shared/terminal-tab-types'
 import type { Worktree } from '../../../shared/worktree/types'
+import { toSpotlightVariantKey } from '@/store/slices/ui/ui-slice-spotlight-variant-actions'
 
 export type SpotlightTerminalTestData = {
-  repos: Pick<Repo, 'id' | 'spotlightServer'>[]
+  repos: (Pick<Repo, 'id' | 'spotlightServer'> & Partial<Pick<Repo, 'displayName'>>)[]
   worktreesByRepo: Record<string, Worktree[]>
   tabsByWorktree: Record<string, TerminalTab[]>
   activeTabIdByWorktree: Record<string, string | null>
   spotlightEnvByTaskKey: Record<string, SpotlightServerEnv>
+  spotlightVariantByTaskRepo: Record<string, string>
   spotlightByRepo: Record<string, SpotlightRepoState>
   pendingStartupByTabId: Record<string, { command: string }>
   pendingInitialCwdByTabId: Record<string, string>
@@ -33,6 +35,7 @@ function emptyData(): SpotlightTerminalTestData {
     tabsByWorktree: {},
     activeTabIdByWorktree: {},
     spotlightEnvByTaskKey: {},
+    spotlightVariantByTaskRepo: {},
     spotlightByRepo: {},
     pendingStartupByTabId: {},
     pendingInitialCwdByTabId: {}
@@ -116,6 +119,7 @@ type SpotlightTerminalTestActions = {
   setTabCustomTitle: Mock<(...args: unknown[]) => void>
   setActiveTabForWorktree: Mock<(...args: unknown[]) => void>
   setActiveTabType: Mock<(...args: unknown[]) => void>
+  setSpotlightVariantForTaskRepo: Mock<(envKey: string, repoId: string, variant: string) => void>
 }
 
 function createActions(): SpotlightTerminalTestActions {
@@ -180,7 +184,15 @@ function createActions(): SpotlightTerminalTestActions {
     }),
     setTabCustomTitle: vi.fn<(...args: unknown[]) => void>(),
     setActiveTabForWorktree: vi.fn<(...args: unknown[]) => void>(),
-    setActiveTabType: vi.fn<(...args: unknown[]) => void>()
+    setActiveTabType: vi.fn<(...args: unknown[]) => void>(),
+    setSpotlightVariantForTaskRepo: vi.fn((envKey: string, repoId: string, variant: string) => {
+      const key = toSpotlightVariantKey(envKey, repoId)
+      if (key !== null) {
+        setState({
+          spotlightVariantByTaskRepo: { ...state.spotlightVariantByTaskRepo, [key]: variant }
+        })
+      }
+    })
   }
 }
 
