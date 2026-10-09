@@ -1,17 +1,20 @@
 import { execFile, execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import nodePath from 'node:path'
 import { promisify } from 'node:util'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SpotlightGitContext, SpotlightGitExecutor } from '../../shared/spotlight-sync-core'
 import {
   chainSpotlightInstall,
   clearSpotlightInstallPending,
   isSpotlightInstallPending,
+  isSpotlightRootMissingDependencies,
   isWindowsPowerShell51,
   markSpotlightInstallIfLockfileChanged,
   markSpotlightInstallPending,
+  rememberSpotlightRoot,
+  takeSpotlightLaunchInstall,
   takeSpotlightLaunchLine
 } from './spotlight-lockfile-install'
 
@@ -117,6 +120,86 @@ describe('launch line with a pending install', () => {
 
     expect(takeSpotlightLaunchLine(REPO_ID, 'pnpm dev', null)).toBe('pnpm dev')
     expect(takeSpotlightLaunchLine('repo-2', 'pnpm dev', null)).toBe(AND_CHAIN)
+  })
+})
+
+describe('a root that was never installed', () => {
+  let root = ''
+
+  beforeEach(() => {
+    root = mkdtempSync(nodePath.join(tmpdir(), 'orca-spotlight-deps-'))
+    writeFileSync(nodePath.join(root, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n')
+    rememberSpotlightRoot(REPO_ID, root)
+  })
+
+  afterEach(() => {
+    // Back to a root with nothing to install, for the other tests of this repo id.
+    rememberSpotlightRoot(REPO_ID, ROOT)
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('is missing dependencies only with a pnpm lockfile and no node_modules directory', () => {
+    expect(isSpotlightRootMissingDependencies(root)).toBe(true)
+
+    mkdirSync(nodePath.join(root, 'node_modules'))
+    expect(isSpotlightRootMissingDependencies(root)).toBe(false)
+
+    const noLockfile = mkdtempSync(nodePath.join(tmpdir(), 'orca-spotlight-deps-'))
+    try {
+      expect(isSpotlightRootMissingDependencies(noLockfile)).toBe(false)
+    } finally {
+      rmSync(noLockfile, { recursive: true, force: true })
+    }
+    expect(isSpotlightRootMissingDependencies(nodePath.join(root, 'gone'))).toBe(false)
+  })
+
+  it('chains the install on every line until node_modules exists', () => {
+    expect(takeSpotlightLaunchLine(REPO_ID, 'pnpm dev', 'zsh')).toBe(AND_CHAIN)
+    expect(takeSpotlightLaunchLine(REPO_ID, 'pnpm dev', 'zsh')).toBe(AND_CHAIN)
+
+    mkdirSync(nodePath.join(root, 'node_modules'))
+    expect(takeSpotlightLaunchLine(REPO_ID, 'pnpm dev', 'zsh')).toBe('pnpm dev')
+  })
+
+  it('chains it once alongside a pending lockfile change, consuming the pending one', () => {
+    markSpotlightInstallPending(REPO_ID)
+
+    expect(takeSpotlightLaunchInstall(REPO_ID)).toEqual({ install: true, pendingTaken: true })
+    expect(isSpotlightInstallPending(REPO_ID)).toBe(false)
+    expect(takeSpotlightLaunchInstall(REPO_ID)).toEqual({ install: true, pendingTaken: false })
+  })
+
+  it('uses the Windows PowerShell 5.1 form for that shell', () => {
+    const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
+    Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
+    try {
+      expect(takeSpotlightLaunchLine(REPO_ID, 'pnpm dev', 'powershell.exe')).toBe(
+        POWERSHELL_51_CHAIN
+      )
+    } finally {
+      if (originalPlatform) {
+        Object.defineProperty(process, 'platform', originalPlatform)
+      }
+    }
+  })
+
+  it('is never checked for a repo whose root Orca has not seen', () => {
+    expect(takeSpotlightLaunchLine('repo-unseen', 'pnpm dev', 'zsh')).toBe('pnpm dev')
+  })
+
+  it('is learned from the root every activation checks for a lockfile change', async () => {
+    rememberSpotlightRoot(REPO_ID, ROOT)
+    expect(takeSpotlightLaunchLine(REPO_ID, 'pnpm dev', 'zsh')).toBe('pnpm dev')
+
+    await markSpotlightInstallIfLockfileChanged({
+      repoId: REPO_ID,
+      ctx: fakeContext({ diff: '' }),
+      rootPath: root,
+      fromSha: null,
+      toSha: TO
+    })
+
+    expect(takeSpotlightLaunchLine(REPO_ID, 'pnpm dev', 'zsh')).toBe(AND_CHAIN)
   })
 })
 

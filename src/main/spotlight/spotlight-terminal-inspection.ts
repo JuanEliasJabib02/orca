@@ -4,6 +4,7 @@ import type { SpotlightServerState } from '../../shared/spotlight'
 import { isShellProcess } from '../../shared/shell-process-detection'
 import { isClientOnlyUnverifiableInspection } from '../../shared/terminal-process-inspection'
 import { getLocalPtyProvider } from '../ipc/pty'
+import { readPtyForegroundGroupFallback } from '../providers/pty-foreground-group-fallback'
 import { inspectPtyProviderProcess } from '../providers/pty-process-inspection'
 
 // Bound the foreground inspection so Spotlight off can't hang on an unresponsive PTY host.
@@ -22,7 +23,8 @@ const UNKNOWN: SpotlightTerminalReading = { kind: 'unknown' }
 /** Process groups decide: a `sh` shim (`pnpm`) or a bash script in front is busy, though its
  *  name is a shell's. */
 async function inspectPosix(ptyId: string): Promise<SpotlightTerminalReading> {
-  const inspection = await inspectPtyProviderProcess(getLocalPtyProvider(), ptyId, {
+  const provider = getLocalPtyProvider()
+  const inspection = await inspectPtyProviderProcess(provider, ptyId, {
     observeForegroundGroup: true
   })
   if (isClientOnlyUnverifiableInspection(inspection)) {
@@ -30,17 +32,30 @@ async function inspectPosix(ptyId: string): Promise<SpotlightTerminalReading> {
   }
   // Login shells report as `-zsh`.
   const foreground = inspection.foregroundProcess?.replace(/^-/, '') || null
+  const idle: SpotlightTerminalReading = {
+    kind: 'idle',
+    shell: foreground && isShellProcess(foreground) ? foreground : null
+  }
   if (inspection.foregroundGroup === 'shell') {
-    return { kind: 'idle', shell: foreground && isShellProcess(foreground) ? foreground : null }
+    return idle
   }
   if (inspection.foregroundGroup === 'job') {
     return BUSY
   }
-  // A host that predates the group reading can still prove busy, never idle.
+  // A host that predates the group reading: a name or children prove busy without a capture...
   const named = foreground !== null && !isShellProcess(foreground)
   const children =
     inspection.hasChildProcesses && inspection.childProcessEvidence !== 'unverifiable'
-  return named || children ? BUSY : UNKNOWN
+  if (named || children) {
+    return BUSY
+  }
+  // ...and only main's own group reading, by the host's rule, proves the prompt free.
+  const group = await readPtyForegroundGroupFallback(
+    provider,
+    ptyId,
+    inspection.foregroundProcessEvidence
+  )
+  return group === 'shell' ? idle : group === 'job' ? BUSY : UNKNOWN
 }
 
 async function inspectWindows(ptyId: string): Promise<SpotlightTerminalReading> {

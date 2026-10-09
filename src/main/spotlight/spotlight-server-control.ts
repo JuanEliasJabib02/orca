@@ -17,8 +17,8 @@ import {
   chainSpotlightInstall,
   isSpotlightInstallPending,
   markSpotlightInstallPending,
-  takeSpotlightInstallPending,
-  takeSpotlightLaunchLine
+  rememberSpotlightRoot,
+  takeSpotlightLaunchInstall
 } from './spotlight-lockfile-install'
 import {
   clearSpotlightServerLaunched,
@@ -133,6 +133,7 @@ async function startServerNow(
     return { ok: false, reason: 'no-terminal' }
   }
   rememberSpotlightServerCommand(repoId, command)
+  rememberSpotlightRoot(repoId, terminal.rootPath)
   // A queued line may not have reached its shell yet: typing would add a second line, and a
   // restart would Ctrl-C a shell that is still starting. Neither until it ran or was cancelled.
   const queued = getQueuedSpotlightLaunchPhase(repoId)
@@ -170,10 +171,11 @@ async function startServerNow(
   if (idleShell) {
     rememberSpotlightTerminalShell(repoId, idleShell)
   }
-  const launch = takeSpotlightLaunchLine(repoId, command, idleShell)
+  const { install, pendingTaken } = takeSpotlightLaunchInstall(repoId)
+  const launch = install ? chainSpotlightInstall(command, idleShell) : command
   if (!writeToSpotlightTerminal(terminal.ptyId, `${launch}\r`)) {
     // The install never reached the terminal; keep it for the next command Orca types.
-    if (launch !== command) {
+    if (pendingTaken) {
       markSpotlightInstallPending(repoId)
     }
     return { ok: false, reason: 'no-terminal' }
@@ -198,9 +200,10 @@ function replaceOrcaServer(repoId: string, command: string): SpotlightServerStar
 }
 
 /** For a Spotlight terminal whose PTY doesn't exist yet: the caller queues the returned text as
- *  its startup command. Keeps the command for restarts and consumes a pending install; call
- *  `cancelPreparedSpotlightServerLaunch` if the text never runs. Until the registered terminal is
- *  seen running it (or a cap passes), starts count the terminal as busy. */
+ *  its startup command. Keeps the command for restarts and consumes a pending install (or installs
+ *  into a root without node_modules); call `cancelPreparedSpotlightServerLaunch` if the text never
+ *  runs. Until the registered terminal is seen running it (or a cap passes), starts count the
+ *  terminal as busy. */
 export async function prepareSpotlightServerLaunch(
   repoId: string,
   command: string
@@ -212,9 +215,13 @@ export async function prepareSpotlightServerLaunch(
   // Before the await: Spotlight turning off meanwhile then forgets all of it.
   rememberSpotlightServerCommand(repoId, normalized)
   markSpotlightServerLaunched(repoId, normalized)
-  const installTaken = takeSpotlightInstallPending(repoId)
-  rememberPreparedSpotlightLaunch(repoId, { command: normalized, installTaken })
-  if (!installTaken) {
+  const terminalRoot = getSpotlightTerminal(repoId)?.rootPath
+  if (terminalRoot) {
+    rememberSpotlightRoot(repoId, terminalRoot)
+  }
+  const { install, pendingTaken } = takeSpotlightLaunchInstall(repoId)
+  rememberPreparedSpotlightLaunch(repoId, { command: normalized, installTaken: pendingTaken })
+  if (!install) {
     return normalized
   }
   return chainSpotlightInstall(normalized, await resolveSpotlightQueuedLaunchShell())
@@ -253,8 +260,13 @@ function noteQueuedLaunchReading(repoId: string, reading: SpotlightTerminalReadi
 }
 
 /** A PTY registered as the repo's Spotlight terminal, so a queued line now has a shell to run in.
- *  Reads it now and then until that line is seen running, so a later turn-off knows it ran. */
+ *  Reads it now and then until that line is seen running, so a later turn-off knows it ran. Also
+ *  remembers its root, for the dependency check of a restart's re-run. */
 export function trackRegisteredSpotlightLaunch(repoId: string, ptyId: string): void {
+  const terminal = getSpotlightTerminal(repoId)
+  if (terminal?.ptyId === ptyId) {
+    rememberSpotlightRoot(repoId, terminal.rootPath)
+  }
   if (!markPreparedSpotlightLaunchRegistered(repoId)) {
     return
   }

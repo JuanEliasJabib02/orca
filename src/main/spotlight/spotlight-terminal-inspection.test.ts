@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ProcessTableRow } from '../../shared/process-table-snapshot'
+import type * as SnapshotReader from '../../shared/process-table-snapshot-reader'
 import type { PtyProcessInspection } from '../providers/pty-process-inspection'
+import type { PtyProcessInfo } from '../providers/types'
 
 const fakePty = vi.hoisted(() => ({
   hasChildProcesses: vi.fn(async (_id: string): Promise<boolean> => false),
@@ -9,16 +12,29 @@ const fakePty = vi.hoisted(() => ({
     | undefined,
   confirmShellForeground: undefined as ((id: string) => Promise<boolean>) | undefined,
   hasPty: undefined as ((id: string) => boolean) | undefined,
-  probePtyLiveness: undefined as ((id: string) => Promise<boolean | null>) | undefined
+  probePtyLiveness: undefined as ((id: string) => Promise<boolean | null>) | undefined,
+  listProcesses: undefined as (() => Promise<PtyProcessInfo[]>) | undefined
+}))
+const { readTable } = vi.hoisted(() => ({
+  readTable: vi.fn<() => Promise<ProcessTableRow[]>>()
 }))
 
 vi.mock('../ipc/pty', () => ({ getLocalPtyProvider: () => fakePty }))
+vi.mock('../../shared/process-table-snapshot-reader', async (importOriginal) => ({
+  ...(await importOriginal<typeof SnapshotReader>()),
+  getStrictProcessTableSnapshot: readTable
+}))
 
 import {
   isSpotlightTerminalGone,
   readSpotlightServerState,
   readSpotlightTerminal
 } from './spotlight-terminal-inspection'
+import {
+  OLD_DAEMON_ANSWER,
+  SPOTLIGHT_TERMINAL_ROOT_PID,
+  spotlightTerminalRows
+} from './spotlight-terminal-test-pty'
 
 const PTY_ID = 'pty-1'
 const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
@@ -44,6 +60,9 @@ beforeEach(() => {
   fakePty.confirmShellForeground = undefined
   fakePty.hasPty = undefined
   fakePty.probePtyLiveness = undefined
+  fakePty.listProcesses = undefined
+  readTable.mockReset()
+  readTable.mockRejectedValue(new Error('no process table in this test'))
 })
 
 afterEach(() => {
@@ -150,6 +169,95 @@ describe('readSpotlightTerminal off Windows', () => {
   })
 })
 
+describe('readSpotlightTerminal with a host that sends no foregroundGroup (an older daemon)', () => {
+  const listed: PtyProcessInfo = {
+    id: PTY_ID,
+    rootProcessId: SPOTLIGHT_TERMINAL_ROOT_PID,
+    cwd: '/repo',
+    title: 'shell'
+  }
+
+  beforeEach(() => {
+    hostAnswers(OLD_DAEMON_ANSWER)
+    fakePty.listProcesses = vi.fn(async () => [listed])
+  })
+
+  it('reads a sh script running the server as busy, from the process table main reads', async () => {
+    readTable.mockResolvedValue(spotlightTerminalRows(true))
+
+    expect(await readSpotlightTerminal(PTY_ID)).toEqual({ kind: 'busy' })
+  })
+
+  it('reads the prompt as idle', async () => {
+    readTable.mockResolvedValue(spotlightTerminalRows(false))
+
+    expect(await readSpotlightTerminal(PTY_ID)).toEqual({ kind: 'idle', shell: null })
+  })
+
+  it('takes the pid from the answer when its fence is live, without asking the inventory', async () => {
+    hostAnswers({
+      ...OLD_DAEMON_ANSWER,
+      foregroundProcessEvidence: {
+        verdict: 'live',
+        processName: null,
+        fence: {
+          platform: 'posix',
+          shellPid: SPOTLIGHT_TERMINAL_ROOT_PID,
+          shellStartTime: 'Thu Oct  1 09:00:00 2026',
+          tty: 'ttys004',
+          foregroundPgid: 600
+        },
+        authorityGeneration: 'generation-1',
+        observationEpoch: 1,
+        capturedAgeMs: 0,
+        ptyId: PTY_ID,
+        ptyIncarnationId: 'incarnation-1'
+      }
+    })
+    readTable.mockResolvedValue(spotlightTerminalRows(true))
+
+    expect(await readSpotlightTerminal(PTY_ID)).toEqual({ kind: 'busy' })
+    expect(fakePty.listProcesses).not.toHaveBeenCalled()
+  })
+
+  it('stays unknown without a pid for the PTY, and never reads the process table', async () => {
+    fakePty.listProcesses = vi.fn(async () => [{ ...listed, rootProcessId: undefined }])
+
+    expect(await readSpotlightTerminal(PTY_ID)).toEqual({ kind: 'unknown' })
+    expect(readTable).not.toHaveBeenCalled()
+  })
+
+  it('stays unknown when the process table cannot be read', async () => {
+    expect(await readSpotlightTerminal(PTY_ID)).toEqual({ kind: 'unknown' })
+  })
+
+  it('reads a named command as busy without a capture', async () => {
+    hostAnswers({ foregroundProcess: 'node', hasChildProcesses: true })
+
+    expect(await readSpotlightTerminal(PTY_ID)).toEqual({ kind: 'busy' })
+    expect(readTable).not.toHaveBeenCalled()
+  })
+
+  it('trusts the host whenever it sends the group', async () => {
+    hostAnswers({ foregroundProcess: 'zsh', hasChildProcesses: false, foregroundGroup: 'shell' })
+    readTable.mockResolvedValue(spotlightTerminalRows(true))
+
+    expect(await readSpotlightTerminal(PTY_ID)).toEqual({ kind: 'idle', shell: 'zsh' })
+    expect(fakePty.listProcesses).not.toHaveBeenCalled()
+  })
+
+  it('gives the flashlight the same answer', async () => {
+    readTable.mockResolvedValue(spotlightTerminalRows(true))
+    expect(await readSpotlightServerState(PTY_ID)).toBe('running')
+
+    readTable.mockResolvedValue(spotlightTerminalRows(false))
+    expect(await readSpotlightServerState(PTY_ID)).toBe('stopped')
+
+    fakePty.listProcesses = vi.fn(async () => [])
+    expect(await readSpotlightServerState(PTY_ID)).toBe('unknown')
+  })
+})
+
 describe('readSpotlightTerminal on Windows, where the foreground name is the spawned shell', () => {
   beforeEach(() => {
     onPlatform('win32')
@@ -185,6 +293,17 @@ describe('readSpotlightTerminal on Windows, where the foreground name is the spa
     fakePty.getForegroundProcess.mockResolvedValueOnce('node.exe')
     expect(await readSpotlightTerminal(PTY_ID)).toEqual({ kind: 'busy' })
     expect(inspect).not.toHaveBeenCalled()
+  })
+
+  it('never works out a group in main, even for a host that sends none (unconfirmed stays unknown)', async () => {
+    fakePty.listProcesses = vi.fn(async () => [
+      { id: PTY_ID, rootProcessId: SPOTLIGHT_TERMINAL_ROOT_PID, cwd: '/repo', title: 'shell' }
+    ])
+    hostAnswers(OLD_DAEMON_ANSWER)
+
+    expect(await readSpotlightTerminal(PTY_ID)).toEqual({ kind: 'unknown' })
+    expect(fakePty.listProcesses).not.toHaveBeenCalled()
+    expect(readTable).not.toHaveBeenCalled()
   })
 })
 

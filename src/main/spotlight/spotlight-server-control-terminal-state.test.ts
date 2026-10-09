@@ -1,10 +1,14 @@
-// Field cases: a `sh`/`bash` script running the server reads busy everywhere, and a Spotlight
-// terminal whose PTY no longer exists answers `terminal-gone` instead of being typed into.
+// Field cases: a `sh`/`bash` script running the server reads busy everywhere (a daemon that predates
+// the group reading included), and a Spotlight terminal whose PTY no longer exists answers
+// `terminal-gone` instead of being typed into.
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import nodePath from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ProcessTableRow } from '../../shared/process-table-snapshot'
+import type * as SnapshotReader from '../../shared/process-table-snapshot-reader'
 import type { PtyProcessInspection } from '../providers/pty-process-inspection'
+import type { PtyProcessInfo } from '../providers/types'
 
 const fakePty = vi.hoisted(() => {
   const writes: { id: string; data: string }[] = []
@@ -19,13 +23,21 @@ const fakePty = vi.hoisted(() => {
     inspectProcess: vi.fn<(id: string, options?: unknown) => Promise<PtyProcessInspection>>(),
     hasPty: vi.fn((_id: string): boolean => true),
     probePtyLiveness: vi.fn(async (_id: string): Promise<boolean | null> => true),
+    listProcesses: vi.fn(async (): Promise<PtyProcessInfo[]> => []),
     onData: vi.fn(() => () => {})
   }
 })
+const { readTable } = vi.hoisted(() => ({
+  readTable: vi.fn<() => Promise<ProcessTableRow[]>>()
+}))
 
 vi.mock('../ipc/pty', () => ({
   getLocalPtyProvider: () => fakePty,
   onLocalPtyProviderChanged: () => () => {}
+}))
+vi.mock('../../shared/process-table-snapshot-reader', async (importOriginal) => ({
+  ...(await importOriginal<typeof SnapshotReader>()),
+  getStrictProcessTableSnapshot: readTable
 }))
 vi.mock('../pwsh', () => ({ isPwshAvailableAsync: vi.fn(async () => false) }))
 vi.mock('../git/runner', () => ({
@@ -45,7 +57,12 @@ import {
   trackRegisteredSpotlightLaunch
 } from './spotlight-server-control'
 import { stopSpotlightServer } from './spotlight-server-turn-off'
-import { SHELL_SCRIPT_RUNNING } from './spotlight-terminal-test-pty'
+import {
+  OLD_DAEMON_ANSWER,
+  SHELL_SCRIPT_RUNNING,
+  SPOTLIGHT_TERMINAL_ROOT_PID,
+  spotlightTerminalRows
+} from './spotlight-terminal-test-pty'
 
 const REPO_ID = 'repo-1'
 const PTY_ID = 'pty-1'
@@ -76,6 +93,10 @@ beforeEach(async () => {
   fakePty.hasPty.mockReturnValue(true)
   fakePty.probePtyLiveness.mockReset()
   fakePty.probePtyLiveness.mockResolvedValue(true)
+  fakePty.listProcesses.mockReset()
+  fakePty.listProcesses.mockResolvedValue([])
+  readTable.mockReset()
+  readTable.mockRejectedValue(new Error('no process table in this test'))
   root = mkdtempSync(nodePath.join(tmpdir(), 'orca-spotlight-terminal-state-'))
   await startSpotlightLogCapture({ repoId: REPO_ID, ptyId: PTY_ID, rootPath: root })
 })
@@ -141,6 +162,55 @@ describe('a server run by a sh/bash script, whose foreground name is a shell', (
     await vi.advanceTimersByTimeAsync(SPOTLIGHT_STRAY_STARTUP_WATCH_MS)
 
     expect(writtenData()).toContain(INTERRUPT)
+  })
+})
+
+describe('a terminal on a daemon that predates the group reading (no foregroundGroup)', () => {
+  beforeEach(() => {
+    fakePty.inspectProcess.mockResolvedValue(OLD_DAEMON_ANSWER)
+    fakePty.listProcesses.mockResolvedValue([
+      { id: PTY_ID, rootProcessId: SPOTLIGHT_TERMINAL_ROOT_PID, cwd: root, title: 'shell' }
+    ])
+  })
+
+  it('is never typed into while a sh script runs the server', async () => {
+    readTable.mockResolvedValue(spotlightTerminalRows(true))
+
+    expect(await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm local' })).toEqual(BUSY)
+    expect(fakePty.writes).toEqual([])
+  })
+
+  it('gets the server typed at its prompt', async () => {
+    readTable.mockResolvedValue(spotlightTerminalRows(false))
+
+    expect(await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm local' })).toEqual({
+      ok: true,
+      started: true
+    })
+    expect(writtenData()).toEqual(['pnpm local\r'])
+  })
+
+  it('gets the Ctrl-C when Spotlight turns off while the script runs', async () => {
+    readTable.mockResolvedValue(spotlightTerminalRows(true))
+
+    expect(await stopSpotlightServer(REPO_ID)).toBe(true)
+    expect(writtenData()).toEqual([INTERRUPT])
+  })
+
+  it('gets none at a free prompt', async () => {
+    readTable.mockResolvedValue(spotlightTerminalRows(false))
+
+    expect(await stopSpotlightServer(REPO_ID)).toBe(false)
+    expect(fakePty.writes).toEqual([])
+  })
+
+  it('reads unknown without a pid: never typed into, Ctrl-C anyway at turn-off', async () => {
+    fakePty.listProcesses.mockResolvedValue([])
+
+    expect(await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm local' })).toEqual(BUSY)
+    expect(await stopSpotlightServer(REPO_ID)).toBe(true)
+    expect(writtenData()).toEqual([INTERRUPT])
+    expect(readTable).not.toHaveBeenCalled()
   })
 })
 

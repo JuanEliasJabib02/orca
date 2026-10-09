@@ -1,17 +1,42 @@
 // Spotlight projects committed code onto the repo root but not node_modules, so a pnpm-lock.yaml
-// change leaves the root's install stale. The repo is flagged here, and the next server command
-// Orca types into the Spotlight terminal installs first, where the user sees it run.
-import { win32 as pathWin32 } from 'node:path'
+// change leaves the root's install stale, and a root never installed has none at all. The next
+// server command Orca types or queues into the Spotlight terminal installs first in either case,
+// where the user sees it run.
+import { statSync } from 'node:fs'
+import { join, win32 as pathWin32 } from 'node:path'
 import { gitTry, type SpotlightGitContext } from '../../shared/spotlight-sync-primitives'
 
 const PNPM_LOCKFILE = 'pnpm-lock.yaml'
+const NODE_MODULES = 'node_modules'
 const PNPM_INSTALL = 'pnpm install --frozen-lockfile'
 
 const installPendingRepoIds = new Set<string>()
+// For lines built with no terminal at hand (a queued launch, a restart's re-run).
+const rootPathByRepoId = new Map<string, string>()
+
+/** The repo's root as the latest Spotlight operation or terminal saw it. */
+export function rememberSpotlightRoot(repoId: string, rootPath: string): void {
+  rootPathByRepoId.set(repoId, rootPath)
+}
+
+/** A pnpm root with no node_modules directory: its server can't start before an install. Read on
+ *  disk now; a stat failing for any reason but absence never asks for one. */
+export function isSpotlightRootMissingDependencies(rootPath: string): boolean {
+  try {
+    const lockfile = statSync(join(rootPath, PNPM_LOCKFILE), { throwIfNoEntry: false })
+    if (!lockfile?.isFile()) {
+      return false
+    }
+    const nodeModules = statSync(join(rootPath, NODE_MODULES), { throwIfNoEntry: false })
+    return nodeModules?.isDirectory() !== true
+  } catch {
+    return false
+  }
+}
 
 /** Flag the repo when pnpm-lock.yaml differs between `fromSha` and `toSha` and exists in `toSha`.
  *  At most two bounded plumbing reads; a git failure never marks (nor blocks Spotlight).
- *  Returns whether the repo was flagged. */
+ *  Every activation runs it, so it also remembers the root. Returns whether the repo was flagged. */
 export async function markSpotlightInstallIfLockfileChanged(args: {
   repoId: string
   ctx: SpotlightGitContext
@@ -20,6 +45,7 @@ export async function markSpotlightInstallIfLockfileChanged(args: {
   toSha: string
 }): Promise<boolean> {
   const { ctx, rootPath, fromSha, toSha } = args
+  rememberSpotlightRoot(args.repoId, rootPath)
   if (!fromSha || fromSha === toSha) {
     return false
   }
@@ -72,14 +98,30 @@ export function takeSpotlightInstallPending(repoId: string): boolean {
   return installPendingRepoIds.delete(repoId)
 }
 
-/** `command`, with a pending install chained first (once per change). Call only when the line is
- *  about to be typed, so a skipped start keeps the install pending. */
+/** Whether the line about to be typed or queued installs first (once, whatever the reason): a
+ *  pending lockfile change, taken here (`pendingTaken`), or a root without node_modules, checked
+ *  now. A line that never runs hands back only `pendingTaken`; the disk is read again next time. */
+export function takeSpotlightLaunchInstall(repoId: string): {
+  install: boolean
+  pendingTaken: boolean
+} {
+  const pendingTaken = takeSpotlightInstallPending(repoId)
+  const rootPath = rootPathByRepoId.get(repoId)
+  const missing =
+    !pendingTaken && rootPath !== undefined && isSpotlightRootMissingDependencies(rootPath)
+  return { install: pendingTaken || missing, pendingTaken }
+}
+
+/** `command`, with an install chained first when one is due (a pending one once per change). Call
+ *  only when the line is about to be typed, so a skipped start keeps the install pending. */
 export function takeSpotlightLaunchLine(
   repoId: string,
   command: string,
   shell: string | null | undefined
 ): string {
-  return takeSpotlightInstallPending(repoId) ? chainSpotlightInstall(command, shell) : command
+  return takeSpotlightLaunchInstall(repoId).install
+    ? chainSpotlightInstall(command, shell)
+    : command
 }
 
 export function isSpotlightInstallPending(repoId: string): boolean {
