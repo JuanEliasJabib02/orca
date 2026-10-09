@@ -4,6 +4,7 @@ import {
   spotlightActivateFailedTitle,
   spotlightDeactivateFailedTitle
 } from '@/store/slices/spotlight'
+import type { Repo } from '../../../../../../shared/repo-types'
 import type { SpotlightOpResult } from '../../../../../../shared/spotlight'
 import {
   isTaskSpotlightHeld,
@@ -44,13 +45,15 @@ async function runOp(op: () => Promise<SpotlightOpResult>, failureTitle: string)
 }
 
 /** Turns the task's Spotlight on for every eligible project, or off everywhere when already lit.
+ *  Turning on first switches off `switchAway` (the previous task's projects).
  *  Sequential, and a failing project never stops the rest. */
 export async function runTaskSpotlightBatch(args: {
   members: readonly TaskSpotlightMember[]
   spotlightByRepo: SpotlightHolders | undefined
   actions: TaskSpotlightActions
+  switchAway?: readonly Repo[]
 }): Promise<TaskSpotlightBatchResult> {
-  const { members, spotlightByRepo, actions } = args
+  const { members, spotlightByRepo, actions, switchAway = [] } = args
   const held = members.filter((member) => isTaskSpotlightHeld(member, spotlightByRepo))
 
   if (isTaskSpotlightLit(members, spotlightByRepo)) {
@@ -64,6 +67,16 @@ export async function runTaskSpotlightBatch(args: {
       succeeded += ok ? 1 : 0
     }
     return { mode: 'off', total: held.length, succeeded }
+  }
+
+  // Why the guard: a task with nothing to turn on must not switch the previous one off.
+  const leaving = members.length > 0 ? switchAway : []
+  for (const repo of leaving) {
+    // Why uncounted: the result describes the task turning on; each failure toasts by project.
+    await runOp(
+      () => actions.deactivateSpotlight(repo.id, { quiet: true, projectName: repo.displayName }),
+      spotlightDeactivateFailedTitle(repo.displayName)
+    )
   }
 
   let succeeded = held.length

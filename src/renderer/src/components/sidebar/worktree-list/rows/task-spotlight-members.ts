@@ -2,6 +2,7 @@ import type { Repo } from '../../../../../../shared/repo-types'
 import { isFolderRepo } from '../../../../../../shared/repo-kind'
 import type { SpotlightRepoState } from '../../../../../../shared/spotlight'
 import type { Worktree } from '../../../../../../shared/worktree/types'
+import type { SidebarSpaceScope } from '../../sidebar-space-scope'
 import { canHoldSpotlight } from '../../WorktreeCardSpotlightControls'
 import type { TaskSectionWorktree } from '../grouping/row-types'
 
@@ -85,5 +86,23 @@ export function isTaskSpotlightLit(
 ): boolean {
   return (
     eligible.length > 0 && eligible.every((member) => isTaskSpotlightHeld(member, spotlightByRepo))
+  )
+}
+
+/** Active Spotlights in the space outside the task's eligible projects: what a task switch turns off. */
+export function resolveSwitchAwayRepos(args: {
+  eligible: readonly TaskSpotlightMember[]
+  spotlightByRepo: SpotlightHolders | undefined
+  repos: readonly Repo[]
+  // Why nullable: null is "no active space", where every project counts.
+  spaceScope: SidebarSpaceScope | null
+}): Repo[] {
+  const { eligible, spotlightByRepo, repos, spaceScope } = args
+  const eligibleIds = new Set(eligible.map((member) => member.repo.id))
+  return repos.filter(
+    (repo) =>
+      spotlightByRepo?.[repo.id] !== undefined &&
+      !eligibleIds.has(repo.id) &&
+      (spaceScope === null || spaceScope.repoIds.has(repo.id))
   )
 }

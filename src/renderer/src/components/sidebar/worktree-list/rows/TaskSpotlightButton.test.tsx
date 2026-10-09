@@ -13,6 +13,7 @@ import { TaskSpotlightButton } from './TaskSpotlightButton'
 import {
   OP_OK,
   holdersByRepo,
+  makeSpaceGroup,
   makeSpotlightRepo,
   makeTaskWorktree
 } from './task-spotlight-test-fixtures'
@@ -223,5 +224,63 @@ describe('TaskSpotlightButton', () => {
       ['admin', { quiet: true, projectName: 'admin' }]
     ])
     expect(toast.success).toHaveBeenCalledWith('Spotlight off for AX-3448')
+  })
+
+  describe('switching from another task', () => {
+    // Task A (web + backend) is on in space-a; mobile is on in space-b. The header task is backend + admin.
+    function seedSwitch(activeSidebarSpaceGroupId: string | null) {
+      const calls: string[] = []
+      const activateSpotlight = vi.fn(async (repoId: string, worktreeId: string) => {
+        calls.push(`on:${repoId}:${worktreeId}`)
+        return OP_OK
+      })
+      const deactivateSpotlight = vi.fn(async (repoId: string) => {
+        calls.push(`off:${repoId}`)
+        return OP_OK
+      })
+      seedStore({
+        repos: [
+          makeSpotlightRepo('backend', { projectGroupId: 'space-a' }),
+          makeSpotlightRepo('admin', { projectGroupId: 'space-a' }),
+          makeSpotlightRepo('web', { projectGroupId: 'space-a' }),
+          makeSpotlightRepo('mobile', { projectGroupId: 'space-b' })
+        ],
+        worktreesByRepo: {
+          backend: [makeTaskWorktree('be-1', 'backend')],
+          admin: [makeTaskWorktree('ad-1', 'admin')]
+        },
+        projectGroups: [makeSpaceGroup('space-a'), makeSpaceGroup('space-b')],
+        activeSidebarSpaceGroupId,
+        spotlightByRepo: holdersByRepo({ web: 'web-1', backend: 'be-old', mobile: 'mo-1' }),
+        activateSpotlight,
+        deactivateSpotlight
+      })
+      return calls
+    }
+
+    const TASK_B: TaskSectionInfo = { ...TASK, worktrees: TASK.worktrees.slice(0, 2) }
+
+    it('turns off the previous task only in the active space and takes shared projects over', async () => {
+      const calls = seedSwitch('space-a')
+      const container = await render(TASK_B)
+
+      await act(async () => {
+        getButton(container)?.click()
+      })
+
+      expect(calls).toEqual(['off:web', 'on:backend:be-1', 'on:admin:ad-1'])
+      expect(toast.success).toHaveBeenCalledWith('Spotlight on for AX-3448')
+    })
+
+    it('considers every project when no space is active', async () => {
+      const calls = seedSwitch(null)
+      const container = await render(TASK_B)
+
+      await act(async () => {
+        getButton(container)?.click()
+      })
+
+      expect(calls).toEqual(['off:web', 'off:mobile', 'on:backend:be-1', 'on:admin:ad-1'])
+    })
   })
 })

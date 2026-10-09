@@ -5,8 +5,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
 import type { TaskSectionInfo } from '../grouping/row-types'
+import { resolveSidebarSpaceScopeFromState } from '../../sidebar-space-scope'
 import { notifyTaskSpotlightBatch, runTaskSpotlightBatch } from './task-spotlight-batch'
-import { isTaskSpotlightLit, resolveTaskSpotlightMembers } from './task-spotlight-members'
+import {
+  isTaskSpotlightLit,
+  resolveSwitchAwayRepos,
+  resolveTaskSpotlightMembers
+} from './task-spotlight-members'
 
 // Why module-level: virtualized headers remount on scroll and would lose a per-instance busy flag.
 const runningTaskKeys = new Set<string>()
@@ -62,10 +67,17 @@ export function TaskSpotlightButton({ task }: { task: TaskSectionInfo }): React.
     }
     runningTaskKeys.add(taskKey)
     setRunning(true)
+    const state = useAppStore.getState()
     void runTaskSpotlightBatch({
       members: eligible,
-      spotlightByRepo: useAppStore.getState().spotlightByRepo,
-      actions: { activateSpotlight, deactivateSpotlight }
+      spotlightByRepo: state.spotlightByRepo,
+      actions: { activateSpotlight, deactivateSpotlight },
+      switchAway: resolveSwitchAwayRepos({
+        eligible,
+        spotlightByRepo: state.spotlightByRepo,
+        repos: state.repos,
+        spaceScope: resolveSidebarSpaceScopeFromState(state)
+      })
     })
       .then((result) => notifyTaskSpotlightBatch(taskKey, result))
       .finally(() => {

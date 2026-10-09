@@ -199,6 +199,78 @@ describe('runTaskSpotlightBatch', () => {
   })
 })
 
+describe('runTaskSpotlightBatch switching away from another task', () => {
+  const [OLD_WEB, OLD_API] = ['old-web', 'old-api'].map((id) => makeSpotlightRepo(id))
+
+  it('turns the previous projects off quietly, by name, before turning the task on', async () => {
+    const actions = makeActions()
+
+    const result = await runTaskSpotlightBatch({
+      members: MEMBERS,
+      spotlightByRepo: holdersByRepo({ 'old-web': 'ow-1', 'old-api': 'oa-1' }),
+      actions,
+      switchAway: [OLD_WEB, OLD_API]
+    })
+
+    expect(actions.calls).toEqual([
+      'off:old-web:true',
+      'off:old-api:true',
+      'on:backend:be-1:true',
+      'on:admin:ad-1:true',
+      'on:docs:dc-1:true'
+    ])
+    expect(actions.deactivateSpotlight).toHaveBeenCalledWith('old-web', {
+      quiet: true,
+      projectName: 'old-web'
+    })
+    expect(result).toEqual({ mode: 'on', total: 3, succeeded: 3 })
+  })
+
+  it('keeps going after a previous project fails to turn off, naming it in the toast', async () => {
+    const actions = makeActions({ 'old-web': new Error('ipc closed'), 'old-api': OP_FAILED })
+
+    const result = await runTaskSpotlightBatch({
+      members: MEMBERS,
+      spotlightByRepo: {},
+      actions,
+      switchAway: [OLD_WEB, OLD_API]
+    })
+
+    expect(actions.calls).toHaveLength(5)
+    expect(toast.error).toHaveBeenCalledWith('Failed to turn off Spotlight in old-web', {
+      description: 'ipc closed'
+    })
+    expect(result).toEqual({ mode: 'on', total: 3, succeeded: 3 })
+  })
+
+  it('leaves the other projects alone when the task is already lit and turns off', async () => {
+    const actions = makeActions()
+
+    const result = await runTaskSpotlightBatch({
+      members: MEMBERS,
+      spotlightByRepo: holdersByRepo({ backend: 'be-1', admin: 'ad-1', docs: 'dc-1' }),
+      actions,
+      switchAway: [OLD_WEB]
+    })
+
+    expect(actions.calls).toEqual(['off:backend:true', 'off:admin:true', 'off:docs:true'])
+    expect(result).toEqual({ mode: 'off', total: 3, succeeded: 3 })
+  })
+
+  it('keeps the previous projects on when the task has nothing to turn on', async () => {
+    const actions = makeActions()
+
+    await runTaskSpotlightBatch({
+      members: [],
+      spotlightByRepo: {},
+      actions,
+      switchAway: [OLD_WEB]
+    })
+
+    expect(actions.calls).toEqual([])
+  })
+})
+
 describe('notifyTaskSpotlightBatch', () => {
   it('confirms a complete turn-on with one success toast', () => {
     notifyTaskSpotlightBatch('AX-3448', { mode: 'on', total: 3, succeeded: 3 })

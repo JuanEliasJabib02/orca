@@ -1,3 +1,4 @@
+import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { Repo } from '../../../../../../shared/repo-types'
 import type { SpotlightOpResult, SpotlightRepoState } from '../../../../../../shared/spotlight'
 import type { Worktree } from '../../../../../../shared/worktree/types'
@@ -15,6 +16,22 @@ export function makeSpotlightRepo(id: string, overrides: Partial<Repo> = {}): Re
     path: `/tmp/${id}`,
     spotlightTestingEnabled: true,
     ...overrides
+  }
+}
+
+/** A top-level project group, i.e. a sidebar space. */
+export function makeSpaceGroup(id: string): ProjectGroup {
+  return {
+    id,
+    name: id,
+    parentPath: null,
+    parentGroupId: null,
+    createdFrom: 'manual',
+    tabOrder: 0,
+    isCollapsed: false,
+    color: null,
+    createdAt: 0,
+    updatedAt: 0
   }
 }
 

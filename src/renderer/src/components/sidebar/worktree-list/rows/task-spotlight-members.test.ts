@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { isTaskSpotlightLit, resolveTaskSpotlightMembers } from './task-spotlight-members'
-import { holdersByRepo, makeSpotlightRepo, makeTaskWorktree } from './task-spotlight-test-fixtures'
+import { resolveSidebarSpaceScope } from '../../sidebar-space-scope'
+import {
+  isTaskSpotlightLit,
+  resolveSwitchAwayRepos,
+  resolveTaskSpotlightMembers
+} from './task-spotlight-members'
+import {
+  holdersByRepo,
+  makeSpaceGroup,
+  makeSpotlightRepo,
+  makeTaskWorktree
+} from './task-spotlight-test-fixtures'
 
 const BACKEND = makeSpotlightRepo('backend')
 const ADMIN = makeSpotlightRepo('admin')
@@ -158,5 +168,52 @@ describe('isTaskSpotlightLit', () => {
 
   it('is never lit without eligible projects', () => {
     expect(isTaskSpotlightLit([], holdersByRepo({ backend: 'be-2' }))).toBe(false)
+  })
+})
+
+describe('resolveSwitchAwayRepos', () => {
+  const web = makeSpotlightRepo('web', { projectGroupId: 'space-a' })
+  const backend = makeSpotlightRepo('backend', { projectGroupId: 'space-a' })
+  const mobile = makeSpotlightRepo('mobile', { projectGroupId: 'space-b' })
+  const idle = makeSpotlightRepo('idle', { projectGroupId: 'space-a' })
+  const repos = [web, backend, mobile, idle]
+  const { eligible } = resolveTaskSpotlightMembers(
+    [{ worktreeId: 'be-1', repoId: 'backend' }],
+    { backend: [makeTaskWorktree('be-1', 'backend')] },
+    repos
+  )
+  const spotlightByRepo = holdersByRepo({ web: 'web-1', backend: 'be-old', mobile: 'mo-1' })
+  const scopeOf = (activeGroupId: string | null) =>
+    resolveSidebarSpaceScope({
+      activeGroupId,
+      projectGroups: [makeSpaceGroup('space-a'), makeSpaceGroup('space-b')],
+      repos,
+      folderWorkspaces: []
+    })
+
+  it('picks the active Spotlights of the space that are not in the new task', () => {
+    const away = resolveSwitchAwayRepos({
+      eligible,
+      spotlightByRepo,
+      repos,
+      spaceScope: scopeOf('space-a')
+    })
+
+    expect(away.map((repo) => repo.id)).toEqual(['web'])
+  })
+
+  it('considers every space when none is active', () => {
+    const away = resolveSwitchAwayRepos({ eligible, spotlightByRepo, repos, spaceScope: null })
+
+    expect(away.map((repo) => repo.id)).toEqual(['web', 'mobile'])
+  })
+
+  it('has nothing to switch away from without active Spotlights', () => {
+    expect(
+      resolveSwitchAwayRepos({ eligible, spotlightByRepo: {}, repos, spaceScope: null })
+    ).toEqual([])
+    expect(
+      resolveSwitchAwayRepos({ eligible, spotlightByRepo: undefined, repos, spaceScope: null })
+    ).toEqual([])
   })
 })
