@@ -6,11 +6,14 @@ import type { Repo } from '../../../../shared/repo-types'
 import {
   filterFolderWorkspacesToSidebarSpace,
   filterProjectGroupsToSidebarSpace,
+  filterReposToSidebarSpace,
   findSidebarSpaceToReveal,
+  getSpaceRepoFilterIds,
   isWorktreeInSidebarSpace,
   isSpacelessRepo,
   listSidebarSpaces,
   listSpacelessRepoIdsOnHost,
+  replaceSpaceRepoFilterIds,
   resolveActiveSidebarSpaceId,
   resolveSidebarSpaceScope,
   resolveSidebarSpaceScopeFromState
@@ -191,6 +194,69 @@ describe('filterProjectGroupsToSidebarSpace / filterFolderWorkspacesToSidebarSpa
     expect(
       filterFolderWorkspacesToSidebarSpace(folderWorkspaces, scope).map((workspace) => workspace.id)
     ).toEqual(['folder-work'])
+  })
+})
+
+describe('filterReposToSidebarSpace', () => {
+  it('returns the input untouched when no space is active', () => {
+    expect(filterReposToSidebarSpace(repos, null)).toBe(repos)
+  })
+
+  it('keeps the space projects and the spaceless ones, in store order', () => {
+    expect(filterReposToSidebarSpace(repos, resolve('personal')).map((repo) => repo.id)).toEqual([
+      'repo-personal',
+      'repo-ungrouped'
+    ])
+  })
+})
+
+describe('getSpaceRepoFilterIds', () => {
+  it('returns every id when no space is active', () => {
+    const filterRepoIds = ['repo-work', 'repo-personal']
+
+    expect(getSpaceRepoFilterIds(filterRepoIds, null)).toBe(filterRepoIds)
+    expect(getSpaceRepoFilterIds(filterRepoIds, undefined)).toBe(filterRepoIds)
+  })
+
+  it('keeps only the ids inside the active space', () => {
+    expect(
+      getSpaceRepoFilterIds(['repo-work', 'repo-personal', 'repo-ungrouped'], resolve('work'))
+    ).toEqual(['repo-work', 'repo-ungrouped'])
+  })
+
+  it('returns an empty list when every id belongs to another space', () => {
+    expect(getSpaceRepoFilterIds(['repo-personal'], resolve('work'))).toEqual([])
+  })
+
+  it('returns the same array when nothing is dropped, so memos keyed on it stay stable', () => {
+    const filterRepoIds = ['repo-work', 'repo-client']
+
+    expect(getSpaceRepoFilterIds(filterRepoIds, resolve('work'))).toBe(filterRepoIds)
+  })
+})
+
+describe('replaceSpaceRepoFilterIds', () => {
+  it('clears only the active space and keeps picks made in another space', () => {
+    expect(
+      replaceSpaceRepoFilterIds(
+        ['repo-work', 'repo-personal', 'repo-ungrouped'],
+        resolve('work'),
+        []
+      )
+    ).toEqual(['repo-personal'])
+  })
+
+  it('selects every project of the active space on top of the other spaces picks', () => {
+    expect(
+      replaceSpaceRepoFilterIds(['repo-personal', 'repo-work'], resolve('work'), [
+        'repo-work',
+        'repo-client'
+      ])
+    ).toEqual(['repo-personal', 'repo-work', 'repo-client'])
+  })
+
+  it('replaces the whole filter when no space is active', () => {
+    expect(replaceSpaceRepoFilterIds(['repo-work', 'repo-personal'], null, [])).toEqual([])
   })
 })
 

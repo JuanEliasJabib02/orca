@@ -1,5 +1,6 @@
 import { ALL_EXECUTION_HOSTS_SCOPE } from '../../../../shared/execution-host'
 import { DEFAULT_SHOW_SLEEPING_WORKSPACES } from '../../../../shared/constants'
+import { getSpaceRepoFilterIds } from './sidebar-space-scope'
 import type { SidebarFilterState } from './visible-worktree-kinds'
 
 /**
@@ -9,10 +10,15 @@ import type { SidebarFilterState } from './visible-worktree-kinds'
  * about the filter CHROME, not about which rows survive filtering.
  */
 
+// Why: a project filter picked in another space does not narrow this one, so it is not active here.
+function hasProjectFilter(state: SidebarFilterState): boolean {
+  return getSpaceRepoFilterIds(state.filterRepoIds, state.spaceScope).length > 0
+}
+
 export function sidebarHasActiveFilters(state: SidebarFilterState): boolean {
   return (
     state.showSleepingWorkspaces !== DEFAULT_SHOW_SLEEPING_WORKSPACES ||
-    state.filterRepoIds.length > 0 ||
+    hasProjectFilter(state) ||
     state.hideDefaultBranchWorkspace ||
     state.hideAutomationGeneratedWorkspaces ||
     state.hideCliCreatedWorkspaces ||
@@ -53,7 +59,7 @@ export type ClearFilterActions = {
 export function computeClearFilterActions(state: SidebarFilterState): ClearFilterActions {
   return {
     resetShowSleepingWorkspaces: state.showSleepingWorkspaces !== DEFAULT_SHOW_SLEEPING_WORKSPACES,
-    resetFilterRepoIds: state.filterRepoIds.length > 0,
+    resetFilterRepoIds: hasProjectFilter(state),
     resetHideDefaultBranchWorkspace: state.hideDefaultBranchWorkspace,
     resetHideAutomationGeneratedWorkspaces: state.hideAutomationGeneratedWorkspaces,
     resetHideCliCreatedWorkspaces: state.hideCliCreatedWorkspaces,

@@ -6,6 +6,8 @@ import {
   DropdownMenuSubTrigger
 } from '@/components/ui/dropdown-menu'
 import { SidebarProjectFilterPanel } from './SidebarProjectFilterPanel'
+import { useActiveSidebarSpaceScope, useActiveSpaceRepos } from './use-active-sidebar-space'
+import { replaceSpaceRepoFilterIds } from './sidebar-space-scope'
 import type { Repo } from '../../../../shared/repo-types'
 import { translate } from '@/i18n/i18n'
 
@@ -47,7 +49,13 @@ const SidebarRepositoryFilterSection = React.memo(function SidebarRepositoryFilt
 }: SidebarRepositoryFilterSectionProps) {
   const workspaceFilterRepoIds = useAppStore((s) => s.filterRepoIds)
   const setWorkspaceFilterRepoIds = useAppStore((s) => s.setFilterRepoIds)
-  const repos = useAppStore((s) => s.repos)
+  const allRepos = useAppStore((s) => s.repos)
+  const spaceRepos = useActiveSpaceRepos()
+  const activeSpaceScope = useActiveSidebarSpaceScope()
+  // Why: only the workspace-nav filter is scoped to the active space; the Agents view brings its own filter and lists every project.
+  const isSpaceScoped = filterRepoIdsProp === undefined
+  const repos = isSpaceScoped ? spaceRepos : allRepos
+  const spaceScope = isSpaceScoped ? activeSpaceScope : null
   const filterRepoIds = filterRepoIdsProp ?? workspaceFilterRepoIds
   const setFilterRepoIds = setFilterRepoIdsProp ?? setWorkspaceFilterRepoIds
 
@@ -75,7 +83,10 @@ const SidebarRepositoryFilterSection = React.memo(function SidebarRepositoryFilt
   )
   const visibilityLabel = getProjectFilterVisibilityLabel({ selectedCount, selectedRepos })
 
-  const clearRepos = useCallback(() => setFilterRepoIds([]), [setFilterRepoIds])
+  const clearRepos = useCallback(
+    () => setFilterRepoIds(replaceSpaceRepoFilterIds(filterRepoIds, spaceScope, [])),
+    [filterRepoIds, spaceScope, setFilterRepoIds]
+  )
 
   if (!canFilterRepos) {
     return null

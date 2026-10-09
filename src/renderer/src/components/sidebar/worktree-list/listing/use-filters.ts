@@ -16,7 +16,12 @@ import {
   getSettingsFocusedExecutionHostId
 } from '../../../../../../shared/execution-host'
 import { isDefaultBranchWorkspace } from '../../default-branch-workspace'
-import { resolveSidebarSpaceScope } from '../../sidebar-space-scope'
+import {
+  getSpaceRepoFilterIds,
+  replaceSpaceRepoFilterIds,
+  resolveSidebarSpaceScopeFromState
+} from '../../sidebar-space-scope'
+import { useActiveSidebarSpaceScope } from '../../use-active-sidebar-space'
 import { getFolderWorkspaceExecutionHostIdForRows } from './host-filtering'
 import {
   getPairedDeviceIdsByEnvironment,
@@ -36,10 +41,7 @@ export type SidebarWorktreeFilters = ReturnType<typeof useSidebarWorktreeFilters
 export function useSidebarWorktreeFilters() {
   const showSleepingWorkspaces = useAppStore((s) => s.showSleepingWorkspaces)
   const filterRepoIds = useAppStore((s) => s.filterRepoIds)
-  const activeSidebarSpaceGroupId = useAppStore((s) => s.activeSidebarSpaceGroupId)
-  const projectGroups = useAppStore((s) => s.projectGroups)
-  const repos = useAppStore((s) => s.repos)
-  const folderWorkspaces = useAppStore((s) => s.folderWorkspaces)
+  const spaceScope = useActiveSidebarSpaceScope()
   const hideDefaultBranchWorkspace = useAppStore((s) => s.hideDefaultBranchWorkspace)
   const hideAutomationGeneratedWorkspaces = useAppStore((s) => s.hideAutomationGeneratedWorkspaces)
   const hideCliCreatedWorkspaces = useAppStore((s) => s.hideCliCreatedWorkspaces)
@@ -88,10 +90,15 @@ export function useSidebarWorktreeFilters() {
       }
     }
 
+    // Why scoped: ids left over from another space's filter must not make an unfiltered space look filtered.
+    const projectFilterIds = getSpaceRepoFilterIds(
+      state.filterRepoIds,
+      resolveSidebarSpaceScopeFromState(state)
+    )
     if (
       !worktree.id.startsWith('folder:') &&
-      state.filterRepoIds.length > 0 &&
-      !state.filterRepoIds.includes(worktree.repoId)
+      projectFilterIds.length > 0 &&
+      !projectFilterIds.includes(worktree.repoId)
     ) {
       state.setFilterRepoIds([...state.filterRepoIds, worktree.repoId])
     }
@@ -148,23 +155,18 @@ export function useSidebarWorktreeFilters() {
     }
   }, [])
 
-  const spaceScope = useMemo(
-    () =>
-      resolveSidebarSpaceScope({
-        activeGroupId: activeSidebarSpaceGroupId,
-        projectGroups,
-        repos,
-        folderWorkspaces
-      }),
-    [activeSidebarSpaceGroupId, projectGroups, repos, folderWorkspaces]
+  // Why scoped here: every row consumer then sees the project filter that applies in this space.
+  const spaceFilterRepoIds = useMemo(
+    () => getSpaceRepoFilterIds(filterRepoIds, spaceScope),
+    [filterRepoIds, spaceScope]
   )
 
   // Why: count hideDefaultBranchWorkspace as a filter so the Clear Filters escape hatch stays reachable when it alone empties the list.
-  // spaceScope rides along for the row pipeline but is deliberately absent from sidebarHasActiveFilters and Clear Filters: a space is a context, not a filter.
+  // spaceScope rides along for the row pipeline and the project ids above; the space itself is a context, not a filter, so it never counts as active or gets cleared.
   const filterState = useMemo(
     () => ({
       showSleepingWorkspaces,
-      filterRepoIds,
+      filterRepoIds: spaceFilterRepoIds,
       spaceScope,
       hideDefaultBranchWorkspace,
       hideAutomationGeneratedWorkspaces,
@@ -177,7 +179,7 @@ export function useSidebarWorktreeFilters() {
     }),
     [
       showSleepingWorkspaces,
-      filterRepoIds,
+      spaceFilterRepoIds,
       spaceScope,
       hideDefaultBranchWorkspace,
       hideAutomationGeneratedWorkspaces,
@@ -196,7 +198,7 @@ export function useSidebarWorktreeFilters() {
       setShowSleepingWorkspaces(DEFAULT_SHOW_SLEEPING_WORKSPACES)
     }
     if (actions.resetFilterRepoIds) {
-      setFilterRepoIds([])
+      setFilterRepoIds(replaceSpaceRepoFilterIds(filterRepoIds, spaceScope, []))
     }
     if (actions.resetHideDefaultBranchWorkspace) {
       setHideDefaultBranchWorkspace(false)
@@ -229,6 +231,8 @@ export function useSidebarWorktreeFilters() {
     setHideWorkspacesFromOtherDevices,
     setAlwaysShowDefaultBranchWorkspace,
     setVisibleWorkspaceHostIds,
+    filterRepoIds,
+    spaceScope,
     filterState
   ])
 

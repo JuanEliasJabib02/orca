@@ -102,14 +102,40 @@ describe('computeVisibleWorktreeIds with a sidebar space', () => {
     expect(result).toEqual([inSpace.id, folderIn.id])
   })
 
-  it('composes with the project filter', () => {
+  it('keeps filtering by a project filter that names a project inside the space', () => {
+    const secondInSpace = makeWorktree('in-2', 'in-space-2')
+    const scope: SidebarSpaceScope = {
+      ...spaceScope,
+      repoIds: new Set(['in-space', 'in-space-2'])
+    }
+
+    const result = computeVisibleWorktreeIds(
+      { ...worktreesByRepo, 'in-space-2': [secondInSpace] },
+      [...sortedIds, secondInSpace.id],
+      visibleOptions({ spaceScope: scope, filterRepoIds: ['in-space-2'] })
+    )
+
+    expect(result).toEqual([secondInSpace.id])
+  })
+
+  it('ignores a project filter that only names projects of another space', () => {
     const result = computeVisibleWorktreeIds(
       worktreesByRepo,
       sortedIds,
       visibleOptions({ spaceScope, filterRepoIds: ['other-space'] })
     )
 
-    expect(result).toEqual([])
+    expect(result).toEqual([inSpace.id, folderIn.id])
+  })
+
+  it('still applies the whole project filter when no space is active', () => {
+    const result = computeVisibleWorktreeIds(
+      worktreesByRepo,
+      sortedIds,
+      visibleOptions({ filterRepoIds: ['other-space'] })
+    )
+
+    expect(result).toEqual([outOfSpace.id])
   })
 
   it('lets a forced worktree outside the space bypass it', () => {
@@ -147,5 +173,40 @@ describe('sidebar space is not a filter', () => {
     const actions = computeClearFilterActions(filterState)
 
     expect(Object.values(actions).every((reset) => reset === false)).toBe(true)
+  })
+})
+
+describe('project filter picked in another space', () => {
+  const base = {
+    showSleepingWorkspaces: true,
+    hideDefaultBranchWorkspace: false,
+    hideAutomationGeneratedWorkspaces: false,
+    hideCliCreatedWorkspaces: false,
+    hideDetachedHeadWorkspaces: false,
+    hideWorkspacesFromOtherDevices: false,
+    alwaysShowDefaultBranchWorkspace: true,
+    visibleWorkspaceHostIds: null,
+    workspaceHostScope: 'all'
+  } as const
+
+  it('is not an active filter in this space and is not reset by Clear Filters', () => {
+    const state = { ...base, filterRepoIds: ['other-space'], spaceScope }
+
+    expect(sidebarHasActiveFilters(state)).toBe(false)
+    expect(computeClearFilterActions(state).resetFilterRepoIds).toBe(false)
+  })
+
+  it('is active again once the space is left', () => {
+    const state = { ...base, filterRepoIds: ['other-space'], spaceScope: null }
+
+    expect(sidebarHasActiveFilters(state)).toBe(true)
+    expect(computeClearFilterActions(state).resetFilterRepoIds).toBe(true)
+  })
+
+  it('counts as active when one of its ids belongs to this space', () => {
+    const state = { ...base, filterRepoIds: ['other-space', 'in-space'], spaceScope }
+
+    expect(sidebarHasActiveFilters(state)).toBe(true)
+    expect(computeClearFilterActions(state).resetFilterRepoIds).toBe(true)
   })
 })

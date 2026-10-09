@@ -28,6 +28,8 @@ import {
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import RepoBadgeLabel from '@/components/repo/RepoBadgeLabel'
 import { FilterToggleRow } from './FilterToggleRow'
+import { useActiveSidebarSpaceScope, useActiveSpaceRepos } from './use-active-sidebar-space'
+import { replaceSpaceRepoFilterIds } from './sidebar-space-scope'
 import { useShortcutLabel } from '@/hooks/useShortcutLabel'
 import { searchRepos } from '@/lib/repo-search'
 import { DEFAULT_SHOW_SLEEPING_WORKSPACES } from '../../../../shared/constants'
@@ -68,7 +70,9 @@ const SidebarFilter = React.memo(function SidebarFilter({
   )
   const filterRepoIds = useAppStore((s) => s.filterRepoIds)
   const setFilterRepoIds = useAppStore((s) => s.setFilterRepoIds)
-  const repos = useAppStore((s) => s.repos)
+  // Why: inside a space the filter lists only that space's projects.
+  const repos = useActiveSpaceRepos()
+  const spaceScope = useActiveSidebarSpaceScope()
   const addRepo = useAppStore((s) => s.addRepo)
 
   const [open, setOpen] = useState(false)
@@ -149,7 +153,7 @@ const SidebarFilter = React.memo(function SidebarFilter({
     setHideCliCreatedWorkspaces(false)
     setHideDetachedHeadWorkspaces(false)
     setAlwaysShowDefaultBranchWorkspace(true)
-    setFilterRepoIds([])
+    setFilterRepoIds(replaceSpaceRepoFilterIds(filterRepoIds, spaceScope, []))
   }, [
     setShowSleepingWorkspaces,
     setHideDefaultBranchWorkspace,
@@ -157,16 +161,27 @@ const SidebarFilter = React.memo(function SidebarFilter({
     setHideCliCreatedWorkspaces,
     setHideDetachedHeadWorkspaces,
     setAlwaysShowDefaultBranchWorkspace,
-    setFilterRepoIds
+    setFilterRepoIds,
+    filterRepoIds,
+    spaceScope
   ])
 
   // Why: derive ids from the live repos list at click time so a repo added
   // while the popover is open is included immediately.
   const selectAllRepos = useCallback(() => {
-    setFilterRepoIds(repos.map((r) => r.id))
-  }, [repos, setFilterRepoIds])
+    setFilterRepoIds(
+      replaceSpaceRepoFilterIds(
+        filterRepoIds,
+        spaceScope,
+        repos.map((r) => r.id)
+      )
+    )
+  }, [filterRepoIds, spaceScope, repos, setFilterRepoIds])
 
-  const clearRepos = useCallback(() => setFilterRepoIds([]), [setFilterRepoIds])
+  const clearRepos = useCallback(
+    () => setFilterRepoIds(replaceSpaceRepoFilterIds(filterRepoIds, spaceScope, [])),
+    [filterRepoIds, spaceScope, setFilterRepoIds]
+  )
 
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={handleOpenChange}>

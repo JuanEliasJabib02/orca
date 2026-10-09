@@ -273,4 +273,35 @@ describe('useVisibleWorkspaceKanbanWorktreeIds', () => {
       expect(new Set(sidebarIds)).toEqual(new Set(allWorktrees.map((worktree) => worktree.id)))
     })
   })
+
+  it('ignores a project filter picked in another space', () => {
+    const inSpace = makeWorktree('in-space', 'In space')
+    const outOfSpace = makeWorktree('out-of-space', 'Out of space', { repoId: 'repo-2' })
+    const repo = makeRepo()
+    const otherRepo = { ...makeRepo(), id: 'repo-2', projectGroupId: 'personal' }
+    useAppStore.setState({
+      worktreesByRepo: { [repo.id]: [inSpace], [otherRepo.id]: [outOfSpace] },
+      showSleepingWorkspaces: true,
+      repos: [{ ...repo, projectGroupId: 'work' }, otherRepo],
+      projectGroups: [makeGroup('work'), makeGroup('personal')],
+      activeSidebarSpaceGroupId: 'work',
+      filterRepoIds: [otherRepo.id]
+    })
+
+    const { result } = renderHook(() =>
+      useVisibleWorkspaceKanbanWorktreeIds({
+        allWorktrees: [inSpace, outOfSpace],
+        repoMap: new Map([
+          [repo.id, repo],
+          [otherRepo.id, otherRepo]
+        ])
+      })
+    )
+
+    expect(result.current).toEqual(new Set([getWorktreeHostIdentity(inSpace)]))
+
+    act(() => useAppStore.setState({ activeSidebarSpaceGroupId: 'personal' }))
+
+    expect(result.current).toEqual(new Set([getWorktreeHostIdentity(outOfSpace)]))
+  })
 })

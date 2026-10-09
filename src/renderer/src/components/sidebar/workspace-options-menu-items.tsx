@@ -13,6 +13,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { DEFAULT_SHOW_SLEEPING_WORKSPACES } from '../../../../shared/constants'
 import { isSleepingSweepExemptionNarrowingList } from './visible-worktrees'
 import SidebarRepositoryFilterSection from './SidebarRepositoryFilterSection'
+import { useActiveSpaceRepos } from './use-active-sidebar-space'
 import SidebarWorkspaceFilterSection from './SidebarWorkspaceFilterSection'
 import { getSidebarHostVisibilityLabel, shouldShowHostScopeControls } from './sidebar-host-options'
 import { useSidebarHostScopeOptions } from './use-sidebar-host-scope-options'
@@ -35,18 +36,19 @@ export function useWorkspaceOptionsFilterBadge(): {
   const hideWorkspacesFromOtherDevices = useAppStore((s) => s.hideWorkspacesFromOtherDevices)
   const alwaysShowDefaultBranchWorkspace = useAppStore((s) => s.alwaysShowDefaultBranchWorkspace)
   const filterRepoIds = useAppStore((s) => s.filterRepoIds)
-  const repos = useAppStore((s) => s.repos)
+  // Why: a project filter picked in another space does not count as active here.
+  const spaceRepos = useActiveSpaceRepos()
   const visibleWorkspaceHostIds = useAppStore((s) => s.visibleWorkspaceHostIds)
 
   const selectedCount = useMemo(() => {
     let count = 0
-    for (const repo of repos) {
+    for (const repo of spaceRepos) {
       if (filterRepoIds.includes(repo.id)) {
         count += 1
       }
     }
     return count
-  }, [repos, filterRepoIds])
+  }, [spaceRepos, filterRepoIds])
 
   const hasSleepingFilter = showSleepingWorkspaces !== DEFAULT_SHOW_SLEEPING_WORKSPACES
   const hasSleepingExemptionFilter = isSleepingSweepExemptionNarrowingList(
@@ -88,7 +90,7 @@ export function WorkspaceOptionsMenuItems({
 }: {
   preserveWorkspaceBoardOpen?: boolean
 }): JSX.Element {
-  const repos = useAppStore((s) => s.repos)
+  const spaceRepos = useActiveSpaceRepos()
   const setWorkspaceHostScope = useAppStore((s) => s.setWorkspaceHostScope)
   const visibleWorkspaceHostIds = useAppStore((s) => s.visibleWorkspaceHostIds)
   const setVisibleWorkspaceHostIds = useAppStore((s) => s.setVisibleWorkspaceHostIds)
@@ -116,7 +118,7 @@ export function WorkspaceOptionsMenuItems({
       </DropdownMenuLabel>
       {/* Why: host + project filters share one section and the same single-row
           shell as Sort by (label left, value right) so the menu stays flat. */}
-      {(showHostScopeControls || repos.length > 1) && (
+      {(showHostScopeControls || spaceRepos.length > 1) && (
         <>
           <DropdownMenuLabel>
             {translate('auto.components.sidebar.SidebarWorkspaceOptionsMenu.showSection', 'Show')}

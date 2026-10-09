@@ -121,6 +121,38 @@ export function filterFolderWorkspacesToSidebarSpace(
     : folderWorkspaces
 }
 
+export function filterReposToSidebarSpace<T extends Pick<Repo, 'id'>>(
+  repos: readonly T[],
+  scope: Pick<SidebarSpaceScope, 'repoIds'> | null
+): readonly T[] {
+  return scope ? repos.filter((repo) => scope.repoIds.has(repo.id)) : repos
+}
+
+/** The project-filter ids that apply in the active space; all of them when no space is active. */
+export function getSpaceRepoFilterIds(
+  filterRepoIds: readonly string[],
+  spaceScope: Pick<SidebarSpaceScope, 'repoIds'> | null | undefined
+): readonly string[] {
+  if (!spaceScope) {
+    return filterRepoIds
+  }
+  const idsInSpace = filterRepoIds.filter((repoId) => spaceScope.repoIds.has(repoId))
+  // Why the same array back: callers key memos on it, so an untouched filter must stay referentially equal.
+  return idsInSpace.length === filterRepoIds.length ? filterRepoIds : idsInSpace
+}
+
+/** Replaces the active space's share of the project filter; picks made in other spaces survive. */
+export function replaceSpaceRepoFilterIds(
+  filterRepoIds: readonly string[],
+  spaceScope: Pick<SidebarSpaceScope, 'repoIds'> | null | undefined,
+  nextIdsInSpace: readonly string[]
+): string[] {
+  const otherSpaceIds = spaceScope
+    ? filterRepoIds.filter((repoId) => !spaceScope.repoIds.has(repoId))
+    : []
+  return [...otherSpaceIds, ...nextIdsInSpace]
+}
+
 /** Top-level groups in switcher order. */
 export function listSidebarSpaces(projectGroups: readonly ProjectGroup[]): ProjectGroup[] {
   return projectGroups

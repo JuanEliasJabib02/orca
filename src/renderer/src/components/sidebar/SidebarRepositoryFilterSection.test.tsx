@@ -7,7 +7,7 @@
  * invisible to typecheck, so pin them here.
  */
 
-import { act } from 'react'
+import { act, type ComponentProps } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import SidebarRepositoryFilterSection from './SidebarRepositoryFilterSection'
+import { spaceFilterStoreState } from './sidebar-space-project-filter-fixtures'
 
 const REPOS = [
   { id: 'r1', displayName: 'alpha', path: '/tmp/alpha' },
@@ -47,14 +48,14 @@ function setState(overrides: Record<string, unknown> = {}): void {
   }
 }
 
-function render(): void {
+function render(props: ComponentProps<typeof SidebarRepositoryFilterSection> = {}): void {
   act(() => {
     root.render(
       <DropdownMenu defaultOpen>
         <DropdownMenuTrigger>Options</DropdownMenuTrigger>
         <DropdownMenuContent>
           <DropdownMenuItem>Sort by</DropdownMenuItem>
-          <SidebarRepositoryFilterSection />
+          <SidebarRepositoryFilterSection {...props} />
         </DropdownMenuContent>
       </DropdownMenu>
     )
@@ -84,6 +85,18 @@ function closeSubmenu(): void {
       new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })
     )
   })
+}
+
+function listedProjects(): string[] {
+  return Array.from(document.querySelectorAll('[data-slot="command-item"]')).map(
+    (item) => item.textContent?.trim() ?? ''
+  )
+}
+
+function triggerLabel(): string {
+  return (
+    document.querySelector('[data-slot="dropdown-menu-sub-trigger"]')?.textContent?.trim() ?? ''
+  )
 }
 
 function searchInput(): HTMLInputElement | null {
@@ -205,5 +218,96 @@ describe('SidebarRepositoryFilterSection', () => {
     render()
 
     expect(document.querySelector('[data-slot="dropdown-menu-sub-trigger"]')).toBeNull()
+  })
+})
+
+describe('SidebarRepositoryFilterSection inside a space', () => {
+  it('lists only the active space projects', async () => {
+    setState(spaceFilterStoreState('work'))
+    render()
+    openSubmenu()
+    await settle()
+
+    expect(listedProjects()).toEqual(['work-api', 'work-web'])
+  })
+
+  it('lists every project when no space is active', async () => {
+    setState(spaceFilterStoreState(null))
+    render()
+    openSubmenu()
+    await settle()
+
+    expect(listedProjects()).toEqual(['work-api', 'work-web', 'personal-blog'])
+  })
+
+  it('reads All projects when the filter only names projects of another space', () => {
+    setState({ ...spaceFilterStoreState('work'), filterRepoIds: ['personal-blog'] })
+    render()
+
+    expect(triggerLabel()).toContain('All projects')
+  })
+
+  it('counts only the selected projects of the active space', () => {
+    setState({
+      ...spaceFilterStoreState('work'),
+      filterRepoIds: ['personal-blog', 'work-api', 'work-web']
+    })
+    render()
+
+    expect(triggerLabel()).toContain('2 projects')
+  })
+
+  it('names the single selected project of the active space', async () => {
+    setState({ ...spaceFilterStoreState('work'), filterRepoIds: ['personal-blog', 'work-web'] })
+    render()
+    openSubmenu()
+    await settle()
+
+    expect(triggerLabel()).toContain('work-web')
+    expect(listedProjects()).toEqual(['work-api'])
+  })
+
+  it('leaves Clear disabled while only another space has a selection', async () => {
+    setState({ ...spaceFilterStoreState('work'), filterRepoIds: ['personal-blog'] })
+    render()
+    openSubmenu()
+    await settle()
+
+    const clear = Array.from(document.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Clear'
+    )
+    expect(clear?.disabled).toBe(true)
+  })
+
+  it('clears only the active space and keeps the selection made in another space', async () => {
+    setState({ ...spaceFilterStoreState('work'), filterRepoIds: ['personal-blog', 'work-api'] })
+    render()
+    openSubmenu()
+    await settle()
+
+    const clear = Array.from(document.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Clear'
+    )
+    act(() => clear?.click())
+
+    expect(setFilterRepoIds).toHaveBeenCalledWith(['personal-blog'])
+  })
+
+  it('hides itself when the space holds a single project', () => {
+    setState(spaceFilterStoreState('personal'))
+    render()
+
+    expect(document.querySelector('[data-slot="dropdown-menu-sub-trigger"]')).toBeNull()
+  })
+
+  it('keeps listing every project for a caller that brings its own filter', async () => {
+    // "personal" holds one project, so the workspace-nav filter would hide itself here.
+    setState(spaceFilterStoreState('personal'))
+    render({ filterRepoIds: ['work-api'], setFilterRepoIds: vi.fn() })
+    openSubmenu()
+    await settle()
+
+    expect(triggerLabel()).toContain('work-api')
+    expect(listedProjects()).toEqual(['work-web', 'personal-blog'])
   })
 })

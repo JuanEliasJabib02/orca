@@ -1,6 +1,7 @@
 import type { ExecutionHostId, ExecutionHostScope } from '../../../../shared/execution-host'
 import type { Worktree } from '../../../../shared/worktree/types'
 import { getWorktreeGitIdentityDisplay } from '@/lib/worktree-git-identity-display'
+import type { SidebarSpaceScope } from './sidebar-space-scope'
 
 /**
  * Predicates for what KIND of workspace a row is.
@@ -52,6 +53,8 @@ export function isDetachedHeadWorkspace(worktree: Worktree): boolean {
 export type SidebarFilterState = {
   showSleepingWorkspaces: boolean
   filterRepoIds: readonly string[]
+  /** Active space; only its projects' ids in `filterRepoIds` count. Absent or null = All. */
+  spaceScope?: SidebarSpaceScope | null
   hideDefaultBranchWorkspace: boolean
   hideAutomationGeneratedWorkspaces: boolean
   hideCliCreatedWorkspaces: boolean
