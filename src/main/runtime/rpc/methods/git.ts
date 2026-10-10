@@ -119,12 +119,14 @@ export const GIT_METHODS = [
   ...GIT_DIFF_METHODS,
   defineMethod({
     name: 'git.fileBlame',
+    permission: 'workspace',
     params: GitFileBlame,
     handler: async (params, { runtime }) =>
       runtime.getRuntimeGitFileBlame(params.worktree, params.filePath)
   }),
   defineMethod({
     name: 'git.lineBlame',
+    permission: 'workspace',
     params: GitLineBlame,
     handler: async (params, { runtime }) =>
       runtime.getRuntimeGitLineBlame(params.worktree, params.filePath, params.line)

@@ -44,6 +44,7 @@ export type LayoutTerminalCreation = Pick<
   | 'startupCwd'
   | 'launchAgent'
   | 'agentLaunchPane'
+  | 'spotlightRepoRoot'
 >
 
 export type LayoutTerminalTab = LayoutTabFields & {

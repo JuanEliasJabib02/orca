@@ -15,7 +15,8 @@ const TERMINAL_CREATION_FIELDS = [
   'forceHostRuntime',
   'startupCwd',
   'launchAgent',
-  'agentLaunchPane'
+  'agentLaunchPane',
+  'spotlightRepoRoot'
 ] as const satisfies readonly (keyof LayoutTerminalCreation)[]
 
 function contentFields(entry: Tab) {

@@ -9,6 +9,8 @@ const { git } = vi.hoisted(() => ({
     commitChanges: vi.fn(),
     getStagedCommitContext: vi.fn(),
     getDiff: vi.fn(),
+    getLineBlame: vi.fn(),
+    getFileBlame: vi.fn(),
     stageFile: vi.fn(),
     unstageFile: vi.fn(),
     bulkStageFiles: vi.fn(),
@@ -47,6 +49,10 @@ vi.mock('../git/checkout', () => ({
   listLocalBranches: git.listLocalBranches
 }))
 vi.mock('../git/history', () => ({ getHistory: git.getHistory }))
+vi.mock('../git/line-blame', () => ({
+  getLineBlame: git.getLineBlame,
+  getFileBlame: git.getFileBlame
+}))
 vi.mock('../git/remote', () => git)
 vi.mock('../git/fork-sync', () => ({ gitSyncForkDefaultBranch: git.gitSyncForkDefaultBranch }))
 vi.mock('../git/upstream', () => ({ getUpstreamStatus: git.getUpstreamStatus }))
@@ -102,6 +108,8 @@ const cases: ParityCase[] = [
     [WT, interactive]
   ],
   ['getDiff', (p) => p.getDiff(WT, 'a', true, true), 'getDiff', [WT, 'a', true, true, interactive]],
+  ['getLineBlame', (p) => p.getLineBlame(WT, 'a', 3), 'getLineBlame', [WT, 'a', 3, {}]],
+  ['getFileBlame', (p) => p.getFileBlame(WT, 'a'), 'getFileBlame', [WT, 'a', {}]],
   ['stageFile', (p) => p.stageFile(WT, 'a'), 'stageFile', [WT, 'a', interactive]],
   ['unstageFile', (p) => p.unstageFile(WT, 'a'), 'unstageFile', [WT, 'a', interactive]],
   [

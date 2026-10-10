@@ -30,8 +30,8 @@ type SectionRowsArgs = {
   pinnedDisplayPolicy: PinnedWorktreeDisplayPolicy
   defaultHostId: ExecutionHostId
   worktrees: Worktree[]
-  // Built over every worktree, not `worktrees`, so a filter cannot split a task.
-  taskKeys: WorktreeTaskKeys
+  // Built over every worktree, not `worktrees`, so a filter cannot split a task; omitted uses buildRows' default.
+  taskKeys?: WorktreeTaskKeys
   repos: readonly Repo[]
   repoMap: Map<string, Repo>
   worktreeMap: Map<string, Worktree>

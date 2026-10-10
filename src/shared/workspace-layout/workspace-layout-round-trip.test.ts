@@ -11,7 +11,7 @@ import {
   relaySshSession,
   serverRuntimeSession
 } from './workspace-layout-profile.test-fixture'
-import { addWorkspace, emptySession, leaf } from './workspace-layout-session.test-fixture'
+import { addWorkspace, emptySession, GIT_KEY, leaf } from './workspace-layout-session.test-fixture'
 
 /** What reaches disk: the profile documents are JSON, so an undefined field is a missing one. */
 const onDisk = (session: WorkspaceSessionState): unknown => JSON.parse(JSON.stringify(session))
@@ -127,5 +127,27 @@ describe('workspace layout Loader and Serializer', () => {
         lastKnownDiskSignature: 'sig-1'
       }
     })
+  })
+
+  it('keeps the Spotlight marker on a repo root terminal through a save and reload', () => {
+    // Spotlight finds its repo root terminal by this flag after an app restart.
+    const stored = addWorkspace(emptySession(), GIT_KEY, [
+      {
+        id: 'group-spotlight',
+        tabs: [
+          {
+            id: 'tab-spotlight',
+            leaves: [[leaf(1), `${GIT_KEY}@@spot0001`]],
+            row: { spotlightRepoRoot: true }
+          }
+        ]
+      }
+    ])
+    const { loaded, saved } = roundTrip(LOCAL_EXECUTION_HOST_ID, stored)
+    const tab = loaded.layout.workspaces[GIT_KEY]!.tabs[0]!
+    expect(tab.kind === 'terminal' ? tab.terminal.spotlightRepoRoot : undefined).toBe(true)
+    expect(loaded.changes).toEqual([])
+    expect(saved.tabsByWorktree[GIT_KEY]?.[0]?.spotlightRepoRoot).toBe(true)
+    expect(onDisk(saved)).toEqual(onDisk(stored))
   })
 })

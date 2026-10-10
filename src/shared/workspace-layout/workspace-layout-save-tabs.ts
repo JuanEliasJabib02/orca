@@ -74,7 +74,8 @@ export function saveTerminalRow(
       'forceHostRuntime',
       'startupCwd',
       'launchAgent',
-      'agentLaunchPane'
+      'agentLaunchPane',
+      'spotlightRepoRoot'
     ])
   }
 }

@@ -123,6 +123,7 @@ const ROW = {
   startupCwd: own('tab.terminal', 'startupCwd'),
   launchAgent: own('tab.terminal', 'launchAgent'),
   agentLaunchPane: own('tab.terminal', 'agentLaunchPane'),
+  spotlightRepoRoot: own('tab.terminal', 'spotlightRepoRoot'),
   // Transient handoffs, never restored; the window strips them, but main's minimal row mint
   // stores `pendingActivationSpawn`, so the Loader drops it.
   pendingActivationSpawn: 'unwritten',

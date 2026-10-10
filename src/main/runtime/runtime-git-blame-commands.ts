@@ -1,7 +1,5 @@
 import type { GitLineBlameResult } from '../../shared/git-line-blame-types'
-import { getFileBlame, getLineBlame } from '../git/line-blame'
 import {
-  localGitOptionsForTarget,
   normalizeRuntimeGitRelativePath,
   requireRuntimeGitProvider,
   type RuntimeGitCommandHost
@@ -22,13 +20,7 @@ export class RuntimeGitBlameCommands {
   ): Promise<Record<number, GitLineBlameResult> | null> {
     const target = await this.host.resolveRuntimeGitTarget(worktreeSelector)
     const relativePath = normalizeRuntimeGitRelativePath(filePath)
-    // `null` means the host is local; an unreachable SSH host throws rather than
-    // silently running remote work here.
-    const provider = requireRuntimeGitProvider(target)
-    if (provider) {
-      return provider.getFileBlame(target.worktree.path, relativePath)
-    }
-    return getFileBlame(target.worktree.path, relativePath, localGitOptionsForTarget(target))
+    return requireRuntimeGitProvider(target).getFileBlame(target.worktree.path, relativePath)
   }
 
   /** Authorship for one 1-indexed line; the fallback when a whole-file read is unavailable. */
@@ -39,15 +31,10 @@ export class RuntimeGitBlameCommands {
   ): Promise<GitLineBlameResult | null> {
     const target = await this.host.resolveRuntimeGitTarget(worktreeSelector)
     const relativePath = normalizeRuntimeGitRelativePath(filePath)
-    const provider = requireRuntimeGitProvider(target)
-    if (provider) {
-      return provider.getLineBlame(target.worktree.path, relativePath, line1Indexed)
-    }
-    return getLineBlame(
+    return requireRuntimeGitProvider(target).getLineBlame(
       target.worktree.path,
       relativePath,
-      line1Indexed,
-      localGitOptionsForTarget(target)
+      line1Indexed
     )
   }
 }
