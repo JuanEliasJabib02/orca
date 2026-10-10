@@ -102,7 +102,7 @@ describe('a start typed into a root without node_modules', () => {
   })
 
   it('chains one install when a lockfile change is pending too', async () => {
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
 
     await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm local' })
 
@@ -140,6 +140,32 @@ describe('a launch queued for a terminal that does not exist yet', () => {
     cancelPreparedSpotlightServerLaunch(REPO_ID)
 
     expect(isSpotlightInstallPending(REPO_ID)).toBe(false)
+  })
+})
+
+describe('a root with uv.lock too (a Python server next to the front)', () => {
+  it('syncs uv after pnpm when neither install exists yet', async () => {
+    writeFileSync(nodePath.join(root, 'uv.lock'), 'version = 1\n')
+
+    await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm local' })
+
+    expect(writtenData()).toEqual([`${INSTALL}uv sync --frozen && pnpm local\r`])
+  })
+
+  it('hands back the uv sync a cancelled queued line took', async () => {
+    installDependencies()
+    markSpotlightInstallPending(REPO_ID, ['uv'])
+    expect(await prepareSpotlightServerLaunch(REPO_ID, 'pnpm local')).toBe(
+      'uv sync --frozen && pnpm local'
+    )
+    expect(isSpotlightInstallPending(REPO_ID)).toBe(false)
+
+    cancelPreparedSpotlightServerLaunch(REPO_ID)
+
+    expect(isSpotlightInstallPending(REPO_ID)).toBe(true)
+    expect(await prepareSpotlightServerLaunch(REPO_ID, 'pnpm local')).toBe(
+      'uv sync --frozen && pnpm local'
+    )
   })
 })
 

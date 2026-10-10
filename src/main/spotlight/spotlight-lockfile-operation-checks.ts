@@ -1,5 +1,5 @@
-// Which commits each Spotlight operation compares for pnpm-lock.yaml, and whether a server may
-// already be running on the old dependencies. Runs under the repo lock (git reads only), so the
+// Which commits each Spotlight operation compares for the lockfiles (pnpm-lock.yaml, uv.lock), and
+// whether a server may already be running on the old dependencies. Runs under the repo lock (git reads only), so the
 // flag is set before the operation returns and a later Spotlight off always clears it.
 import type { SpotlightRepoState } from '../../shared/spotlight'
 import type {

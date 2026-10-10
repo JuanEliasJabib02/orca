@@ -1,11 +1,12 @@
 // Last server command Orca ran per repo. Outlives the Spotlight terminal's PTY (a respawn
 // registers a new capture) and is forgotten when Spotlight turns off. Its own module so the
 // log mirror's restart trigger can read it without importing server control (import cycle).
-import { takeSpotlightLaunchLine } from './spotlight-lockfile-install'
+import { takeSpotlightLaunchLine, type SpotlightInstaller } from './spotlight-lockfile-install'
 import { getSpotlightTerminalShell } from './spotlight-terminal-shell'
 
-/** A line queued as the Spotlight terminal's startup command that no shell has run yet. */
-export type PreparedSpotlightLaunch = { command: string; installTaken: boolean }
+/** A line queued as the Spotlight terminal's startup command that no shell has run yet, and the
+ *  pending installs it took (handed back if it never runs). */
+export type PreparedSpotlightLaunch = { command: string; installsTaken: SpotlightInstaller[] }
 
 type PreparedLaunchRecord = PreparedSpotlightLaunch & {
   preparedAt: number

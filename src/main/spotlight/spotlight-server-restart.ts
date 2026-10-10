@@ -6,7 +6,10 @@ import {
   getSpotlightTerminal,
   restartSpotlightTerminalServer
 } from './spotlight-log-mirror'
-import { isSpotlightInstallPending } from './spotlight-lockfile-install'
+import {
+  describeSpotlightPendingInstall,
+  isSpotlightInstallPending
+} from './spotlight-lockfile-install'
 import {
   getSpotlightServerLaunchedCommand,
   rememberSpotlightServerCommand
@@ -49,8 +52,9 @@ export function restartSpotlightServer(args: {
     : { ok: true, restarted: false, reason: 'in-flight' }
 }
 
-/** pnpm-lock.yaml changed under a running server: restart it so its re-run installs first. Only a
- *  server Orca launched; one started by hand is never interrupted, the change is only noted. */
+/** A lockfile (pnpm-lock.yaml, uv.lock) changed under a running server: restart it so its re-run
+ *  installs first. Only a server Orca launched; one started by hand is never interrupted, the change
+ *  is only noted. */
 export function restartSpotlightServerForLockfileChange(repoId: string): Promise<void> {
   return serializeServerOp(repoId, () => restartForLockfileChangeNow(repoId))
 }
@@ -73,11 +77,8 @@ async function restartForLockfileChangeNow(repoId: string): Promise<void> {
     return
   }
   if (getSpotlightServerLaunchedCommand(repoId)) {
-    restartSpotlightTerminalServer(repoId, 'after a pnpm-lock.yaml change')
+    restartSpotlightTerminalServer(repoId, 'after a lockfile change')
     return
   }
-  void appendSpotlightLogNote(
-    terminal.rootPath,
-    'pnpm-lock.yaml changed — stop the server, run "pnpm install", then start it again'
-  )
+  void appendSpotlightLogNote(terminal.rootPath, describeSpotlightPendingInstall(repoId))
 }

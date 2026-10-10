@@ -15,7 +15,8 @@ import {
   markSpotlightInstallPending,
   rememberSpotlightRoot,
   takeSpotlightLaunchInstall,
-  takeSpotlightLaunchLine
+  takeSpotlightLaunchLine,
+  type SpotlightInstaller
 } from './spotlight-lockfile-install'
 
 const REPO_ID = 'repo-1'
@@ -24,6 +25,7 @@ const TO = 'b'.repeat(40)
 const ROOT = '/repo/root'
 const AND_CHAIN = 'pnpm install --frozen-lockfile && pnpm dev'
 const POWERSHELL_51_CHAIN = 'pnpm install --frozen-lockfile; if ($?) { pnpm dev }'
+const PNPM: SpotlightInstaller[] = ['pnpm']
 
 /** Answers the two reads the check makes: the lockfile diff and the lockfile blob in `toSha`. */
 function fakeContext(answers: {
@@ -62,7 +64,7 @@ describe('markSpotlightInstallIfLockfileChanged', () => {
 
     expect(await mark(ctx)).toBe(true)
     expect(ctx.calls).toEqual([
-      ['diff-tree', '--name-only', FROM, TO, '--', 'pnpm-lock.yaml'],
+      ['diff-tree', '--name-only', FROM, TO, '--', 'pnpm-lock.yaml', 'uv.lock'],
       ['rev-parse', '--verify', '-q', `${TO}:pnpm-lock.yaml`]
     ])
     expect(isSpotlightInstallPending(REPO_ID)).toBe(true)
@@ -102,21 +104,21 @@ describe('markSpotlightInstallIfLockfileChanged', () => {
 
 describe('launch line with a pending install', () => {
   it('chains the install once per change', () => {
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
 
     expect(takeSpotlightLaunchLine(REPO_ID, 'pnpm dev', 'zsh')).toBe(AND_CHAIN)
     expect(takeSpotlightLaunchLine(REPO_ID, 'pnpm dev', 'zsh')).toBe('pnpm dev')
   })
 
   it('is dropped by clear', () => {
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
     clearSpotlightInstallPending(REPO_ID)
 
     expect(takeSpotlightLaunchLine(REPO_ID, 'pnpm dev', 'zsh')).toBe('pnpm dev')
   })
 
   it('is tracked per repo', () => {
-    markSpotlightInstallPending('repo-2')
+    markSpotlightInstallPending('repo-2', ['pnpm'])
 
     expect(takeSpotlightLaunchLine(REPO_ID, 'pnpm dev', null)).toBe('pnpm dev')
     expect(takeSpotlightLaunchLine('repo-2', 'pnpm dev', null)).toBe(AND_CHAIN)
@@ -162,11 +164,11 @@ describe('a root that was never installed', () => {
   })
 
   it('chains it once alongside a pending lockfile change, consuming the pending one', () => {
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
 
-    expect(takeSpotlightLaunchInstall(REPO_ID)).toEqual({ install: true, pendingTaken: true })
+    expect(takeSpotlightLaunchInstall(REPO_ID)).toEqual({ installers: ['pnpm'], taken: ['pnpm'] })
     expect(isSpotlightInstallPending(REPO_ID)).toBe(false)
-    expect(takeSpotlightLaunchInstall(REPO_ID)).toEqual({ install: true, pendingTaken: false })
+    expect(takeSpotlightLaunchInstall(REPO_ID)).toEqual({ installers: ['pnpm'], taken: [] })
   })
 
   it('uses the Windows PowerShell 5.1 form for that shell', () => {
@@ -219,11 +221,12 @@ describe('install chain per shell', () => {
   it('uses `; if ($?)` for Windows PowerShell 5.1, which has no `&&`', () => {
     onPlatform('win32')
 
-    expect(chainSpotlightInstall('pnpm dev', 'powershell.exe')).toBe(POWERSHELL_51_CHAIN)
+    expect(chainSpotlightInstall('pnpm dev', 'powershell.exe', PNPM)).toBe(POWERSHELL_51_CHAIN)
     expect(
       chainSpotlightInstall(
         'pnpm dev',
-        'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+        'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+        PNPM
       )
     ).toBe(POWERSHELL_51_CHAIN)
     expect(isWindowsPowerShell51('PowerShell')).toBe(true)
@@ -233,7 +236,7 @@ describe('install chain per shell', () => {
     onPlatform('win32')
 
     for (const shell of ['pwsh.exe', 'cmd.exe', 'bash.exe', null]) {
-      expect(chainSpotlightInstall('pnpm dev', shell)).toBe(AND_CHAIN)
+      expect(chainSpotlightInstall('pnpm dev', shell, PNPM)).toBe(AND_CHAIN)
     }
   })
 
@@ -241,7 +244,7 @@ describe('install chain per shell', () => {
     onPlatform('darwin')
 
     for (const shell of ['zsh', 'bash', 'fish', 'powershell']) {
-      expect(chainSpotlightInstall('pnpm dev', shell)).toBe(AND_CHAIN)
+      expect(chainSpotlightInstall('pnpm dev', shell, PNPM)).toBe(AND_CHAIN)
     }
   })
 })

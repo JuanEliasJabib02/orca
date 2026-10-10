@@ -177,13 +177,11 @@ async function startServerNow(
   if (idleShell) {
     rememberSpotlightTerminalShell(repoId, idleShell)
   }
-  const { install, pendingTaken } = takeSpotlightLaunchInstall(repoId)
-  const launch = install ? chainSpotlightInstall(command, idleShell) : command
+  const install = takeSpotlightLaunchInstall(repoId)
+  const launch = chainSpotlightInstall(command, idleShell, install.installers)
   if (!writeToSpotlightTerminal(terminal.ptyId, `${launch}\r`)) {
     // The install never reached the terminal; keep it for the next command Orca types.
-    if (pendingTaken) {
-      markSpotlightInstallPending(repoId)
-    }
+    markSpotlightInstallPending(repoId, install.taken)
     return { ok: false, reason: 'no-terminal' }
   }
   markSpotlightServerTyped(repoId, command)
@@ -243,12 +241,13 @@ export async function prepareSpotlightServerLaunch(
   if (terminalRoot) {
     rememberSpotlightRoot(repoId, terminalRoot)
   }
-  const { install, pendingTaken } = takeSpotlightLaunchInstall(repoId)
-  rememberPreparedSpotlightLaunch(repoId, { command: normalized, installTaken: pendingTaken })
-  if (!install) {
+  const install = takeSpotlightLaunchInstall(repoId)
+  rememberPreparedSpotlightLaunch(repoId, { command: normalized, installsTaken: install.taken })
+  if (install.installers.length === 0) {
     return normalized
   }
-  const line = chainSpotlightInstall(normalized, await resolveSpotlightQueuedLaunchShell())
+  const shell = await resolveSpotlightQueuedLaunchShell()
+  const line = chainSpotlightInstall(normalized, shell, install.installers)
   setPreparedSpotlightLaunchLine(repoId, normalized, line)
   return line
 }
@@ -263,9 +262,7 @@ export function cancelPreparedSpotlightServerLaunch(repoId: string): void {
   if (getSpotlightServerLaunchedCommand(repoId) === prepared.command) {
     clearSpotlightServerLaunched(repoId)
   }
-  if (prepared.installTaken) {
-    markSpotlightInstallPending(repoId)
-  }
+  markSpotlightInstallPending(repoId, prepared.installsTaken)
 }
 
 /** Where the repo's queued line stands; null once there's none to wait for (ran, cancelled, capped). */

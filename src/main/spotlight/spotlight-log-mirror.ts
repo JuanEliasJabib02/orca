@@ -319,7 +319,7 @@ export function reclaimSpotlightTerminal(repoId: string): void {
  *  and log the attempt. Shared by the .orca/spotlight-restart trigger and Orca's own restart. */
 export function restartSpotlightTerminalServer(
   repoId: string,
-  requestedBy: 'from a workspace' | 'by Orca' | 'after a pnpm-lock.yaml change'
+  requestedBy: 'from a workspace' | 'by Orca' | 'after a lockfile change'
 ): 'sent' | 'in-flight' | 'no-terminal' {
   const capture = capturesByRepoId.get(repoId)
   if (!capture || capture.released) {

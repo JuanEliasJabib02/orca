@@ -230,7 +230,7 @@ describe('SpotlightService.deactivate', () => {
   })
 
   it('forgets an install a lockfile change left pending', async () => {
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
 
     await createService().deactivate(REPO_ID)
 

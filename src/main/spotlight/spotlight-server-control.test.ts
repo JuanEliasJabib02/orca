@@ -423,7 +423,7 @@ describe('.orca/spotlight-restart trigger', () => {
 describe('pending install after a lockfile change', () => {
   it('installs before the command an idle start types, once', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
 
     await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })
     vi.setSystemTime(Date.now() + LAUNCH_GRACE_MS)
@@ -437,7 +437,7 @@ describe('pending install after a lockfile change', () => {
     const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
     Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
     try {
-      markSpotlightInstallPending(REPO_ID)
+      markSpotlightInstallPending(REPO_ID, ['pnpm'])
       fakePty.getForegroundProcess.mockResolvedValue('powershell.exe')
       fakePty.confirmShellForeground = async () => true
 
@@ -452,7 +452,7 @@ describe('pending install after a lockfile change', () => {
   })
 
   it('stays pending through a busy start and installs on the next restart', async () => {
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
     fakePty.hasChildProcesses.mockResolvedValue(true)
 
     await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })
@@ -467,7 +467,7 @@ describe('pending install after a lockfile change', () => {
   })
 
   it('stays pending through a history-recall restart', () => {
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
 
     restartSpotlightServer({ repoId: REPO_ID })
@@ -478,7 +478,7 @@ describe('pending install after a lockfile change', () => {
   })
 
   it('stays pending when the start could not write', async () => {
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
     fakePty.write.mockReturnValueOnce(false)
 
     expect(await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })).toEqual({
@@ -489,7 +489,7 @@ describe('pending install after a lockfile change', () => {
   })
 
   it('is forgotten when Spotlight turns off', async () => {
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
 
     await stopSpotlightServer(REPO_ID)
 
@@ -499,7 +499,7 @@ describe('pending install after a lockfile change', () => {
 
 describe('prepareSpotlightServerLaunch', () => {
   it('returns the startup command with a pending install, once, and keeps the command', async () => {
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
 
     expect(await prepareSpotlightServerLaunch(REPO_ID, '  pnpm local ')).toBe(
       `${INSTALL}pnpm local`
@@ -510,7 +510,7 @@ describe('prepareSpotlightServerLaunch', () => {
   })
 
   it('rejects an invalid command without consuming the install', async () => {
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
 
     expect(await prepareSpotlightServerLaunch(REPO_ID, 'pnpm dev\nrm -rf .')).toBeNull()
     expect(isSpotlightInstallPending(REPO_ID)).toBe(true)
@@ -521,7 +521,7 @@ describe('prepareSpotlightServerLaunch', () => {
     const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
     Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' })
     try {
-      markSpotlightInstallPending(REPO_ID)
+      markSpotlightInstallPending(REPO_ID, ['pnpm'])
 
       expect(await prepareSpotlightServerLaunch(REPO_ID, 'pnpm local')).toBe(
         'pnpm install --frozen-lockfile; if ($?) { pnpm local }'
@@ -608,7 +608,7 @@ describe('a queued launch that may still be on its way into the shell', () => {
 
 describe('cancelPreparedSpotlightServerLaunch', () => {
   it("takes back a queued line that never ran: not Orca's server, install pending again", async () => {
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
     await prepareSpotlightServerLaunch(REPO_ID, 'pnpm local')
 
     cancelPreparedSpotlightServerLaunch(REPO_ID)
@@ -619,7 +619,7 @@ describe('cancelPreparedSpotlightServerLaunch', () => {
   })
 
   it('lets the fallback start install first', async () => {
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
     await prepareSpotlightServerLaunch(REPO_ID, 'pnpm local')
 
     cancelPreparedSpotlightServerLaunch(REPO_ID)
@@ -638,7 +638,7 @@ describe('cancelPreparedSpotlightServerLaunch', () => {
 
   it('is a no-op once Orca typed a line since', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
     await prepareSpotlightServerLaunch(REPO_ID, 'pnpm local')
     markPreparedSpotlightLaunchRegistered(REPO_ID)
     vi.setSystemTime(Date.now() + LAUNCH_GRACE_MS)
@@ -668,7 +668,7 @@ describe('restartSpotlightServerForLockfileChange', () => {
     await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })
     fakePty.writes.length = 0
     fakePty.hasChildProcesses.mockResolvedValue(true)
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
 
     await restartSpotlightServerForLockfileChange(REPO_ID)
@@ -681,7 +681,7 @@ describe('restartSpotlightServerForLockfileChange', () => {
   it('never interrupts a server started by hand, even after a busy start kept a command', async () => {
     fakePty.hasChildProcesses.mockResolvedValue(true)
     await startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
 
     await restartSpotlightServerForLockfileChange(REPO_ID)
 
@@ -695,7 +695,7 @@ describe('restartSpotlightServerForLockfileChange', () => {
 
   it('leaves an idle terminal for the next start', async () => {
     await prepareSpotlightServerLaunch(REPO_ID, 'pnpm dev')
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
 
     await restartSpotlightServerForLockfileChange(REPO_ID)
 
@@ -705,7 +705,7 @@ describe('restartSpotlightServerForLockfileChange', () => {
 
   it('only notes the change for a server started by hand', async () => {
     fakePty.hasChildProcesses.mockResolvedValue(true)
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
 
     await restartSpotlightServerForLockfileChange(REPO_ID)
 
@@ -719,7 +719,7 @@ describe('restartSpotlightServerForLockfileChange', () => {
 
   it('does not restart when a queued launch took the install during the busy check', async () => {
     await prepareSpotlightServerLaunch(REPO_ID, 'pnpm dev')
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
     let resolveCheck: (busy: boolean) => void = () => {}
     fakePty.hasChildProcesses.mockImplementationOnce(
       () =>
@@ -744,7 +744,7 @@ describe('restartSpotlightServerForLockfileChange', () => {
           resolveStartCheck = resolve
         })
     )
-    markSpotlightInstallPending(REPO_ID)
+    markSpotlightInstallPending(REPO_ID, ['pnpm'])
 
     const starting = startSpotlightServer({ repoId: REPO_ID, command: 'pnpm dev' })
     const reacting = restartSpotlightServerForLockfileChange(REPO_ID)
