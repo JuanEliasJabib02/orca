@@ -15,7 +15,12 @@ vi.mock('@/components/tab-bar/reconcile-order', () => ({
 }))
 vi.mock('@/lib/worktree-activation', () => ({ activateAndRevealWorktree: vi.fn() }))
 
-import { openSpotlightTerminalTab, planSpotlightTerminal } from './open-spotlight-terminal-tab'
+import {
+  findSpotlightTerminalTabId,
+  openSpotlightTerminalTab,
+  planSpotlightTerminal,
+  selectSpotlightTerminalTab
+} from './open-spotlight-terminal-tab'
 
 const REPO = 'repo-1'
 const MAIN = makeTestWorktree({ id: 'main', repoId: REPO, isMainWorktree: true, path: '/root' })
@@ -184,5 +189,38 @@ describe('openSpotlightTerminalTab with a startup command', () => {
       ok: false,
       reason: 'no-main-worktree'
     })
+  })
+})
+
+describe('selectSpotlightTerminalTab', () => {
+  it('puts the root on its Spotlight tab, in the terminal pane', () => {
+    seed([
+      makeTestTab({ id: 'plain', worktreeId: MAIN.id, ptyId: 'pty-plain' }),
+      makeTestTab({ id: 'spot', worktreeId: MAIN.id, ptyId: 'pty-1', spotlightRepoRoot: true })
+    ])
+
+    expect(findSpotlightTerminalTabId(spotlightTerminalTestStore.getState(), MAIN.id)).toBe('spot')
+    expect(selectSpotlightTerminalTab(MAIN.id)).toBe(true)
+
+    const state = spotlightTerminalTestStore.getState()
+    expect(state.setActiveTabForWorktree).toHaveBeenCalledWith(MAIN.id, 'spot')
+    expect(state.setActiveTabType).toHaveBeenCalledWith('terminal', MAIN.id)
+  })
+
+  it('leaves a root without a Spotlight tab as it opened: nothing created or adopted', () => {
+    seed([makeTestTab({ id: 'shell', worktreeId: MAIN.id, ptyId: 'pty-s' })], 'shell')
+
+    expect(findSpotlightTerminalTabId(spotlightTerminalTestStore.getState(), MAIN.id)).toBeNull()
+    expect(selectSpotlightTerminalTab(MAIN.id)).toBe(false)
+
+    const state = spotlightTerminalTestStore.getState()
+    expect(state.setActiveTabForWorktree).not.toHaveBeenCalled()
+    expect(state.setActiveTabType).not.toHaveBeenCalled()
+    expect(state.createTab).not.toHaveBeenCalled()
+    expect(state.markTabSpotlightRepoRoot).not.toHaveBeenCalled()
+  })
+
+  it('does nothing for a worktree with no tabs at all', () => {
+    expect(selectSpotlightTerminalTab('unknown')).toBe(false)
   })
 })

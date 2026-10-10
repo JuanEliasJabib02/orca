@@ -50,6 +50,8 @@ export function buildVisibleWorktreeOptionsFromState(
     workspaceHostScope: state.workspaceHostScope,
     visibleWorkspaceHostIds: state.visibleWorkspaceHostIds,
     defaultHostId: getSettingsFocusedExecutionHostId(state.settings),
-    worktreeLineageById: state.worktreeLineageById
+    worktreeLineageById: state.worktreeLineageById,
+    // Why: Cmd+1–9 and jump navigation must count the roots the sidebar's Servers section shows.
+    keepServerRoots: state.groupBy === 'task'
   }
 }

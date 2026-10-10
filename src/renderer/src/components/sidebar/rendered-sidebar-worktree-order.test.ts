@@ -183,11 +183,23 @@ describe('closed-sidebar Cmd+1-9 ordering (#9497)', () => {
   it('numbers Group by → Task sections in their rendered order', () => {
     const older = makeWorktree('wt-older', { branch: 'refs/heads/ax-1', lastActivityAt: 1 })
     const newer = makeWorktree('wt-newer', { branch: 'refs/heads/feat/ax_2', lastActivityAt: 5 })
-    const untracked = makeWorktree('wt-untracked', { branch: 'refs/heads/main', lastActivityAt: 9 })
-    seedStore([untracked, older, newer], { groupBy: 'task' })
+    const named = makeWorktree('wt-named', { branch: 'refs/heads/cleanup', lastActivityAt: 3 })
+    const root = makeMainWorktree('wt-root', { lastActivityAt: 9 })
+    seedStore([root, older, named, newer], { groupBy: 'task' })
 
-    // Most recently active task first; the keyless workspace sits in the trailing No task section.
-    expect(getVisibleWorktreeIds()).toEqual(['wt-newer', 'wt-older', 'wt-untracked'])
+    // Most recently active task first, a branch name counting as one; the root sits in Servers, last.
+    expect(getVisibleWorktreeIds()).toEqual(['wt-newer', 'wt-named', 'wt-older', 'wt-root'])
+  })
+
+  it('numbers a project root that the filters hide but Group by → Task lists under Servers', () => {
+    const feature = makeWorktree('wt-feature', { branch: 'refs/heads/ax-1' })
+    const root = makeMainWorktree('wt-root')
+    seedStore([root, feature], { groupBy: 'task', hideDefaultBranchWorkspace: true })
+
+    expect(getVisibleWorktreeIds()).toEqual(['wt-feature', 'wt-root'])
+
+    seedStore([root, feature], { groupBy: 'repo', hideDefaultBranchWorkspace: true })
+    expect(getVisibleWorktreeIds()).toEqual(['wt-feature'])
   })
 
   it('numbers folder workspaces, which the flat fallback omitted entirely', () => {

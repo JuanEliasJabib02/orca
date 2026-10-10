@@ -37,16 +37,32 @@ describe('getSpotlightEnvKey', () => {
     expect(getSpotlightEnvKey(own, [own, sibling])).toBe('landing-redo')
   })
 
-  it('is the worktree id for a workspace with no task', () => {
-    expect(getSpotlightEnvKey(LONE, [TICKET, LONE, MAIN])).toBe(LONE.id)
+  it('is the branch name for a lone workspace, the task it forms on its own', () => {
+    expect(getSpotlightEnvKey(LONE, [TICKET, LONE, MAIN])).toBe('lone-fix')
+  })
+
+  it('is the worktree id for a workspace with no usable name', () => {
+    const unnamed = makeTestWorktree({
+      id: 'admin::/w/x',
+      repoId: 'admin',
+      branch: '',
+      displayName: ''
+    })
+
+    expect(getSpotlightEnvKey(unnamed, [TICKET, unnamed, MAIN])).toBe(unnamed.id)
   })
 
   it('is the worktree id for a main worktree', () => {
     expect(getSpotlightEnvKey(MAIN, [MAIN])).toBe(MAIN.id)
   })
 
-  it('is null for an id too long to store as a key', () => {
-    const long = makeTestWorktree({ id: `r::/${'x'.repeat(MAX_TASK_KEY_LENGTH)}`, repoId: 'r' })
+  it('is null for an unnamed workspace whose id is too long to store as a key', () => {
+    const long = makeTestWorktree({
+      id: `r::/${'x'.repeat(MAX_TASK_KEY_LENGTH)}`,
+      repoId: 'r',
+      branch: '',
+      displayName: ''
+    })
 
     expect(getSpotlightEnvKey(long, [long])).toBeNull()
   })

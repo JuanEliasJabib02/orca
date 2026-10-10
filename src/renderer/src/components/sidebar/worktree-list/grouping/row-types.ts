@@ -34,11 +34,11 @@ export type GroupHeaderRow = {
 
 /** One task section's identity and members, for header actions that act on the whole task. */
 export type TaskSectionInfo = {
-  /** Normalized key such as `AX-3448`; null for the trailing "No task" section. */
+  /** Normalized key such as `AX-3448`, or a workspace name; null for "No task" and "Servers". */
   taskKey: string | null
   /** Title of the linked Jira item carrying this key, when any worktree has one. */
   title: string | null
-  /** Every visible worktree with this key across repos and hosts, pinned ones included. */
+  /** Every visible worktree of the section across repos and hosts, pinned ones included. */
   worktrees: readonly TaskSectionWorktree[]
   /** Folder workspaces in the section; they have no repo. */
   folderWorkspaceIds: readonly string[]

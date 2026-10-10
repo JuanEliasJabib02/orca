@@ -6133,6 +6133,7 @@
             "groups": {
               "0ed04075b8": "All",
               "noTask": "No task",
+              "servers": "Servers",
               "taskWithTitle": "{{value0}} · {{value1}}",
               "4aeefc5996": "Pinned",
               "682ed5d551": "Closed",

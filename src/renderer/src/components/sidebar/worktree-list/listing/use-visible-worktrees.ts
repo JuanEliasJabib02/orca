@@ -49,6 +49,8 @@ export function useVisibleSidebarWorktrees(args: {
     workspaceHostScope
   } = filterState
   const worktreesByRepo = useAppStore((s) => s.worktreesByRepo)
+  // Why: Group by → Task lists every project root under Servers, whatever the filters.
+  const keepServerRoots = useAppStore((s) => s.groupBy === 'task')
   const agentStatusEpoch = useAppStore((s) => (!showSleepingWorkspaces ? s.agentStatusEpoch : 0))
   // Why: skip the clock entirely when the epoch is the opt-out sentinel, so a
   // sleeping-workspaces list cannot evict the sample the live lists share.
@@ -110,10 +112,12 @@ export function useVisibleSidebarWorktrees(args: {
       worktreeLineageById,
       forcedVisibleWorktreeIds: args.agentSendTargetWorktreeId
         ? [args.agentSendTargetWorktreeId]
-        : undefined
+        : undefined,
+      keepServerRoots
     })
   }, [
     args.agentSendTargetWorktreeId,
+    keepServerRoots,
     agentStatusEpoch,
     agentStatusNow,
     filterRepoIds,

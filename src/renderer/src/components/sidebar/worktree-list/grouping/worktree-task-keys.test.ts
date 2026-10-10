@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Worktree } from '../../../../../../shared/worktree/types'
+import { MAX_TASK_KEY_LENGTH } from '../../../../store/slices/ui/ui-slice-task-key-record'
 import { worktree } from '../../worktree-list-groups-test-fixtures'
 import { NO_TASK_LANE_KEY } from './worktree-task-key'
 import {
@@ -24,6 +25,14 @@ function make(repoId: string, branch: string, overrides: Partial<Worktree> = {})
 const NAME = 'merchant-doc-cost-review'
 
 describe('buildWorktreeTaskKeys', () => {
+  it('makes a lone key-less worktree a task named after its branch', () => {
+    const lone = make('merchant-doc-agent', `refs/heads/${NAME}`)
+    const keys = buildWorktreeTaskKeys([lone])
+
+    expect(keys.getTaskKey(lone)).toBe(NAME)
+    expect(keys.getLaneKey(lone)).toBe(`task:${NAME}`)
+  })
+
   it('turns a branch name shared by key-less worktrees in two repos into one task', () => {
     const agent = make('merchant-doc-agent', `refs/heads/${NAME}`)
     const bulk = make('ai-bulk-hours', `refs/heads/${NAME}`)
@@ -31,37 +40,28 @@ describe('buildWorktreeTaskKeys', () => {
 
     expect(keys.getTaskKey(agent)).toBe(NAME)
     expect(keys.getTaskKey(bulk)).toBe(NAME)
-    expect(keys.getLaneKey(agent)).toBe(`task:${NAME}`)
   })
 
-  it('groups three repos under the same name', () => {
-    const all = ['a', 'b', 'c'].map((repoId) => make(repoId, `refs/heads/${NAME}`))
-    const keys = buildWorktreeTaskKeys(all)
-
-    expect(all.map((entry) => keys.getTaskKey(entry))).toEqual([NAME, NAME, NAME])
-  })
-
-  it('leaves a name used by one repo only in No task, even twice in that repo', () => {
+  it('merges two worktrees of one repo that share a name', () => {
     const first = make('merchant-doc-agent', `refs/heads/${NAME}`, { id: 'wt-1' })
     const second = make('merchant-doc-agent', `refs/heads/juan/${NAME}`, { id: 'wt-2' })
     const keys = buildWorktreeTaskKeys([first, second])
 
-    expect(keys.getTaskKey(first)).toBeNull()
-    expect(keys.getTaskKey(second)).toBeNull()
-    expect(keys.getLaneKey(first)).toBe(NO_TASK_LANE_KEY)
+    expect(keys.getTaskKey(first)).toBe(NAME)
+    expect(keys.getTaskKey(second)).toBe(NAME)
   })
 
-  it('leaves unrelated key-less branches in No task', () => {
+  it('keeps unrelated names as separate tasks', () => {
     const agent = make('merchant-doc-agent', 'refs/heads/one-thing')
     const bulk = make('ai-bulk-hours', 'refs/heads/another-thing')
     const keys = buildWorktreeTaskKeys([agent, bulk])
 
-    expect(keys.getTaskKey(agent)).toBeNull()
-    expect(keys.getTaskKey(bulk)).toBeNull()
+    expect(keys.getTaskKey(agent)).toBe('one-thing')
+    expect(keys.getTaskKey(bulk)).toBe('another-thing')
   })
 
   describe('priority', () => {
-    it('keeps a ticket key over a shared branch name', () => {
+    it('keeps a ticket key over the branch name', () => {
       const keyed = make('merchant-doc-agent', `refs/heads/${NAME}`, {
         linkedWorkItem: {
           provider: 'jira',
@@ -73,21 +73,21 @@ describe('buildWorktreeTaskKeys', () => {
         }
       })
       const sibling = make('ai-bulk-hours', `refs/heads/${NAME}`)
-      const third = make('third-repo', `refs/heads/${NAME}`)
-      const keys = buildWorktreeTaskKeys([keyed, sibling, third])
+      const keys = buildWorktreeTaskKeys([keyed, sibling])
 
       expect(keys.getTaskKey(keyed)).toBe('AX-1')
       expect(keys.getTaskKey(sibling)).toBe(NAME)
-      expect(keys.getTaskKey(third)).toBe(NAME)
     })
 
-    it('does not count a worktree that has a ticket key toward the two repos', () => {
-      const keyed = make('merchant-doc-agent', `refs/heads/${NAME}`, { displayName: 'AX-7 review' })
+    it('does not let a ticketed worktree set the casing of a name task', () => {
+      const keyed = make('merchant-doc-agent', 'refs/heads/Merchant-Doc-Cost-Review', {
+        displayName: 'AX-7 review'
+      })
       const sibling = make('ai-bulk-hours', `refs/heads/${NAME}`)
       const keys = buildWorktreeTaskKeys([keyed, sibling])
 
       expect(keys.getTaskKey(keyed)).toBe('AX-7')
-      expect(keys.getTaskKey(sibling)).toBeNull()
+      expect(keys.getTaskKey(sibling)).toBe(NAME)
     })
   })
 
@@ -116,36 +116,69 @@ describe('buildWorktreeTaskKeys', () => {
     })
   })
 
-  describe('never grouped by name', () => {
+  describe('display-name fallback', () => {
+    it('names a detached HEAD after its display name', () => {
+      const detached = make('merchant-doc-agent', '', { displayName: ` ${NAME} ` })
+      const named = make('ai-bulk-hours', `refs/heads/${NAME}`)
+      const keys = buildWorktreeTaskKeys([detached, named])
+
+      expect(keys.getTaskKey(detached)).toBe(NAME)
+      expect(keys.getTaskKey(named)).toBe(NAME)
+    })
+
+    it('falls back to the display name when the branch segment cannot be a key', () => {
+      const reserved = make('merchant-doc-agent', 'refs/heads/none', { displayName: 'Cleanup' })
+      const tooLong = make('ai-bulk-hours', `refs/heads/${'x'.repeat(MAX_TASK_KEY_LENGTH + 1)}`, {
+        displayName: 'Refactor'
+      })
+      const keys = buildWorktreeTaskKeys([reserved, tooLong])
+
+      expect(keys.getTaskKey(reserved)).toBe('Cleanup')
+      expect(keys.getTaskKey(tooLong)).toBe('Refactor')
+    })
+
+    it('leaves a worktree with no usable branch segment or display name without a task', () => {
+      const unnamed = make('merchant-doc-agent', '', { displayName: '  ' })
+      const bareRef = make('ai-bulk-hours', 'refs/heads/', { displayName: '' })
+      const keys = buildWorktreeTaskKeys([unnamed, bareRef])
+
+      expect(keys.getTaskKey(unnamed)).toBeNull()
+      expect(keys.getTaskKey(bareRef)).toBeNull()
+      expect(keys.getLaneKey(unnamed)).toBe(NO_TASK_LANE_KEY)
+    })
+  })
+
+  describe('never a task by name', () => {
     it('skips main worktrees', () => {
       const main = make('merchant-doc-agent', `refs/heads/${NAME}`, { isMainWorktree: true })
       const linked = make('ai-bulk-hours', `refs/heads/${NAME}`)
       const keys = buildWorktreeTaskKeys([main, linked])
 
       expect(keys.getTaskKey(main)).toBeNull()
-      expect(keys.getTaskKey(linked)).toBeNull()
+      expect(keys.getTaskKey(linked)).toBe(NAME)
     })
 
-    it('ignores archived worktrees when looking for a shared name', () => {
-      const archived = make('merchant-doc-agent', `refs/heads/${NAME}`, { isArchived: true })
+    it('skips archived worktrees and does not let them set the casing', () => {
+      const archived = make('merchant-doc-agent', 'refs/heads/Merchant-Doc-Cost-Review', {
+        isArchived: true
+      })
       const live = make('ai-bulk-hours', `refs/heads/${NAME}`)
       const keys = buildWorktreeTaskKeys([archived, live])
 
-      expect(keys.getTaskKey(live)).toBeNull()
       expect(keys.getTaskKey(archived)).toBeNull()
+      expect(keys.getTaskKey(live)).toBe(NAME)
     })
 
-    it('skips detached HEADs and folder workspaces, which have no branch', () => {
-      const detached = make('merchant-doc-agent', '', { displayName: NAME })
-      const folder = make('ai-bulk-hours', '', { displayName: NAME, isMainWorktree: true })
-      const bareRef = make('third-repo', 'refs/heads/', { displayName: NAME })
-      const keys = buildWorktreeTaskKeys([detached, folder, bareRef])
+    it('skips folder workspaces, which keep only ticket keys', () => {
+      const folder = make('folder-workspace:work', '', { id: 'folder:notes', displayName: NAME })
+      const ticketed = make('folder-workspace:work', '', {
+        id: 'folder:ax',
+        displayName: 'AX-12 notes'
+      })
+      const keys = buildWorktreeTaskKeys([folder, ticketed])
 
-      expect([detached, folder, bareRef].map((entry) => keys.getTaskKey(entry))).toEqual([
-        null,
-        null,
-        null
-      ])
+      expect(keys.getTaskKey(folder)).toBeNull()
+      expect(keys.getTaskKey(ticketed)).toBe('AX-12')
     })
 
     it('never forms a task named after the No task lane', () => {
@@ -158,19 +191,20 @@ describe('buildWorktreeTaskKeys', () => {
     })
   })
 
-  it('resolves a worktree outside the set from its own ticket key and the set names', () => {
-    const agent = make('merchant-doc-agent', `refs/heads/${NAME}`)
-    const bulk = make('ai-bulk-hours', `refs/heads/${NAME}`)
-    const keys = buildWorktreeTaskKeys([agent, bulk])
+  it('resolves a worktree outside the set by its own name, in the set casing when known', () => {
+    const upper = make('merchant-doc-agent', 'refs/heads/Merchant-Doc-Cost-Review')
+    const keys = buildWorktreeTaskKeys([upper])
 
-    expect(keys.getTaskKey({ ...agent })).toBe(NAME)
+    expect(keys.getTaskKey(make('x', `refs/heads/${NAME}`))).toBe('Merchant-Doc-Cost-Review')
+    expect(keys.getTaskKey(make('x', 'refs/heads/brand-new'))).toBe('brand-new')
     expect(keys.getTaskKey(make('x', 'refs/heads/ax-3-login'))).toBe('AX-3')
   })
 })
 
 describe('TICKET_ONLY_TASK_KEYS', () => {
-  it('reads ticket keys and never groups by branch name', () => {
+  it('reads ticket keys and never names a task', () => {
     expect(TICKET_ONLY_TASK_KEYS.getTaskKey(make('a', `refs/heads/${NAME}`))).toBeNull()
+    expect(TICKET_ONLY_TASK_KEYS.getLaneKey(make('a', `refs/heads/${NAME}`))).toBe(NO_TASK_LANE_KEY)
     expect(TICKET_ONLY_TASK_KEYS.getTaskKey(make('a', 'refs/heads/feat/ax-3356-login'))).toBe(
       'AX-3356'
     )
@@ -182,7 +216,7 @@ describe('getSidebarTaskKeys', () => {
   const bulk = make('ai-bulk-hours', `refs/heads/${NAME}`)
   const everyWorktree = [agent, bulk]
 
-  it('shares names across every worktree in task mode and reuses the index per snapshot', () => {
+  it('names tasks over every worktree in task mode and reuses the index per snapshot', () => {
     const taskKeys = getSidebarTaskKeys('task', everyWorktree)
 
     expect(taskKeys.getTaskKey(agent)).toBe(NAME)
@@ -199,13 +233,15 @@ describe('getWorktreeTaskKey', () => {
     const agent = make('merchant-doc-agent', `refs/heads/${NAME}`)
     const bulk = make('ai-bulk-hours', `refs/heads/juan/${NAME}`)
     const lone = make('ai-bulk-hours', 'refs/heads/lone-work')
-    const all = [agent, bulk, lone]
+    const main = make('ai-bulk-hours', 'refs/heads/main', { isMainWorktree: true })
+    const all = [agent, bulk, lone, main]
     const keys = buildWorktreeTaskKeys(all)
 
     for (const entry of all) {
       expect(getWorktreeTaskKey(entry, all)).toBe(keys.getTaskKey(entry))
     }
     expect(getWorktreeTaskKey(agent, all)).toBe(NAME)
-    expect(getWorktreeTaskKey(lone, all)).toBeNull()
+    expect(getWorktreeTaskKey(lone, all)).toBe('lone-work')
+    expect(getWorktreeTaskKey(main, all)).toBeNull()
   })
 })

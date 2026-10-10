@@ -27,6 +27,7 @@ import type {
   WorktreeGroupBy
 } from './row-types'
 import { getManualOrderAnchorRepo, sortProjectEntries } from './section-order'
+import { getTaskModeLaneKey } from './server-root-lane'
 import { getTaskLaneLabel, sortTaskGroupEntries } from './task-sections'
 import type { WorktreeTaskKeys } from './worktree-task-keys'
 
@@ -101,7 +102,7 @@ export function buildOrderedGroups(args: {
       label =
         workspaceStatuses.find((status) => status.id === workspaceStatus)?.label ?? workspaceStatus
     } else if (groupBy === 'task') {
-      key = taskKeys.getLaneKey(w)
+      key = getTaskModeLaneKey(w, repoMap, taskKeys)
       label = getTaskLaneLabel(key)
     } else {
       const prGroup = getPRGroupKey(w, repoMap, prCache, settings)

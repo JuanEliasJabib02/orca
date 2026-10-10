@@ -155,6 +155,7 @@ const web = worktree('web', 'juan/AX-3447', 'in-progress')
 const admin = worktree('admin', 'juan/AX-3447', 'todo')
 const primary = worktree('web', 'AX-3447', 'todo', { isMainWorktree: true })
 const otherSpace = worktree('personal', 'juan/AX-3447', 'todo')
+// Key-less, so it is a one-worktree task named after its branch.
 const loose = worktree('api', 'juan/chore', 'todo', { manualOrder: 10 })
 const allWorktrees = [api, web, admin, primary, otherSpace, loose]
 
@@ -254,7 +255,10 @@ describe('WorkspaceKanbanDrawer task cards', () => {
   it('shows one task card in the least advanced lane, listing its board members', () => {
     renderDrawer()
 
-    expect(describeLane('todo')).toEqual([`task:AX-3447: ${api.id}, ${web.id}`, loose.id])
+    expect(describeLane('todo')).toEqual([
+      `task:AX-3447: ${api.id}, ${web.id}`,
+      `task:chore: ${loose.id}`
+    ])
     expect(describeLane('in-progress')).toEqual([])
     // Why: lane badges count cards, and a task card is one.
     expect(gridState.current?.laneViews.get('todo')?.totalCount).toBe(2)
@@ -291,7 +295,7 @@ describe('WorkspaceKanbanDrawer task cards', () => {
     expect([...movedStatuses().keys()].sort()).toEqual([admin.id, api.id, web.id].sort())
   })
 
-  it('moves a mixed selection: the task in full plus the plain card', () => {
+  it('moves a mixed selection: the task in full plus another task', () => {
     renderDrawer()
 
     act(() => {

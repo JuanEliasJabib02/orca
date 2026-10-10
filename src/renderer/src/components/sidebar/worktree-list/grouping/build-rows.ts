@@ -241,7 +241,7 @@ export function buildRows(
     cyclicLineageIds,
     // Why all worktrees: whole-task actions must reach members the Pinned section took.
     taskWorktreesByLaneKey:
-      groupBy === 'task' ? groupWorktreesByTaskLane(worktrees, taskKeys) : undefined
+      groupBy === 'task' ? groupWorktreesByTaskLane(worktrees, taskKeys, repoMap) : undefined
   }
 
   if (groupBy !== 'repo' || projectGroups.length === 0) {

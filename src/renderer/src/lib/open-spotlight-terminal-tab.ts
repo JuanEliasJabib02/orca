@@ -94,13 +94,38 @@ function registerLogPty(repoId: string, ptyId: string | null): Promise<void> {
   )
 }
 
-function revealSpotlightTab(worktreeId: string, tabId: string): void {
-  activateAndRevealWorktree(worktreeId)
+function showTerminalTab(worktreeId: string, tabId: string): void {
   const store = useAppStore.getState()
   store.setActiveTabForWorktree(worktreeId, tabId)
+  store.setActiveTabType('terminal', worktreeId)
+}
+
+function revealSpotlightTab(worktreeId: string, tabId: string): void {
+  activateAndRevealWorktree(worktreeId)
   // Only flip the pane when revealing — otherwise a reveal:false activation
   // from a feature workspace would yank the root's pane to the terminal.
-  store.setActiveTabType('terminal', worktreeId)
+  showTerminalTab(worktreeId, tabId)
+}
+
+/** The worktree's existing Spotlight terminal tab; null when it has none yet. */
+export function findSpotlightTerminalTabId(
+  state: Pick<AppState, 'tabsByWorktree'>,
+  worktreeId: string
+): string | null {
+  return state.tabsByWorktree[worktreeId]?.find((tab) => tab.spotlightRepoRoot)?.id ?? null
+}
+
+/**
+ * Puts a root on its Spotlight terminal tab after it was opened, so its server log is in front.
+ * Never creates or adopts a terminal: false, and nothing changes, when the root has no such tab.
+ */
+export function selectSpotlightTerminalTab(worktreeId: string): boolean {
+  const tabId = findSpotlightTerminalTabId(useAppStore.getState(), worktreeId)
+  if (!tabId) {
+    return false
+  }
+  showTerminalTab(worktreeId, tabId)
+  return true
 }
 
 /** Creates the Spotlight tab, or marks an adopted one; returns its id. */

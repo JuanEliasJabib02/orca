@@ -122,7 +122,7 @@ describe('WorktreeSpotlightEnvSubMenu', () => {
     expect(checkedOptions(container)).toEqual(['Dev'])
   })
 
-  it('without a task, sets the environment of the workspace itself', async () => {
+  it('without a ticket, sets the environment of the task its branch name forms', async () => {
     seedStore({ spotlightEnvByTaskKey: { 'AX-3448': 'prod' } })
     const container = await render(ADMIN_LONE)
 
@@ -133,9 +133,22 @@ describe('WorktreeSpotlightEnvSubMenu', () => {
 
     expect(useAppStore.getState().spotlightEnvByTaskKey).toEqual({
       'AX-3448': 'prod',
-      'ad-lone': 'dev'
+      'lone-fix': 'dev'
     })
-    expect(applySpotlightEnvChange).toHaveBeenCalledWith('ad-lone')
+    expect(applySpotlightEnvChange).toHaveBeenCalledWith('lone-fix')
+  })
+
+  it('without any usable name, sets the environment of the workspace itself', async () => {
+    const unnamed = makeTaskWorktree('ad-x', 'admin', { branch: '', displayName: '' })
+    seedStore({ worktreesByRepo: { admin: [unnamed] } })
+    const container = await render(unnamed)
+
+    await act(async () => {
+      getOption(container, 'dev')?.click()
+    })
+
+    expect(useAppStore.getState().spotlightEnvByTaskKey).toEqual({ 'ad-x': 'dev' })
+    expect(applySpotlightEnvChange).toHaveBeenCalledWith('ad-x')
   })
 
   it('does nothing when the current environment is picked again', async () => {
@@ -150,10 +163,9 @@ describe('WorktreeSpotlightEnvSubMenu', () => {
     expect(uiSet).not.toHaveBeenCalled()
   })
 
-  it('renders nothing for a workspace id too long to store as a key', async () => {
-    const long = makeTaskWorktree('x'.repeat(MAX_TASK_KEY_LENGTH + 1), 'admin', {
-      branch: 'refs/heads/lone-fix'
-    })
+  it('renders nothing for an unnamed workspace whose id is too long to store as a key', async () => {
+    // Why a detached HEAD: with no branch, the name falls back to the display name, the long id.
+    const long = makeTaskWorktree('x'.repeat(MAX_TASK_KEY_LENGTH + 1), 'admin', { branch: '' })
     seedStore({ worktreesByRepo: { admin: [long] } })
 
     const container = await render(long)

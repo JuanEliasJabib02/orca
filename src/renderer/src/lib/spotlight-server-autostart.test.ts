@@ -5,6 +5,7 @@ import type {
   SpotlightServerScriptDetection
 } from '../../../shared/spotlight-server-types'
 import type { Worktree } from '../../../shared/worktree/types'
+import type * as SidebarSpaceScopeModule from '@/components/sidebar/sidebar-space-scope'
 import {
   bindTestTabPty,
   makeTestSpotlightState,
@@ -21,6 +22,16 @@ const mountRequests = vi.hoisted(() => {
   const requests: { pending: unknown; tabIds?: string[] }[] = []
   return requests
 })
+// Why: the test store has no space state; null is "no active space", where every repo counts.
+const activeSpace = vi.hoisted(() => ({ repoIds: null as ReadonlySet<string> | null }))
+
+vi.mock('@/components/sidebar/sidebar-space-scope', async (importOriginal) => ({
+  ...(await importOriginal<typeof SidebarSpaceScopeModule>()),
+  resolveSidebarSpaceScopeFromState: () =>
+    activeSpace.repoIds
+      ? { groupIds: new Set(['work']), repoIds: activeSpace.repoIds, folderWorkspaceIds: new Set() }
+      : null
+}))
 
 vi.mock('@/store', async () => {
   const { spotlightTerminalTestStore: store } = await import('./spotlight-terminal-test-store')
@@ -168,15 +179,27 @@ describe('resolveSpotlightActivationCommand', () => {
     expect(await resolveSpotlightActivationCommand(REPO, own.id)).toBe('pnpm dev:do --port 3000')
   })
 
-  it('keys a workspace with no task by its own id', async () => {
+  it('keys a lone workspace by its branch name, the task it forms on its own', async () => {
     const lone = makeTestWorktree({ id: 'admin-lone', repoId: REPO, branch: 'refs/heads/lone-fix' })
     seed({
       worktreesByRepo: { [REPO]: [MAIN, TICKET, lone] },
-      spotlightEnvByTaskKey: { 'admin-lone': 'dev' }
+      spotlightEnvByTaskKey: { 'lone-fix': 'dev' }
     })
 
     expect(await resolveSpotlightActivationCommand(REPO, lone.id)).toBe('pnpm dev:do --port 3000')
     expect(await resolveSpotlightActivationCommand(REPO, TICKET.id)).toBe('pnpm local --port 3000')
+  })
+
+  it('keys a workspace with no usable name by its own id', async () => {
+    const unnamed = makeTestWorktree({ id: 'admin-x', repoId: REPO, branch: '', displayName: '' })
+    seed({
+      worktreesByRepo: { [REPO]: [MAIN, TICKET, unnamed] },
+      spotlightEnvByTaskKey: { 'admin-x': 'dev' }
+    })
+
+    expect(await resolveSpotlightActivationCommand(REPO, unnamed.id)).toBe(
+      'pnpm dev:do --port 3000'
+    )
   })
 
   it('still resolves from config when detection fails', async () => {
@@ -550,17 +573,30 @@ describe('applySpotlightEnvChange', () => {
     expect(api.spotlight.startServer).not.toHaveBeenCalled()
   })
 
-  it('applies the environment of a workspace with no task through its own id', async () => {
+  it('applies the environment of a lone workspace through its branch name', async () => {
     seedTask({
       spotlightByRepo: { [REPO]: makeTestSpotlightState(REPO, LONE.id) },
-      spotlightEnvByTaskKey: { [LONE.id]: 'dev' }
+      spotlightEnvByTaskKey: { 'lone-fix': 'dev' }
     })
 
     await applySpotlightEnvChange('AX-3447')
     expect(api.spotlight.startServer).not.toHaveBeenCalled()
 
-    await applySpotlightEnvChange(LONE.id)
+    await applySpotlightEnvChange('lone-fix')
     expect(startedCommands()).toEqual([[REPO, 'pnpm dev:do --port 3000']])
+  })
+
+  it('leaves the servers of the same task in another space alone', async () => {
+    activeSpace.repoIds = new Set([BACKEND])
+    try {
+      seedTask()
+
+      await applySpotlightEnvChange('AX-3447')
+
+      expect(startedCommands()).toEqual([[BACKEND, 'ax-dev-back']])
+    } finally {
+      activeSpace.repoIds = null
+    }
   })
 
   it('treats a branch-name task across repos like the sidebar', async () => {

@@ -53,11 +53,12 @@ function describeLane(items: readonly WorkspaceKanbanLaneItem[] | undefined): st
 }
 
 function taskItem(
-  items: readonly WorkspaceKanbanLaneItem[] | undefined
+  items: readonly WorkspaceKanbanLaneItem[] | undefined,
+  taskKey: string
 ): WorkspaceKanbanTaskLaneItem {
-  const task = items?.find((item) => item.type === 'task')
+  const task = items?.find((item) => item.type === 'task' && item.task.taskKey === taskKey)
   if (task?.type !== 'task') {
-    throw new Error('no task card in lane')
+    throw new Error(`no ${taskKey} card in lane`)
   }
   return task
 }
@@ -105,8 +106,9 @@ describe('buildWorkspaceKanbanLaneItems', () => {
       taskGrouping: grouping(all)
     })
 
-    expect(describeLane(items.get('in-progress'))).toEqual([loose.id, 'task AX-3447'])
-    const card = taskItem(items.get('in-progress'))
+    // Why fix-login is a card of its own: every named workspace is a task, named by its branch.
+    expect(describeLane(items.get('in-progress'))).toEqual(['task fix-login', 'task AX-3447'])
+    const card = taskItem(items.get('in-progress'), 'AX-3447')
     expect(card.key).toBe('task:AX-3447')
     expect(card.worktrees).toEqual(members)
     expect(card.task.worktrees.map((member) => member.repoId)).toEqual(AX_REPOS)
@@ -131,10 +133,10 @@ describe('buildWorkspaceKanbanLaneItems', () => {
       taskGrouping: grouping(all)
     })
 
-    expect(describeLane(items.get('todo'))).toEqual([before.id, 'task AX-7', after.id])
+    expect(describeLane(items.get('todo'))).toEqual(['task cleanup', 'task AX-7', 'task tidy'])
     expect(describeLane(items.get('in-progress'))).toEqual([])
     expect(describeLane(items.get('done'))).toEqual([])
-    const card = taskItem(items.get('todo'))
+    const card = taskItem(items.get('todo'), 'AX-7')
     expect(card.status).toBe('todo')
     // Members from every lane, in board order.
     expect(card.worktrees).toEqual([inTodo, inProgress, inDone])
@@ -170,7 +172,7 @@ describe('buildWorkspaceKanbanLaneItems', () => {
     expect(describeLane(items.get('todo'))).toEqual(['task AX-9'])
   })
 
-  it('keeps worktrees without a key and folder workspaces as plain cards', () => {
+  it('names a key-less worktree after its branch and keeps folder workspaces as plain cards', () => {
     const keyed = worktree('api', 'juan/AX-10')
     const keyless = worktree('api', 'juan/refactor')
     const folder = makeWorktree({
@@ -188,8 +190,8 @@ describe('buildWorkspaceKanbanLaneItems', () => {
       taskGrouping: grouping(all)
     })
 
-    expect(describeLane(items.get('todo'))).toEqual([folder.id, 'task AX-10', keyless.id])
-    expect(taskItem(items.get('todo')).worktrees).toEqual([keyed])
+    expect(describeLane(items.get('todo'))).toEqual([folder.id, 'task AX-10', 'task refactor'])
+    expect(taskItem(items.get('todo'), 'AX-10').worktrees).toEqual([keyed])
   })
 
   it('moves every space member, hidden ones included, plus the board-visible ones', () => {
@@ -200,7 +202,7 @@ describe('buildWorkspaceKanbanLaneItems', () => {
       taskGrouping: grouping([visible], new Map([['AX-11', ['web::/hidden', 'admin::/hidden']]]))
     })
 
-    expect(taskItem(items.get('todo')).memberIds).toEqual([
+    expect(taskItem(items.get('todo'), 'AX-11').memberIds).toEqual([
       'web::/hidden',
       'admin::/hidden',
       visible.id
@@ -226,7 +228,7 @@ describe('buildWorkspaceKanbanLaneItems', () => {
       taskGrouping: grouping([plain, linked])
     })
 
-    expect(taskItem(items.get('todo')).task.title).toBe('Checkout flow')
+    expect(taskItem(items.get('todo'), 'AX-12').task.title).toBe('Checkout flow')
   })
 
   it('keeps every lane worktree in card order for drag groups', () => {

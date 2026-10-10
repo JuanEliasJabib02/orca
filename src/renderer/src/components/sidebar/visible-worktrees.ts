@@ -49,6 +49,7 @@ import {
 } from './rendered-sidebar-worktree-order'
 import { isWorkspaceFromOtherDevice } from './workspace-creator-visibility'
 import { isDefaultBranchWorkspace } from './default-branch-workspace'
+import { restoreFilteredServerRoots } from './server-root-visibility'
 import { getLineageAncestorIndex, getSortedWorktreeRankIndex } from './visible-worktree-indexes'
 import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
 import {
@@ -93,6 +94,8 @@ export type VisibleWorktreeOptions = {
   worktreeLineageById: Record<string, WorktreeLineage>
   injectLineageAncestors?: boolean
   forcedVisibleWorktreeIds?: readonly string[]
+  /** Group by → Task: git project roots skip the workspace filters (see restoreFilteredServerRoots). */
+  keepServerRoots?: boolean
 }
 
 export function computeVisibleWorktrees(
@@ -104,6 +107,7 @@ export function computeVisibleWorktrees(
 
   // Filter archived
   all = all.filter((w) => !w.isArchived)
+  const unfiltered = all
 
   // Why: sidebar lineage is structural. Archived workspaces stay hidden, but
   // every other valid ancestor can bypass filters so children never orphan.
@@ -173,6 +177,10 @@ export function computeVisibleWorktrees(
           opts.worktreeIdsWithStructuredChat
         )
     )
+  }
+
+  if (opts.keepServerRoots) {
+    all = restoreFilteredServerRoots(all, unfiltered, opts)
   }
 
   if (opts.forcedVisibleWorktreeIds && opts.forcedVisibleWorktreeIds.length > 0) {

@@ -1,4 +1,5 @@
 import type { Worktree } from '../../../../../../shared/worktree/types'
+import { parseWorkspaceKey } from '../../../../../../shared/workspace-scope'
 import { branchName } from '../../../../lib/git-utils'
 import { isUsableTaskKey } from '../../../../store/slices/ui/ui-slice-task-key-record'
 import type { WorktreeGroupBy } from './row-types'
@@ -12,7 +13,7 @@ import {
 
 export type TaskKeyWorktree = Pick<
   Worktree,
-  'repoId' | 'linkedWorkItem' | 'branch' | 'displayName' | 'isMainWorktree' | 'isArchived'
+  'id' | 'repoId' | 'linkedWorkItem' | 'branch' | 'displayName' | 'isMainWorktree' | 'isArchived'
 >
 
 /** Resolves every worktree's task key against one worktree set, so all callers agree. */
@@ -21,69 +22,63 @@ export type WorktreeTaskKeys = {
   getLaneKey(worktree: TaskKeyWorktree): string
 }
 
-type SharedNameEntry = { firstRepoId: string; shared: boolean; casing: string }
-
-// Why: a lane key of `task:none` is the "No task" section, so a branch called "none" must never form a task.
+// Why: a lane key of `task:none` is the "No task" section, so a name "none" must never form a task.
 const RESERVED_NAME_KEY = NO_TASK_LANE_KEY.slice(TASK_LANE_PREFIX.length)
 
-/** The last `/` segment of the branch; null where a name must never form a task (main, detached, folder). */
-function getBranchNameSegment(worktree: TaskKeyWorktree): string | null {
-  if (worktree.isMainWorktree) {
-    return null
-  }
-  const segment = branchName(worktree.branch).trim().split('/').at(-1)?.trim()
-  if (!segment || segment.toLowerCase() === RESERVED_NAME_KEY || !isUsableTaskKey(segment)) {
-    return null
-  }
-  return segment
-}
-
-function findSharedBranchNames(
-  worktrees: readonly TaskKeyWorktree[],
-  ticketKeyByWorktree: Map<TaskKeyWorktree, string | null>
-): Map<string, string> {
-  const byLowerName = new Map<string, SharedNameEntry>()
-  for (const worktree of worktrees) {
-    // Why: archived workspaces are not shown, so they must not keep a task alive.
-    if (worktree.isArchived) {
-      continue
-    }
-    const ticketKey = getTicketTaskKey(getWorktreeTaskKeySource(worktree))
-    ticketKeyByWorktree.set(worktree, ticketKey)
-    const segment = ticketKey ? null : getBranchNameSegment(worktree)
-    if (!segment) {
-      continue
-    }
-    const lowerName = segment.toLowerCase()
-    const entry = byLowerName.get(lowerName)
-    if (!entry) {
-      byLowerName.set(lowerName, { firstRepoId: worktree.repoId, shared: false, casing: segment })
-      continue
-    }
-    entry.shared ||= entry.firstRepoId !== worktree.repoId
-    // Why smallest, not first seen: callers order worktrees differently and the casing is the task's identity.
-    if (segment < entry.casing) {
-      entry.casing = segment
-    }
-  }
-  const shared = new Map<string, string>()
-  for (const [lowerName, entry] of byLowerName) {
-    if (entry.shared) {
-      shared.set(lowerName, entry.casing)
-    }
-  }
-  return shared
+function toTaskName(raw: string | undefined): string | null {
+  const name = raw?.trim()
+  return name && name.toLowerCase() !== RESERVED_NAME_KEY && isUsableTaskKey(name) ? name : null
 }
 
 /**
- * Ticket key first, else the branch name when key-less, non-archived worktrees in 2+ repos share it,
- * else null. Build once per grouping pass over EVERY worktree, never a filtered list, so a filter
- * cannot split a task (O(n)); look up per worktree.
+ * The name a key-less worktree's task goes by: its branch's last `/` segment, else (e.g. detached
+ * HEAD) its display name. Null for main checkouts, archived worktrees and folder workspaces.
+ */
+function getWorktreeTaskName(worktree: TaskKeyWorktree): string | null {
+  if (
+    worktree.isMainWorktree ||
+    worktree.isArchived ||
+    parseWorkspaceKey(worktree.id)?.type === 'folder'
+  ) {
+    return null
+  }
+  return (
+    toTaskName(branchName(worktree.branch).split('/').at(-1)) ?? toTaskName(worktree.displayName)
+  )
+}
+
+/** Smallest casing per lower-cased name across the set, so a merged task has one label. */
+function indexNameCasings(
+  worktrees: readonly TaskKeyWorktree[],
+  ticketKeyByWorktree: Map<TaskKeyWorktree, string | null>
+): Map<string, string> {
+  const casingByLowerName = new Map<string, string>()
+  for (const worktree of worktrees) {
+    const ticketKey = getTicketTaskKey(getWorktreeTaskKeySource(worktree))
+    ticketKeyByWorktree.set(worktree, ticketKey)
+    const name = ticketKey ? null : getWorktreeTaskName(worktree)
+    if (!name) {
+      continue
+    }
+    const lowerName = name.toLowerCase()
+    const casing = casingByLowerName.get(lowerName)
+    // Why smallest, not first seen: callers order worktrees differently and the casing is the task's identity.
+    if (casing === undefined || name < casing) {
+      casingByLowerName.set(lowerName, name)
+    }
+  }
+  return casingByLowerName
+}
+
+/**
+ * Ticket key first, else the worktree's name (see getWorktreeTaskName): every named workspace is a
+ * task, and the same name in any repo is the same task, case-insensitively. Build once per grouping
+ * pass over EVERY worktree, never a filtered list, so a filter cannot change a task's casing (O(n)).
  */
 export function buildWorktreeTaskKeys(worktrees: readonly TaskKeyWorktree[]): WorktreeTaskKeys {
   // Why a cache: lookups repeat per grouping step and the ticket regexes are the costly part.
   const ticketKeyByWorktree = new Map<TaskKeyWorktree, string | null>()
-  const sharedNames = findSharedBranchNames(worktrees, ticketKeyByWorktree)
+  const casingByLowerName = indexNameCasings(worktrees, ticketKeyByWorktree)
 
   function getTaskKey(worktree: TaskKeyWorktree): string | null {
     const ticketKey = ticketKeyByWorktree.has(worktree)
@@ -92,18 +87,25 @@ export function buildWorktreeTaskKeys(worktrees: readonly TaskKeyWorktree[]): Wo
     if (ticketKey) {
       return ticketKey
     }
-    const segment = sharedNames.size > 0 ? getBranchNameSegment(worktree) : null
-    return segment ? (sharedNames.get(segment.toLowerCase()) ?? null) : null
+    const name = getWorktreeTaskName(worktree)
+    return name ? (casingByLowerName.get(name.toLowerCase()) ?? name) : null
   }
 
   return { getTaskKey, getLaneKey: (worktree) => getTaskLaneKey(getTaskKey(worktree)) }
 }
 
-/** Ticket-only keys, for callers with no worktree set to share branch names across. */
-export const TICKET_ONLY_TASK_KEYS: WorktreeTaskKeys = buildWorktreeTaskKeys([])
+function getTicketOnlyTaskKey(worktree: TaskKeyWorktree): string | null {
+  return getTicketTaskKey(getWorktreeTaskKeySource(worktree))
+}
+
+/** Ticket keys only, never names: what every Group by other than Task files worktrees under. */
+export const TICKET_ONLY_TASK_KEYS: WorktreeTaskKeys = {
+  getTaskKey: getTicketOnlyTaskKey,
+  getLaneKey: (worktree) => getTaskLaneKey(getTicketOnlyTaskKey(worktree))
+}
 
 /**
- * The task key the sidebar files `worktree` under; `allWorktrees` is every worktree to share names
+ * The task key the sidebar files `worktree` under; `allWorktrees` is every worktree to merge names
  * across, unfiltered (`Object.values(worktreesByRepo).flat()`). Builds the index per call: reuse
  * `buildWorktreeTaskKeys` when resolving many.
  */

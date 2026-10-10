@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { buildRows } from './build-rows'
 import { PINNED_GROUP_KEY } from './group-keys'
 import type { GroupHeaderRow, Row } from './row-types'
+import { SERVERS_LANE_KEY } from './server-root-lane'
 import { NO_TASK_LANE_KEY } from './worktree-task-key'
 import { getGroupKeysForWorktree } from './worktree-group-keys'
 import { buildWorktreeTaskKeys, getTaskKeysForAllWorktrees } from './worktree-task-keys'
@@ -128,20 +129,21 @@ const backendMain = makeWorktree({
   id: 'wt-main',
   branch: 'refs/heads/main',
   displayName: 'main',
+  isMainWorktree: true,
   lastActivityAt: 100
 })
 
 describe('buildRows grouped by task', () => {
-  it('groups worktrees across repos by task key, most recent task first, No task last', () => {
+  it('groups worktrees across repos by task key, most recent task first, Servers last', () => {
     const rows = buildTaskRows([backend3448, admin3448, backend3356, backendMain])
 
     expect(headers(rows).map((row) => row.key)).toEqual([
       'task:AX-3356',
       'task:AX-3448',
-      NO_TASK_LANE_KEY
+      SERVERS_LANE_KEY
     ])
     expect(itemIdsUnder(rows, 'task:AX-3448')).toEqual(['wt-backend-3448', 'wt-admin-3448'])
-    expect(itemIdsUnder(rows, NO_TASK_LANE_KEY)).toEqual(['wt-main'])
+    expect(itemIdsUnder(rows, SERVERS_LANE_KEY)).toEqual(['wt-main'])
   })
 
   it('labels a task with its Jira title when linked, the bare key otherwise', () => {
@@ -149,7 +151,26 @@ describe('buildRows grouped by task', () => {
       (row) => row.label
     )
 
-    expect(labels).toEqual(['AX-3356', 'AX-3448 · Login flow', 'No task'])
+    expect(labels).toEqual(['AX-3356', 'AX-3448 · Login flow', 'Servers'])
+  })
+
+  it('prints a key once when the linked title only repeats it', () => {
+    const echo = makeWorktree({
+      id: 'wt-echo',
+      branch: 'refs/heads/juan/ax-9',
+      linkedWorkItem: {
+        provider: 'jira',
+        type: 'issue',
+        number: 0,
+        title: 'ax-9',
+        url: 'https://example.atlassian.net/browse/AX-9',
+        jiraIdentifier: 'AX-9'
+      }
+    })
+    const header = headers(buildTaskRows([echo]))[0]
+
+    expect(header).toMatchObject({ key: 'task:AX-9', label: 'AX-9' })
+    expect(header?.task?.title).toBeNull()
   })
 
   it('exposes the task members with their repos for whole-task header actions', () => {
@@ -189,7 +210,7 @@ describe('buildRows grouped by task', () => {
 
     expect(headers(rows).map((row) => row.key)).toContain('task:AX-3448')
     expect(itemIdsUnder(rows, 'task:AX-3448')).toEqual([])
-    expect(itemIdsUnder(rows, NO_TASK_LANE_KEY)).toEqual(['wt-main'])
+    expect(itemIdsUnder(rows, SERVERS_LANE_KEY)).toEqual(['wt-main'])
   })
 
   it('files folder workspaces by their name, since they have no branch', () => {
@@ -249,8 +270,9 @@ describe('buildRows grouped by task without a ticket key', () => {
     const header = headers(rows).find((row) => row.key === 'task:Merchant-Doc-Cost-Review')
 
     expect(headers(rows).map((row) => row.key)).toEqual([
+      'task:lone-work',
       'task:Merchant-Doc-Cost-Review',
-      NO_TASK_LANE_KEY
+      SERVERS_LANE_KEY
     ])
     expect(header).toMatchObject({ label: 'Merchant-Doc-Cost-Review', count: 2 })
     expect(header?.task).toEqual({
@@ -262,14 +284,28 @@ describe('buildRows grouped by task without a ticket key', () => {
       ],
       folderWorkspaceIds: []
     })
-    expect(itemIdsUnder(rows, NO_TASK_LANE_KEY)).toEqual(['wt-backend-lone', 'wt-main'])
+    expect(itemIdsUnder(rows, 'task:lone-work')).toEqual(['wt-backend-lone'])
+    expect(itemIdsUnder(rows, SERVERS_LANE_KEY)).toEqual(['wt-main'])
   })
 
-  it('keeps a name used by one repo only in No task', () => {
+  it('makes a lone named workspace a task, labelled once with its name', () => {
+    const rows = buildTaskRows([backendLone])
+    const header = headers(rows)[0]
+
+    expect(headers(rows).map((row) => row.key)).toEqual(['task:lone-work'])
+    expect(header).toMatchObject({ label: 'lone-work', count: 1 })
+    expect(header?.task).toMatchObject({ taskKey: 'lone-work', title: null })
+  })
+
+  it('merges two worktrees of one repo that share a name into one task', () => {
     const second = makeWorktree({ ...backendReview, id: 'wt-backend-review-2' })
     const rows = buildTaskRows([backendReview, second])
 
-    expect(headers(rows).map((row) => row.key)).toEqual([NO_TASK_LANE_KEY])
+    expect(headers(rows).map((row) => row.key)).toEqual(['task:merchant-doc-cost-review'])
+    expect(itemIdsUnder(rows, 'task:merchant-doc-cost-review')).toEqual([
+      'wt-backend-review',
+      'wt-backend-review-2'
+    ])
   })
 
   it('keeps the shared-name task whole when the Pinned section holds one member', () => {

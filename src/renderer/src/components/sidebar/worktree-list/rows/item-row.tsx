@@ -23,6 +23,7 @@ import type { LineageToggleHandler } from '../../worktree-lineage-toggle-handler
 import { stopNestedWorktreeCardBubble } from './header-event-guards'
 import type { WorktreeItemRow } from '../listing/renderable-rows'
 import { getWorktreeOptionId } from './option-dom'
+import { getServerRootActivateHandler } from './server-root-activation'
 import type { WorktreeRowDragState } from '../drag/row-state'
 
 export type WorktreeItemRowContext = {
@@ -207,6 +208,7 @@ export function renderWorktreeItemRow(
         flushSurface
         activationRowKey={itemRow.rowKey}
         onImmediateActivate={ctx.onImmediateActivate}
+        onActivate={getServerRootActivateHandler(itemRow.sectionKey, itemRow.worktree.id)}
         onSelectionGesture={ctx.onSelectionGesture}
         onWorktreeCardClick={ctx.onWorktreeCardClick}
         onContextMenuSelect={ctx.onContextMenuSelect}

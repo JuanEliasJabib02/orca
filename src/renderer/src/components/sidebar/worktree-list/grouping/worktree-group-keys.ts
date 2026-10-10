@@ -8,6 +8,7 @@ import { ALL_GROUP_KEY, getPRGroupKey, getProjectGroupHeaderKey } from './group-
 import { buildProjectGroupingIndex, getProjectGroupingForRepo } from './project-grouping'
 import type { ProjectGroupingModel } from './project-grouping'
 import type { WorktreeGroupBy } from './row-types'
+import { getTaskModeLaneKey } from './server-root-lane'
 import { TICKET_ONLY_TASK_KEYS } from './worktree-task-keys'
 import type { WorktreeTaskKeys } from './worktree-task-keys'
 
@@ -36,7 +37,7 @@ export function getGroupKeyForWorktree(
     ).key
   }
   if (groupBy === 'task') {
-    return taskKeys.getLaneKey(worktree)
+    return getTaskModeLaneKey(worktree, repoMap, taskKeys)
   }
   return `pr:${getPRGroupKey(worktree, repoMap, prCache, settings)}`
 }

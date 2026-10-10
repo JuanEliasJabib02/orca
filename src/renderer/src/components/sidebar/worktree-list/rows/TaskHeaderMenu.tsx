@@ -14,6 +14,7 @@ import { translate } from '@/i18n/i18n'
 import { getTaskNote } from '@/store/slices/ui/ui-slice-task-note-actions'
 import { runWorktreeBatchDelete } from '../../delete-worktree-flow'
 import { REPO_HEADER_ACTION_BUTTON_CLASS } from '../../repo-header-action-button-class'
+import { useActiveSidebarSpaceScope } from '../../use-active-sidebar-space'
 import type { TaskSectionInfo } from '../grouping/row-types'
 import {
   handleRepoHeaderActionPointerDown,
@@ -38,10 +39,11 @@ export function TaskHeaderMenu({
   const note = useAppStore((s) => getTaskNote(s.taskNoteByTaskKey, taskKey))
   const openModal = useAppStore((s) => s.openModal)
   const setTaskNote = useAppStore((s) => s.setTaskNote)
+  const spaceScope = useActiveSidebarSpaceScope()
   // Why every worktree, not `task.worktrees`: sidebar filters hide members the delete must still cover.
   const targets = useMemo(
-    () => resolveTaskDeleteTargets(taskKey, allWorktrees),
-    [taskKey, allWorktrees]
+    () => resolveTaskDeleteTargets(taskKey, allWorktrees, spaceScope),
+    [taskKey, allWorktrees, spaceScope]
   )
 
   // Why null: the "No task" section has no task to act on.
