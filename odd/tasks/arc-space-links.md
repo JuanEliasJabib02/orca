@@ -41,18 +41,25 @@ matches the Orca space of the workspace they came from.
   - `shell:openUrl` accepts an optional `{ arcSpace }`; it uses Arc only when the
     setting is on, then falls back to `shell.openExternal`. Preload and `ShellApi` get
     the optional argument; the web shell ignores it.
-  - Check: `src/main/arc-space-url-open.test.ts` and `shell:openUrl` cases in
-    `src/main/ipc/shell.test.ts`.
+  - Check: `src/main/arc-space-url-open.test.ts` and
+    `src/main/ipc/shell-open-url.test.ts` (own file: `shell.test.ts` is near the
+    800-line test cap).
+  - Code done, oxlint clean, commit `ec4b853abd`. Tests and tc pending.
 - [ ] **2. Renderer: links pick their space's Arc space**
   - `sidebar-space-scope.ts`: export the worktree → top-level group lookup.
   - `src/renderer/src/lib/arc-space-link-target.ts`: `resolveArcSpaceForWorktree`
-    (setting on + Mac + name for the space; active space as the fallback).
+    (setting on + a name for the space; active space as the fallback). The macOS
+    check lives in main only.
   - `openHttpLink` passes `{ arcSpace }` on its system-browser branch.
-  - Check: `arc-space-link-target.test.ts` and cases in `http-link-routing.test.ts`.
+  - Check: `arc-space-link-target.test.ts` and `http-link-arc-space-routing.test.ts`
+    (own file, same reason).
+  - Code done, oxlint clean, commit `9cc1e5ecc2`. Tests and tc pending.
 - [ ] **3. Settings UI**
   - `BrowserArcSpacesSetting.tsx` in Settings → Browser (Mac only): switch plus one
     field per space; a settings-search entry.
-  - Check: component test.
+  - Check: `BrowserArcSpacesSetting.test.tsx`.
+  - Code done, oxlint and design-system lint clean, commit `e0c2332512`. Tests and
+    tc pending.
 
 Verification runs at the end, narrow (the test files above, `pnpm tc`, oxlint on the
 changed files), with Juan's OK.
