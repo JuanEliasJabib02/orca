@@ -12,6 +12,7 @@ import { BrowserUseSetup } from './BrowserUsePane'
 import { BrowserSearchEngineSetting } from './BrowserSearchEngineSetting'
 import { BrowserLinkRoutingSetting } from './BrowserLinkRoutingSetting'
 import { BrowserLinkRoutingModifierSetting } from './BrowserLinkRoutingModifierSetting'
+import { BrowserArcSpacesSetting } from './BrowserArcSpacesSetting'
 import { BrowserTerminalLinkActionsSetting } from './BrowserTerminalLinkActionsSetting'
 import { BrowserLocalhostWorktreeLabelsSetting } from './BrowserLocalhostWorktreeLabelsSetting'
 import { BrowserClientHostedRemoteSetting } from './BrowserClientHostedRemoteSetting'
@@ -116,6 +117,8 @@ export function BrowserPane({
   const showUserAgent = matchesSettingsSearch(searchQuery, [browserSearchEntries[10]])
   const showBrowserUse = matchesSettingsSearch(searchQuery, getBrowserUsePaneSearchEntries())
   const isMac = isMacUserAgent()
+  // Why isMac first: the Arc entry exists only in the Mac search list.
+  const showArcSpaces = isMac && matchesSettingsSearch(searchQuery, [browserSearchEntries[11]])
   const linkRoutingDescription = getBrowserLinkRoutingDescription(
     { isMac },
     settings.openLinksInAppModifierInverts === true
@@ -262,6 +265,10 @@ export function BrowserPane({
           isMac={isMac}
           updateSettings={updateSettings}
         />
+      ) : null}
+
+      {showArcSpaces ? (
+        <BrowserArcSpacesSetting settings={settings} updateSettings={updateSettings} />
       ) : null}
 
       {showTerminalLinkActions ? (
