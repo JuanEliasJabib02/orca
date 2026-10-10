@@ -32,7 +32,7 @@ matches the Orca space of the workspace they came from.
 
 ## Tasks
 
-- [ ] **1. Main: open a URL in an Arc space**
+- [x] **1. Main: open a URL in an Arc space**
   - Settings: `openLinksInArcSpaces?: boolean` and
     `arcSpaceNameBySidebarSpaceId?: Record<string, string>` in `global-settings-types.ts`,
     defaults `false` / `{}`.
@@ -44,8 +44,8 @@ matches the Orca space of the workspace they came from.
   - Check: `src/main/arc-space-url-open.test.ts` and
     `src/main/ipc/shell-open-url.test.ts` (own file: `shell.test.ts` is near the
     800-line test cap).
-  - Code done, oxlint clean, commit `ec4b853abd`. Tests and tc pending.
-- [ ] **2. Renderer: links pick their space's Arc space**
+  - Done: commit `ec4b853abd`. Tests and `pnpm tc` pass.
+- [x] **2. Renderer: links pick their space's Arc space**
   - `sidebar-space-scope.ts`: export the worktree → top-level group lookup.
   - `src/renderer/src/lib/arc-space-link-target.ts`: `resolveArcSpaceForWorktree`
     (setting on + a name for the space; active space as the fallback). The macOS
@@ -53,13 +53,14 @@ matches the Orca space of the workspace they came from.
   - `openHttpLink` passes `{ arcSpace }` on its system-browser branch.
   - Check: `arc-space-link-target.test.ts` and `http-link-arc-space-routing.test.ts`
     (own file, same reason).
-  - Code done, oxlint clean, commit `9cc1e5ecc2`. Tests and tc pending.
-- [ ] **3. Settings UI**
+  - Done: commit `9cc1e5ecc2`. Tests and `pnpm tc` pass.
+- [x] **3. Settings UI**
   - `BrowserArcSpacesSetting.tsx` in Settings → Browser (Mac only): switch plus one
     field per space; a settings-search entry.
   - Check: `BrowserArcSpacesSetting.test.tsx`.
-  - Code done, oxlint and design-system lint clean, commit `e0c2332512`. Tests and
-    tc pending.
+  - Done: commit `e0c2332512`, plus `dda30665e0` for the Browser search order test.
+    Tests and `pnpm tc` pass.
 
-Verification runs at the end, narrow (the test files above, `pnpm tc`, oxlint on the
-changed files), with Juan's OK.
+Verified on 2026-10-10, after merging upstream (`cef100fbd6`): the test files above
+pass and `pnpm tc` is clean. The AppleScript ran against Juan's real Arc in all three
+spaces: the space takes focus and the new tab opens there.
