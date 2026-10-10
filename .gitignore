@@ -134,7 +134,9 @@ test-results/
 playwright-report/
 
 # Agent skill installations (machine-local, populated by agent tooling)
-/.claude/skills/
+/.claude/skills/*
+# Orca Pro Max: the fork's own maintenance skill is tracked.
+!/.claude/skills/orca-update/
 /.agents/skills/
 /skills-lock.json
 
