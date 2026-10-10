@@ -21,6 +21,7 @@ import { useWorkspaceKanbanNativeDrag } from './use-workspace-kanban-native-drag
 import { useWorkspaceKanbanRenderLifecycle } from './use-workspace-kanban-render-lifecycle'
 import { useWorkspaceKanbanDrawerLingering } from './use-workspace-kanban-drawer-lingering'
 import { buildWorktreeManualOrderCatalog } from './worktree-manual-order-catalog'
+import { getSelectedWorkspaceKanbanCardIds } from './workspace-kanban-card-selection'
 
 type WorkspaceKanbanDrawerProps = {
   leftSidebarStyle?: React.CSSProperties
@@ -83,12 +84,14 @@ function WorkspaceKanbanDrawerContent({
     activeWorktreeIdentity,
     boardDragGroups,
     boardWorktrees,
+    cardMembers,
     laneFullWorktreeIds,
     laneViews,
     renderedBoardWorktrees,
+    renderedWorktreeIdentities,
     search: { query, setQuery, clearQuery, matchingWorktreeIds, hasQuery, isQueryTooLarge },
-    worktreeById,
-    worktreesByStatus
+    taskMoveIdsByWorktreeId,
+    worktreeById
   } = useWorkspaceKanbanBoardProjection({
     activeWorktreeId,
     activeWorkspaceExecutionHostId,
@@ -106,7 +109,12 @@ function WorkspaceKanbanDrawerContent({
     updateSelectionForArea,
     clearSelection,
     selectForContextMenu
-  } = useWorkspaceKanbanSelection(open, boardWorktrees, renderedBoardWorktrees)
+  } = useWorkspaceKanbanSelection(open, boardWorktrees, renderedBoardWorktrees, cardMembers)
+  // Why: a drag reads its source card's id from the DOM, and a task card's id is not a worktree's.
+  const selectedCardIds = useMemo(
+    () => getSelectedWorkspaceKanbanCardIds(selectedWorktreeIds, cardMembers),
+    [cardMembers, selectedWorktreeIds]
+  )
   const { handleAreaSelectionPointerDown } = useWorkspaceKanbanAreaSelection({
     open,
     boardRef,
@@ -127,6 +135,7 @@ function WorkspaceKanbanDrawerContent({
     dropWorktreesAtEndOfStatus,
     moveWorktreeToStatus,
     moveWorktreesToStatus,
+    pinPointerDraggedWorktrees,
     pinWorktree,
     pinWorktrees,
     shouldWriteDropManualOrder
@@ -137,35 +146,36 @@ function WorkspaceKanbanDrawerContent({
     maybeSyncTaskStatuses: maybeSyncWorkspaceBoardTaskStatuses,
     setSortBy,
     sortBy,
+    taskMoveIdsByWorktreeId,
     updateWorktreeMeta,
     updateWorktreesMeta,
     workspaceStatuses,
     worktreeById,
-    manualOrderCatalog,
-    worktreesByStatus
+    manualOrderCatalog
   })
   // Why: dragging or right-clicking one visible match must not silently move
   // hidden selected cards. selectedWorktreeIds stays unfiltered so highlighting
-  // and area-selection anchoring still see the whole selection.
+  // and area-selection anchoring still see the whole selection. The rendered set,
+  // not the matches, since a shown task card keeps members the query missed.
   const renderedSelectedWorktrees = useMemo(
     () =>
-      matchingWorktreeIds
+      renderedWorktreeIdentities
         ? selectedWorktrees.filter((worktree) =>
-            matchingWorktreeIds.has(getWorktreeHostIdentity(worktree))
+            renderedWorktreeIdentities.has(getWorktreeHostIdentity(worktree))
           )
         : selectedWorktrees,
-    [matchingWorktreeIds, selectedWorktrees]
+    [renderedWorktreeIdentities, selectedWorktrees]
   )
   // Why: selectForContextMenu closes over the unfiltered selection, so the
   // "Move to Status" payload has to be narrowed here too.
   const selectRenderedForContextMenu = useCallback(
     (event: React.MouseEvent<HTMLElement>, worktree: Worktree): readonly Worktree[] => {
       const selection = selectForContextMenu(event, worktree)
-      return matchingWorktreeIds
-        ? selection.filter((item) => matchingWorktreeIds.has(getWorktreeHostIdentity(item)))
+      return renderedWorktreeIdentities
+        ? selection.filter((item) => renderedWorktreeIdentities.has(getWorktreeHostIdentity(item)))
         : selection
     },
-    [matchingWorktreeIds, selectForContextMenu]
+    [renderedWorktreeIdentities, selectForContextMenu]
   )
   const {
     dragOverStatus,
@@ -182,10 +192,10 @@ function WorkspaceKanbanDrawerContent({
   const { isPointerDragActiveRef, onCardPointerDownCapture } = useWorkspaceKanbanCardPointerDrag({
     open,
     boardRef,
-    selectedWorktreeIds,
+    selectedWorktreeIds: selectedCardIds,
     selectedWorktrees: renderedSelectedWorktrees,
     onDropWorktreesInStatus: dropPointerDraggedWorktreesInStatus,
-    onPinWorktrees: pinWorktrees,
+    onPinWorktrees: pinPointerDraggedWorktrees,
     onDragTargetChange: setDragOverStatus,
     onShouldShowDropIndicator: shouldWriteDropManualOrder,
     onPinDragTargetChange: setPinDragOver

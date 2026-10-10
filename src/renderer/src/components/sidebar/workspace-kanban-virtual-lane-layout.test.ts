@@ -107,6 +107,47 @@ describe('workspace kanban virtual lane layout', () => {
     unregister()
   })
 
+  it('lets a marquee pass over project headers, which hold no worktree', () => {
+    const { scrollElement, spacerElement } = createLayoutElements()
+    const itemIds = [
+      'project-header:todo:repo:api',
+      'w1',
+      'w2',
+      'project-header:todo:repo:web',
+      'w3'
+    ]
+    const unregister = registerWorkspaceKanbanVirtualLaneLayout({
+      scrollElement,
+      spacerElement,
+      getItemIds: () => itemIds,
+      getItemWorktreeIds: () => [[], ['w1'], ['w2'], [], ['w3']],
+      getMeasurements: () =>
+        itemIds.map((_, index) => ({
+          index,
+          start: index * ITEM_STRIDE,
+          end: index * ITEM_STRIDE + ITEM_HEIGHT
+        }))
+    })
+    const board = {
+      querySelectorAll: (selector: string) =>
+        selector === '[data-workspace-board-lane-scroll]' ? [scrollElement] : []
+    } as unknown as HTMLElement
+
+    expect(
+      getWorkspaceKanbanVirtualLaneItemRects(scrollElement)?.map((rect) => rect.index)
+    ).toEqual([1, 2, 4])
+    const selectedIds = getAreaSelectionCardIds(getAreaSelectionCardRects(board), {
+      left: 0,
+      top: 0,
+      width: 300,
+      height: 600
+    })
+    expect(selectedIds).toEqual(['w1', 'w2', 'w3'])
+    // Why: drop math still counts the header slot, so the index space is unchanged.
+    expect(resolveWorkspaceKanbanVirtualLaneDropIndex(scrollElement, 600)).toBe(5)
+    unregister()
+  })
+
   it('does not let stale cleanup remove a newer lane registration', () => {
     const { scrollElement, spacerElement } = createLayoutElements()
     const unregisterFirst = registerWorkspaceKanbanVirtualLaneLayout({

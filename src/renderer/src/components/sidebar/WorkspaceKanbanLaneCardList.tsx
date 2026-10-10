@@ -4,21 +4,50 @@ import type { Repo } from '../../../../shared/repo-types'
 import type { WorkspaceStatus, Worktree } from '../../../../shared/worktree/types'
 import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
 import WorkspaceKanbanCard from './WorkspaceKanbanCard'
+import WorkspaceKanbanTaskCard from './WorkspaceKanbanTaskCard'
+import WorkspaceKanbanProjectHeader from './WorkspaceKanbanProjectHeader'
 import { registerWorkspaceKanbanVirtualLaneLayout } from './workspace-kanban-virtual-lane-layout'
+import {
+  getLaneItemWorktrees,
+  type WorkspaceKanbanCardLaneItem,
+  type WorkspaceKanbanLaneItem,
+  type WorkspaceKanbanTaskLaneItem
+} from './workspace-kanban-lane-items'
 
 // Why: board cards are uniform one-line rows; a close estimate keeps the first
 // virtual window right so the lane does not reflow once cards measure.
 const WORKSPACE_BOARD_CARD_ESTIMATED_HEIGHT = 36
+// Why: a task card is a header plus one row per member, so its estimate grows with them.
+const WORKSPACE_BOARD_TASK_CARD_HEADER_HEIGHT = 34
+const WORKSPACE_BOARD_TASK_CARD_ROW_HEIGHT = 26
+const WORKSPACE_BOARD_PROJECT_HEADER_HEIGHT = 24
 // Matches the `space-y-2` rhythm the lane used before virtualization.
 const WORKSPACE_BOARD_CARD_GAP = 8
 const WORKSPACE_BOARD_CARD_OVERSCAN = 6
 
-function estimateWorkspaceBoardCardSize(): number {
-  return WORKSPACE_BOARD_CARD_ESTIMATED_HEIGHT
+function estimateWorkspaceBoardCardSize(item: WorkspaceKanbanLaneItem | undefined): number {
+  if (item?.type === 'project-header') {
+    return WORKSPACE_BOARD_PROJECT_HEADER_HEIGHT
+  }
+  return item?.type === 'task'
+    ? WORKSPACE_BOARD_TASK_CARD_HEADER_HEIGHT +
+        item.worktrees.length * WORKSPACE_BOARD_TASK_CARD_ROW_HEIGHT
+    : WORKSPACE_BOARD_CARD_ESTIMATED_HEIGHT
+}
+
+// Why every member: a task card shows as selected only when its whole selection does.
+function isTaskCardSelected(
+  item: WorkspaceKanbanTaskLaneItem,
+  selectedWorktreeIds: ReadonlySet<string>
+): boolean {
+  return (
+    item.worktrees.length > 0 &&
+    item.worktrees.every((worktree) => selectedWorktreeIds.has(getWorktreeHostIdentity(worktree)))
+  )
 }
 
 type WorkspaceKanbanLaneCardListProps = {
-  items: readonly Worktree[]
+  items: readonly WorkspaceKanbanLaneItem[]
   repoMap: Map<string, Repo>
   activeWorktreeIdentity: string | null
   scrollRef: React.RefObject<HTMLDivElement | null>
@@ -48,15 +77,19 @@ function WorkspaceKanbanLaneCardList({
   onAssignWorkspaceStatus
 }: WorkspaceKanbanLaneCardListProps): React.JSX.Element {
   const spacerRef = useRef<HTMLDivElement | null>(null)
-  const itemIds = useMemo(() => items.map(getWorktreeHostIdentity), [items])
+  const itemIds = useMemo(() => items.map((item) => item.key), [items])
+  const itemWorktreeIds = useMemo(
+    () => items.map((item) => getLaneItemWorktrees(item).map((worktree) => worktree.id)),
+    [items]
+  )
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: estimateWorkspaceBoardCardSize,
-    getItemKey: useCallback(
-      (index: number) => (items[index] ? getWorktreeHostIdentity(items[index]) : index),
+    estimateSize: useCallback(
+      (index: number) => estimateWorkspaceBoardCardSize(items[index]),
       [items]
     ),
+    getItemKey: useCallback((index: number) => items[index]?.key ?? index, [items]),
     overscan: WORKSPACE_BOARD_CARD_OVERSCAN,
     gap: WORKSPACE_BOARD_CARD_GAP,
     // Why: sync-flushing rich card renders inside the scroll listener stalls the
@@ -74,11 +107,47 @@ function WorkspaceKanbanLaneCardList({
       scrollElement,
       spacerElement,
       getItemIds: () => itemIds,
-      getWorktreeIds: () => items.map((item) => item.id),
+      getItemWorktreeIds: () => itemWorktreeIds,
       getMeasurements: () => virtualizer.measurementsCache
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- virtualizer is a stable instance (useVirtualizer holds it in useState), and getMeasurements reads measurementsCache off it live.
-  }, [itemIds, items, scrollRef])
+  }, [itemIds, itemWorktreeIds, scrollRef])
+
+  const renderCard = (item: WorkspaceKanbanCardLaneItem, laneIndex: number): React.JSX.Element => {
+    const isSelected =
+      item.type === 'task'
+        ? isTaskCardSelected(item, selectedWorktreeIds)
+        : selectedWorktreeIds.has(item.key)
+    const contextWorktrees =
+      isSelected && selectedWorktrees.length > 0 ? selectedWorktrees : undefined
+    return item.type === 'task' ? (
+      <WorkspaceKanbanTaskCard
+        item={item}
+        laneIndex={laneIndex}
+        repoMap={repoMap}
+        activeWorktreeIdentity={activeWorktreeIdentity}
+        isSelected={isSelected}
+        selectedWorktrees={contextWorktrees}
+        onActivate={onActivate}
+        onSelectionGesture={onSelectionGesture}
+        onAssignWorkspaceStatus={onAssignWorkspaceStatus}
+      />
+    ) : (
+      <WorkspaceKanbanCard
+        worktree={item.worktree}
+        laneIndex={laneIndex}
+        repo={repoMap.get(item.worktree.repoId)}
+        isActive={activeWorktreeIdentity === item.key}
+        isSelected={isSelected}
+        nativeDragEnabled={nativeDragEnabled}
+        selectedWorktrees={contextWorktrees}
+        onActivate={onActivate}
+        onSelectionGesture={onSelectionGesture}
+        onContextMenuSelect={onContextMenuSelect}
+        onAssignWorkspaceStatus={onAssignWorkspaceStatus}
+      />
+    )
+  }
 
   return (
     <div
@@ -87,12 +156,10 @@ function WorkspaceKanbanLaneCardList({
       style={{ height: `${virtualizer.getTotalSize()}px` }}
     >
       {virtualizer.getVirtualItems().map((virtualItem) => {
-        const worktree = items[virtualItem.index]
-        if (!worktree) {
+        const item = items[virtualItem.index]
+        if (!item) {
           return null
         }
-        const worktreeIdentity = getWorktreeHostIdentity(worktree)
-        const isSelected = selectedWorktreeIds.has(worktreeIdentity)
         return (
           <div
             key={virtualItem.key}
@@ -101,21 +168,11 @@ function WorkspaceKanbanLaneCardList({
             className="absolute left-0 top-0 w-full"
             style={{ transform: `translateY(${virtualItem.start}px)` }}
           >
-            <WorkspaceKanbanCard
-              worktree={worktree}
-              laneIndex={virtualItem.index}
-              repo={repoMap.get(worktree.repoId)}
-              isActive={activeWorktreeIdentity === worktreeIdentity}
-              isSelected={isSelected}
-              nativeDragEnabled={nativeDragEnabled}
-              selectedWorktrees={
-                isSelected && selectedWorktrees.length > 0 ? selectedWorktrees : undefined
-              }
-              onActivate={onActivate}
-              onSelectionGesture={onSelectionGesture}
-              onContextMenuSelect={onContextMenuSelect}
-              onAssignWorkspaceStatus={onAssignWorkspaceStatus}
-            />
+            {item.type === 'project-header' ? (
+              <WorkspaceKanbanProjectHeader item={item} />
+            ) : (
+              renderCard(item, virtualItem.index)
+            )}
           </div>
         )
       })}

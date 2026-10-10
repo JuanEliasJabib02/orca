@@ -82,10 +82,11 @@ export function sortTaskGroupEntries(
   return ordered
 }
 
-function findTaskTitle(
+/** The linked Jira title of the first member carrying `taskKey`; `group` adds its folder workspaces. */
+export function findTaskTitle(
   taskKey: string,
   worktrees: readonly Worktree[],
-  group: WorktreeGroupEntry
+  group?: WorktreeGroupEntry
 ): string | null {
   for (const worktree of worktrees) {
     const title = getTaskTitle(getWorktreeTaskKeySource(worktree), taskKey)
@@ -93,7 +94,7 @@ function findTaskTitle(
       return title
     }
   }
-  for (const { folderWorkspace } of group.folderWorkspaces ?? []) {
+  for (const { folderWorkspace } of group?.folderWorkspaces ?? []) {
     const title = getTaskTitle(getFolderWorkspaceTaskKeySource(folderWorkspace), taskKey)
     if (title) {
       return title

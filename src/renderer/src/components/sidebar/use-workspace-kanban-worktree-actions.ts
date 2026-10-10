@@ -1,7 +1,16 @@
 import { useCallback } from 'react'
 import { useAppStore } from '@/store'
 import { getWorkspaceStatus } from './workspace-status'
-import { resolveFullLaneDropIndex } from './workspace-kanban-filtered-drop-index'
+import {
+  resolveFullLaneDropIndex,
+  toWorktreeDropIndex
+} from './workspace-kanban-filtered-drop-index'
+import {
+  expandWorkspaceKanbanTaskMoveIds,
+  getLaneItemWorktreeIds,
+  getLaneItemWorktrees,
+  type WorkspaceKanbanLaneItem
+} from './workspace-kanban-lane-items'
 import {
   buildManualOrderUpdatesForGroupDrop,
   shouldWriteManualOrderForGroupDrop,
@@ -12,7 +21,7 @@ import type { WorkspaceStatus, Worktree } from '../../../../shared/worktree/type
 import type { WorktreeMetaBatchUpdate } from '../../store/slices/worktree-helpers'
 import type { WorktreeManualOrderCatalog } from './worktree-manual-order-catalog'
 
-type LaneView = { items: readonly Worktree[] }
+type LaneView = { items: readonly WorkspaceKanbanLaneItem[] }
 
 export function useWorkspaceKanbanWorktreeActions(args: {
   boardDragGroups: readonly WorktreeDragGroup[]
@@ -21,16 +30,23 @@ export function useWorkspaceKanbanWorktreeActions(args: {
   maybeSyncTaskStatuses: (worktreeIds: readonly string[], status: WorkspaceStatus) => void
   setSortBy: ReturnType<typeof useAppStore.getState>['setSortBy']
   sortBy: ReturnType<typeof useAppStore.getState>['sortBy']
+  /** Task card member id → every id its move carries; see buildWorkspaceKanbanTaskMoveIndex. */
+  taskMoveIdsByWorktreeId: ReadonlyMap<string, readonly string[]>
   updateWorktreeMeta: ReturnType<typeof useAppStore.getState>['updateWorktreeMeta']
   updateWorktreesMeta: ReturnType<typeof useAppStore.getState>['updateWorktreesMeta']
   workspaceStatuses: ReturnType<typeof useAppStore.getState>['workspaceStatuses']
   worktreeById: ReadonlyMap<string, Worktree>
   manualOrderCatalog: WorktreeManualOrderCatalog
-  worktreesByStatus: ReadonlyMap<string, readonly Worktree[]>
 }) {
   const recordInteraction = (): void => {
     useAppStore.getState().recordFeatureInteraction('workspace-board-actions')
   }
+  // Why only board-origin moves expand: a sidebar drop moves the one worktree it carries.
+  const expandTaskMoves = useCallback(
+    (worktreeIds: readonly string[]) =>
+      expandWorkspaceKanbanTaskMoveIds(worktreeIds, args.taskMoveIdsByWorktreeId),
+    [args.taskMoveIdsByWorktreeId]
+  )
   const getSourceStatusKeys = useCallback(
     (worktreeIds: readonly string[]): WorkspaceStatus[] =>
       worktreeIds.flatMap((worktreeId) => {
@@ -43,10 +59,10 @@ export function useWorkspaceKanbanWorktreeActions(args: {
     (worktreeIds: readonly string[], status: WorkspaceStatus): boolean =>
       shouldWriteManualOrderForGroupDrop({
         sortBy: args.sortBy,
-        sourceGroupKeys: getSourceStatusKeys(worktreeIds),
+        sourceGroupKeys: getSourceStatusKeys(expandTaskMoves(worktreeIds)),
         targetGroupKey: status
       }),
-    [args.sortBy, getSourceStatusKeys]
+    [args.sortBy, expandTaskMoves, getSourceStatusKeys]
   )
   const moveWorktreeToStatus = useCallback(
     (worktreeId: string, status: WorkspaceStatus) => {
@@ -68,7 +84,7 @@ export function useWorkspaceKanbanWorktreeActions(args: {
     (worktreeIds: readonly string[], status: WorkspaceStatus) => {
       const updates: WorktreeMetaBatchUpdate[] = []
       const changedIds: string[] = []
-      for (const worktreeId of worktreeIds) {
+      for (const worktreeId of expandTaskMoves(worktreeIds)) {
         const current = args.worktreeById.get(worktreeId)
         if (!current || getWorkspaceStatus(current, args.workspaceStatuses) === status) {
           continue
@@ -87,7 +103,7 @@ export function useWorkspaceKanbanWorktreeActions(args: {
       void args.updateWorktreesMeta(updates)
       args.maybeSyncTaskStatuses(changedIds, status)
     },
-    [args]
+    [args, expandTaskMoves]
   )
   const dropWorktreesInStatus = useCallback(
     (drop: {
@@ -155,27 +171,34 @@ export function useWorkspaceKanbanWorktreeActions(args: {
   )
   const dropPointerDraggedWorktreesInStatus = useCallback(
     (drop: { worktreeIds: readonly string[]; status: WorkspaceStatus; dropIndex: number }) => {
+      const laneItems = args.laneViews.get(drop.status)?.items ?? []
       dropWorktreesInStatus({
         ...drop,
+        worktreeIds: expandTaskMoves(drop.worktreeIds),
+        // Why two steps: the pointer counts cards, a task card holds several worktrees, and
+        // only then can the rendered (searched) lane map onto the full one.
         dropIndex: resolveFullLaneDropIndex({
           fullLaneIds: args.laneFullWorktreeIds.get(drop.status) ?? [],
-          renderedIds: (args.laneViews.get(drop.status)?.items ?? []).map((item) => item.id),
-          filteredDropIndex: drop.dropIndex
+          renderedIds: getLaneItemWorktreeIds(laneItems),
+          filteredDropIndex: toWorktreeDropIndex(
+            laneItems.map((item) => getLaneItemWorktrees(item).length),
+            drop.dropIndex
+          )
         })
       })
     },
-    [args.laneFullWorktreeIds, args.laneViews, dropWorktreesInStatus]
+    [args.laneFullWorktreeIds, args.laneViews, dropWorktreesInStatus, expandTaskMoves]
   )
   const dropWorktreesAtEndOfStatus = useCallback(
     (worktreeIds: readonly string[], status: WorkspaceStatus) => {
       dropWorktreesInStatus({
         worktreeIds,
         status,
-        dropIndex: args.worktreesByStatus.get(status)?.length ?? 0,
+        dropIndex: args.laneFullWorktreeIds.get(status)?.length ?? 0,
         writeManualOrder: args.sortBy === 'manual'
       })
     },
-    [args.sortBy, args.worktreesByStatus, dropWorktreesInStatus]
+    [args.laneFullWorktreeIds, args.sortBy, dropWorktreesInStatus]
   )
   const pinWorktree = useCallback(
     (worktreeId: string) => {
@@ -211,11 +234,16 @@ export function useWorkspaceKanbanWorktreeActions(args: {
     },
     [args]
   )
+  const pinPointerDraggedWorktrees = useCallback(
+    (worktreeIds: readonly string[]) => pinWorktrees(expandTaskMoves(worktreeIds)),
+    [expandTaskMoves, pinWorktrees]
+  )
   return {
     dropPointerDraggedWorktreesInStatus,
     dropWorktreesAtEndOfStatus,
     moveWorktreeToStatus,
     moveWorktreesToStatus,
+    pinPointerDraggedWorktrees,
     pinWorktree,
     pinWorktrees,
     shouldWriteDropManualOrder

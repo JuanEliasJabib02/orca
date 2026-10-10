@@ -29,6 +29,25 @@ export function parseWorkspaceLaneFullIds(value: string | undefined): string[] |
 }
 
 /**
+ * Converts a drop index counted in lane cards — what the virtual layout, the DOM
+ * and the drop indicator report — to one counted in the worktrees behind them,
+ * which is the space manual order runs in. A task card holds several worktrees,
+ * so `itemWorktreeCounts[i]` is how many card `i` contributes. Convert once, at
+ * the commit boundary, before `resolveFullLaneDropIndex`.
+ */
+export function toWorktreeDropIndex(
+  itemWorktreeCounts: readonly number[],
+  itemDropIndex: number
+): number {
+  const boundedIndex = Math.max(0, Math.min(itemWorktreeCounts.length, itemDropIndex))
+  let worktreeIndex = 0
+  for (let index = 0; index < boundedIndex; index++) {
+    worktreeIndex += itemWorktreeCounts[index] ?? 0
+  }
+  return worktreeIndex
+}
+
+/**
  * Translates a drop index derived from the *rendered* cards of a lane onto the
  * lane's full membership. Board search hides non-matching cards, but manual-order
  * math runs against the full lane, so the two sides must be reconciled.

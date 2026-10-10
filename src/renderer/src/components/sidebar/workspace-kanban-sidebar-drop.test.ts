@@ -289,6 +289,42 @@ function appendVirtualBoard(args: {
   return { lane, unregister }
 }
 
+const unregisterTaskCardLanes: (() => void)[] = []
+
+// A virtualized lane whose second card is a task holding three worktrees.
+function appendTaskCardLane(
+  itemWorktreeIds: readonly (readonly string[])[] = [
+    ['doing-a'],
+    ['api', 'web', 'admin'],
+    ['doing-b']
+  ]
+): { lane: HTMLElement } {
+  const { lane } = appendBoard()
+  const laneScroll = document.createElement('div')
+  laneScroll.setAttribute('data-workspace-board-lane-scroll', '')
+  const spacer = document.createElement('div')
+  laneScroll.append(spacer)
+  lane.append(laneScroll)
+  unregisterTaskCardLanes.push(
+    registerWorkspaceKanbanVirtualLaneLayout({
+      scrollElement: laneScroll,
+      spacerElement: spacer,
+      getItemIds: () =>
+        itemWorktreeIds.map((ids, index) =>
+          ids.length === 1 ? ids[0]! : ids.length > 1 ? 'task:AX-1' : `project-header:${index}`
+        ),
+      getItemWorktreeIds: () => itemWorktreeIds,
+      getMeasurements: () =>
+        itemWorktreeIds.map((_, index) => ({
+          index,
+          start: index * VIRTUAL_CARD_PITCH,
+          end: index * VIRTUAL_CARD_PITCH + VIRTUAL_CARD_HEIGHT
+        }))
+    })
+  )
+  return { lane }
+}
+
 // 40-member lane under a search that matches every other card.
 function searchedVirtualLaneIds(): { fullLaneIds: string[]; viewIds: string[] } {
   const fullLaneIds = Array.from({ length: 40 }, (_, index) => `doing-${index}`)
@@ -312,6 +348,9 @@ function worktree(args: {
 afterEach(() => {
   unregisterSidebarDropGroups?.()
   unregisterSidebarDropGroups = null
+  for (const unregister of unregisterTaskCardLanes.splice(0)) {
+    unregister()
+  }
   clearWorkspaceKanbanSidebarDropTargetVisual()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -474,6 +513,41 @@ describe('workspace kanban sidebar drop DOM bridge', () => {
     expect(resolveWorkspaceKanbanSidebarFullLaneDropIndex('doing', 20)).toBe(39)
 
     unregister()
+  })
+
+  it('counts a task card as all of its worktrees when translating a sidebar drop', () => {
+    appendTaskCardLane()
+
+    // Cards: doing-a, a task holding api/web/admin, doing-b.
+    expect(resolveWorkspaceKanbanSidebarFullLaneDropIndex('doing', 1)).toBe(1)
+    expect(resolveWorkspaceKanbanSidebarFullLaneDropIndex('doing', 2)).toBe(4)
+    expect(resolveWorkspaceKanbanSidebarFullLaneDropIndex('doing', 3)).toBe(5)
+    expect(getWorkspaceKanbanSidebarDropGroups()).toEqual([
+      { key: 'doing', worktreeIds: ['doing-a', 'api', 'web', 'admin', 'doing-b'] }
+    ])
+  })
+
+  it('skips project headers when translating a sidebar drop', () => {
+    // Items: header, doing-a, header, doing-b.
+    appendTaskCardLane([[], ['doing-a'], [], ['doing-b']])
+
+    expect(resolveWorkspaceKanbanSidebarFullLaneDropIndex('doing', 1)).toBe(0)
+    expect(resolveWorkspaceKanbanSidebarFullLaneDropIndex('doing', 2)).toBe(1)
+    expect(resolveWorkspaceKanbanSidebarFullLaneDropIndex('doing', 3)).toBe(1)
+    expect(resolveWorkspaceKanbanSidebarFullLaneDropIndex('doing', 4)).toBe(2)
+    expect(getWorkspaceKanbanSidebarDropGroups()).toEqual([
+      { key: 'doing', worktreeIds: ['doing-a', 'doing-b'] }
+    ])
+  })
+
+  it('maps a searched lane holding a task card onto the full lane', () => {
+    const { lane } = appendTaskCardLane([['api', 'web', 'admin'], ['doing-b']])
+    lane.dataset.workspaceLaneFullIds =
+      serializeWorkspaceLaneFullIds(['doing-a', 'api', 'web', 'admin', 'doing-b']) ?? ''
+
+    expect(resolveWorkspaceKanbanSidebarFullLaneDropIndex('doing', 0)).toBe(1)
+    expect(resolveWorkspaceKanbanSidebarFullLaneDropIndex('doing', 1)).toBe(4)
+    expect(resolveWorkspaceKanbanSidebarFullLaneDropIndex('doing', 2)).toBe(5)
   })
 
   it('passes a virtualized unfiltered lane drop index through untranslated', () => {

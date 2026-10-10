@@ -19,20 +19,37 @@ Two things Juan hit while using spaces (2026-10-07, again 2026-10-09):
     task's repos are small rows inside the card. Worktrees without a task stay normal
     cards.
   - **Moving a task moves all its worktrees** ("si muevo una tarea todos sus worktrees
-    deben pasar"). If they ever disagree (e.g. moved one by one from the sidebar),
-    the card sits in the least advanced lane.
+    deben pasar"): every worktree of that task in the active space, primaries excluded,
+    even ones a filter hides. If they ever disagree (e.g. moved one by one from the
+    sidebar), the card sits in the least advanced lane.
+  - A task with one worktree is still a task card (same rule as the sidebar). Lane
+    counts count cards.
   - **Project:** project sub-headers inside each lane.
   - **No grouping:** unchanged.
+- **Every named workspace is a task** (Juan, 2026-10-09: "cada worktree que se crea se
+  crea con un nombre y eso sería una tarea"). A worktree without a ticket is a task
+  named by its branch, even alone in one repo; shared branch names still merge across
+  repos. Task actions (delete, Spotlight, move) only reach the active space.
+- **"No task" becomes "Servers"** in Group by Task: one row per project of the space,
+  showing only its root (main checkout), never hidden by filters ("sobre todo me toca
+  salir de mi filtro"). Clicking opens the root on its Spotlight terminal, so Juan can
+  read the log, restart or stop the server himself. Leftovers without a name (folders)
+  keep a "No task" section that shows only when non-empty.
 - One rebuild at the end, carrying round 2 of the Spotlight servers too.
 
 ## Tasks
 
-- [ ] **1. Projects filter scoped to the active space** (resumes `wip/space-project-filter` 9f664f73fe; Clear / Select all / Clear filters keep other spaces' picks via `replaceSpaceRepoFilterIds`)
+- [ ] **1. Projects filter scoped to the active space** (`147a9205a8`, tests pending Juan's OK; resumes `wip/space-project-filter` 9f664f73fe; Clear / Select all / Clear filters keep other spaces' picks via `replaceSpaceRepoFilterIds`)
   - Check: `sidebar-space-scope`, `SidebarRepositoryFilterSection`, `SidebarFilter`, `use-active-sidebar-space`, `workspace-options-filter-badge`, `visible-worktrees-space-scope`, `use-visible-workspace-kanban-worktree-ids` tests.
-- [ ] **2. Board task cards (Group by Task)**: card per task, drag moves every worktree, mixed statuses → least advanced lane
+- [ ] **2. Board task cards (Group by Task)**: card per task, drag moves every worktree, mixed statuses → least advanced lane (coder opus; committed together with task 3 because they share six files' hunks; tests pending)
   - Check: unit tests for the board items (grouping, lane placement, counts, search) and the drag moving all of a task's worktrees; component test for the task card.
-- [ ] **3. Board project sections (Group by Project)**: sub-headers per project inside each lane
+- [ ] **3. Board project sections (Group by Project)**: sub-headers per project inside each lane (same commit as task 2)
   - Check: unit tests for the section rows and that drag/selection skip headers.
+
+- [ ] **4. Every named workspace is a task**: branch-name key even for a single worktree; task actions scoped to the active space
+  - Check: task-key tests (single worktree, shared merge, main/archived/reserved), delete/Spotlight targets scoped to the space.
+- [ ] **5. "Servers" section with the project roots** in Group by Task, filter-proof, click opens the root's Spotlight terminal
+  - Check: section composition (every root of the space despite filters, no other worktrees, last), "No task" only when non-empty, click target.
 
 ## Verification rule
 

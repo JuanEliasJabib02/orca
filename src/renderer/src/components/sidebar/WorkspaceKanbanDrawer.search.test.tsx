@@ -12,6 +12,7 @@ import type { WorktreeMetaBatchUpdate } from '../../store/slices/worktree-helper
 import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
 import WorkspaceKanbanDrawer from './WorkspaceKanbanDrawer'
 import type { WorkspaceKanbanLaneView } from './workspace-kanban-search'
+import { getLaneItemWorktreeIds } from './workspace-kanban-lane-items'
 
 type HeaderCapture = {
   selectedCount: number
@@ -222,7 +223,7 @@ function typeQuery(query: string): void {
 }
 
 function laneIds(status: string): string[] {
-  return (gridState.current?.laneViews.get(status)?.items ?? []).map((item) => item.id)
+  return getLaneItemWorktreeIds(gridState.current?.laneViews.get(status)?.items ?? [])
 }
 
 beforeEach(() => {

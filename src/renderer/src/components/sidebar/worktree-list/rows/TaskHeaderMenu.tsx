@@ -25,7 +25,14 @@ import { getTaskNoteActionLabel } from './task-note-action-label'
 import { createTaskDeleteCompletion } from './task-note-delete-cleanup'
 
 /** `⋯` menu of a Group by → Task header: actions on the whole task across repos. */
-export function TaskHeaderMenu({ task }: { task: TaskSectionInfo }): React.JSX.Element | null {
+export function TaskHeaderMenu({
+  task,
+  children
+}: {
+  task: TaskSectionInfo
+  /** Items listed first, before the note; the Workspace board adds Move to Status. */
+  children?: React.ReactNode
+}): React.JSX.Element | null {
   const { taskKey } = task
   const allWorktrees = useAllWorktrees()
   const note = useAppStore((s) => getTaskNote(s.taskNoteByTaskKey, taskKey))
@@ -75,6 +82,12 @@ export function TaskHeaderMenu({ task }: { task: TaskSectionInfo }): React.JSX.E
         onClick={stopRepoHeaderMenuEvent}
         onKeyDown={stopRepoHeaderMenuEvent}
       >
+        {children ? (
+          <>
+            {children}
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
         <DropdownMenuItem onSelect={() => openModal('edit-task-note', { taskKey })}>
           <StickyNote className="size-3.5" />
           {getTaskNoteActionLabel(note !== null)}

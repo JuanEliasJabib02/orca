@@ -9,6 +9,10 @@ import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualif
 import { makeRepo, makeWorktree } from '../worktree-jump-palette-test-fixtures'
 import { useVisibleWorkspaceKanbanWorktreeIds } from './use-visible-workspace-kanban-worktree-ids'
 import { buildWorkspaceKanbanLaneViews } from './workspace-kanban-search'
+import {
+  buildWorkspaceKanbanLaneItems,
+  getLaneItemWorktreeIds
+} from './workspace-kanban-lane-items'
 import { groupWorkspaceKanbanWorktrees } from './workspace-kanban-worktree-groups'
 import { buildVisibleWorktreeOptionsFromState } from './visible-worktree-options-from-state'
 import { computeVisibleWorktrees } from './visible-worktrees'
@@ -249,14 +253,20 @@ describe('useVisibleWorkspaceKanbanWorktreeIds', () => {
         sortBy: 'recent'
       })
       const laneViews = buildWorkspaceKanbanLaneViews({
-        worktreesByStatus: grouped,
+        laneItems: buildWorkspaceKanbanLaneItems({
+          worktreesByStatus: grouped,
+          workspaceStatuses: DEFAULT_WORKSPACE_STATUSES,
+          taskGrouping: null
+        }),
         matchingWorktreeIds: null
       })
 
       expect(laneViews.get('todo')?.totalCount).toBe(1)
       expect(laneViews.get('in-progress')?.totalCount).toBe(1)
-      expect(laneViews.get('todo')?.items.map((item) => item.id)).toEqual(['task'])
-      expect(laneViews.get('in-progress')?.items.map((item) => item.id)).toEqual(['other-task'])
+      expect(getLaneItemWorktreeIds(laneViews.get('todo')?.items ?? [])).toEqual(['task'])
+      expect(getLaneItemWorktreeIds(laneViews.get('in-progress')?.items ?? [])).toEqual([
+        'other-task'
+      ])
       const boardTotal = [...grouped.values()].reduce((sum, items) => sum + items.length, 0)
       expect(boardTotal).toBe(visibleWorktreeIds.size)
     })

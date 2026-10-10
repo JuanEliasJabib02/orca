@@ -3,7 +3,9 @@ import type { VirtualItem } from '@tanstack/react-virtual'
 type VirtualLaneLayoutRegistration = {
   spacerElement: HTMLElement
   getItemIds: () => readonly string[]
-  getWorktreeIds?: () => readonly string[]
+  /** The worktree ids behind each item: several for a task card, none for a project header.
+   *  Defaults to one per item id. */
+  getItemWorktreeIds?: () => readonly (readonly string[])[]
   getMeasurements: () => readonly Pick<VirtualItem, 'index' | 'start' | 'end'>[]
 }
 
@@ -30,13 +32,13 @@ export function registerWorkspaceKanbanVirtualLaneLayout(args: {
   scrollElement: HTMLElement
   spacerElement: HTMLElement
   getItemIds: () => readonly string[]
-  getWorktreeIds?: () => readonly string[]
+  getItemWorktreeIds?: () => readonly (readonly string[])[]
   getMeasurements: () => readonly Pick<VirtualItem, 'index' | 'start' | 'end'>[]
 }): () => void {
   const registration = {
     spacerElement: args.spacerElement,
     getItemIds: args.getItemIds,
-    getWorktreeIds: args.getWorktreeIds,
+    getItemWorktreeIds: args.getItemWorktreeIds,
     getMeasurements: args.getMeasurements
   }
   virtualLaneLayouts.set(args.scrollElement, registration)
@@ -48,14 +50,17 @@ export function registerWorkspaceKanbanVirtualLaneLayout(args: {
 }
 
 /**
- * The lane's item ids in the index space `resolveWorkspaceKanbanVirtualLaneDropIndex`
+ * The worktree ids behind each item (none for a project header), in the index space `resolveWorkspaceKanbanVirtualLaneDropIndex`
  * reports — every item in the lane view, not just the mounted virtual window.
  */
-export function getWorkspaceKanbanVirtualLaneItemIds(
+export function getWorkspaceKanbanVirtualLaneItemWorktreeIds(
   scrollElement: HTMLElement
-): readonly string[] | null {
+): readonly (readonly string[])[] | null {
   const registration = virtualLaneLayouts.get(scrollElement)
-  return registration?.getWorktreeIds?.() ?? registration?.getItemIds() ?? null
+  if (!registration) {
+    return null
+  }
+  return registration.getItemWorktreeIds?.() ?? registration.getItemIds().map((id) => [id])
 }
 
 export function getWorkspaceKanbanVirtualLaneItemRects(
@@ -69,11 +74,16 @@ export function getWorkspaceKanbanVirtualLaneItemRects(
   const spacerRect = snapshot.registration.spacerElement.getBoundingClientRect()
   const containerRect = scrollElement.getBoundingClientRect()
   const contentOffset = spacerRect.top - containerRect.top + scrollElement.scrollTop
+  const itemWorktreeIds = snapshot.registration.getItemWorktreeIds?.()
   const rects: WorkspaceKanbanVirtualLaneItemRect[] = []
   for (let index = 0; index < snapshot.itemIds.length; index++) {
     const measurement = snapshot.measurements[index]
     if (!isValidMeasurement(measurement, index)) {
       return null
+    }
+    // Why: an item with no worktree is a project header, which a marquee passes over.
+    if (itemWorktreeIds?.[index]?.length === 0) {
+      continue
     }
     rects.push({
       id: snapshot.itemIds[index]!,

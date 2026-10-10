@@ -5,9 +5,14 @@ import {
   areWorktreeSelectionsEqual,
   getWorktreeSelectionIntent,
   pruneWorktreeSelection,
-  updateWorktreeAreaSelection,
-  updateWorktreeSelection
+  updateWorktreeAreaSelection
 } from './worktree-multi-selection'
+import {
+  EMPTY_WORKSPACE_KANBAN_CARD_MEMBERS,
+  expandWorkspaceKanbanCardIds,
+  updateWorkspaceKanbanCardSelection,
+  type WorkspaceKanbanCardMembers
+} from './workspace-kanban-card-selection'
 
 /** Returns the first still-rendered selected id, or `null` if the anchor is fine. */
 function resolveRenderedAnchorId(
@@ -25,10 +30,12 @@ function resolveRenderedAnchorId(
 // and area gestures index the rendered subset while pruning still spans the
 // whole board — a card hidden by a query keeps its selection until a gesture
 // replaces it, and every action path narrows to the rendered cards anyway.
+// Gestures and marquees name cards; `cardMembers` turns a task card into its members.
 export function useWorkspaceKanbanSelection(
   open: boolean,
   boardWorktrees: readonly Worktree[],
-  renderedWorktrees: readonly Worktree[] = boardWorktrees
+  renderedWorktrees: readonly Worktree[] = boardWorktrees,
+  cardMembers: WorkspaceKanbanCardMembers = EMPTY_WORKSPACE_KANBAN_CARD_MEMBERS
 ) {
   const boardWorktreeIds = useMemo(
     () => boardWorktrees.map(getWorktreeHostIdentity),
@@ -79,12 +86,13 @@ export function useWorkspaceKanbanSelection(
           ? (resolveRenderedAnchorId(renderedWorktreeIds, selectedWorktreeIds, selectionAnchorId) ??
             selectionAnchorId)
           : selectionAnchorId
-      const result = updateWorktreeSelection({
+      const result = updateWorkspaceKanbanCardSelection({
         visibleIds: renderedWorktreeIds,
         previousSelectedIds: selectedWorktreeIds,
         previousAnchorId: anchorId,
-        targetId: worktreeId,
-        intent
+        cardId: worktreeId,
+        intent,
+        members: cardMembers
       })
       // Why: a range replaces the selection, exactly like a plain click and a
       // non-additive marquee. Carrying hidden cards through it would leave the
@@ -93,7 +101,7 @@ export function useWorkspaceKanbanSelection(
       setSelectionAnchorId(result.anchorId)
       return intent !== 'replace'
     },
-    [renderedWorktreeIds, selectedWorktreeIds, selectionAnchorId]
+    [cardMembers, renderedWorktreeIds, selectedWorktreeIds, selectionAnchorId]
   )
 
   const selectForContextMenu = useCallback(
@@ -120,7 +128,8 @@ export function useWorkspaceKanbanSelection(
         visibleIds: renderedWorktreeIds,
         previousSelectedIds: baseSelectedIds,
         previousAnchorId: baseAnchorId,
-        areaIds,
+        // Why: the visible ids are worktrees, so a raw task card id would silently drop out.
+        areaIds: expandWorkspaceKanbanCardIds(areaIds, cardMembers),
         additive
       })
       setSelectedWorktreeIds((previous) =>
@@ -130,7 +139,7 @@ export function useWorkspaceKanbanSelection(
         previous === result.anchorId ? previous : result.anchorId
       )
     },
-    [renderedWorktreeIds, selectedWorktreeIds, selectionAnchorId]
+    [cardMembers, renderedWorktreeIds, selectedWorktreeIds, selectionAnchorId]
   )
 
   const clearSelection = useCallback(() => {

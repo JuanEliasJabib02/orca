@@ -15,11 +15,12 @@ import type {
   Worktree
 } from '../../../../shared/worktree/types'
 import type { WorkspaceKanbanLaneView } from './workspace-kanban-search'
+import type { WorkspaceKanbanLaneItem } from './workspace-kanban-lane-items'
 import { extractWorkspaceKanbanLaneRange } from './workspace-kanban-lane-range'
 import WorkspaceKanbanStatusLane from './WorkspaceKanbanStatusLane'
 
 // Why: a fresh [] per render would defeat the memoized lane on empty lanes.
-const EMPTY_LANE_ITEMS: readonly Worktree[] = []
+const EMPTY_LANE_ITEMS: readonly WorkspaceKanbanLaneItem[] = []
 const EMPTY_RENDERED_LANE_IDS: ReadonlySet<WorkspaceStatus> = new Set()
 const WORKSPACE_BOARD_LANE_GAP = 12
 const WORKSPACE_BOARD_LANE_OVERSCAN = 1

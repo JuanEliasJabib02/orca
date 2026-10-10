@@ -28,6 +28,8 @@ export function useWorkspaceKanbanSearch(args: {
   setQuery: (query: string) => void
   clearQuery: () => void
   matchingWorktreeIds: ReadonlySet<string> | null
+  /** The query `matchingWorktreeIds` answers; null whenever it is null. */
+  filterQuery: string | null
   hasQuery: boolean
   /** True when the query was discarded for exceeding the palette byte bound. */
   isQueryTooLarge: boolean
@@ -89,6 +91,7 @@ export function useWorkspaceKanbanSearch(args: {
     setQuery,
     clearQuery,
     matchingWorktreeIds,
+    filterQuery: matchingWorktreeIds ? deferredQuery : null,
     // Why: an over-bound query is non-empty but non-filtering, and the lane
     // counts must not switch to "n / m" for it.
     hasQuery: matchingWorktreeIds !== null,

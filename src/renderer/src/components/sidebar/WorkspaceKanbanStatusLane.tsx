@@ -15,13 +15,19 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import WorkspaceKanbanLaneCardList from './WorkspaceKanbanLaneCardList'
 import { serializeWorkspaceLaneFullIds } from './workspace-kanban-filtered-drop-index'
+import {
+  countLaneCards,
+  getLaneItemWorktreeIds,
+  type WorkspaceKanbanLaneItem
+} from './workspace-kanban-lane-items'
 import { getWorkspaceStatusVisualMeta } from './workspace-status'
 import { translate } from '@/i18n/i18n'
 
 type WorkspaceKanbanStatusLaneProps = {
   status: WorkspaceStatusDefinition
-  items: readonly Worktree[]
-  /** Lane membership before search filtering; defaults to the rendered items. */
+  /** The lane's cards; a task card holds several worktrees. */
+  items: readonly WorkspaceKanbanLaneItem[]
+  /** Cards in the lane before search filtering; defaults to the rendered items. */
   totalCount?: number
   hasQuery?: boolean
   fullWorktreeIds?: readonly string[]
@@ -77,9 +83,11 @@ function WorkspaceKanbanStatusLane({
 }: WorkspaceKanbanStatusLaneProps): React.JSX.Element {
   const laneScrollRef = useRef<HTMLDivElement | null>(null)
   const meta = getWorkspaceStatusVisualMeta(status)
+  // Why: project sub-headers are not cards, so the badge leaves them out.
+  const cardCount = countLaneCards(items)
   // Why: a lane that is empty on its own merits is still "Empty" under a query —
   // only a lane whose cards were filtered away has anything to say about matches.
-  const laneTotalCount = totalCount ?? items.length
+  const laneTotalCount = totalCount ?? cardCount
   const isFiltered = hasQuery && laneTotalCount > 0
   // Why: this joins every id in the lane, so it must not rerun on unrelated
   // board re-renders — at a few hundred cards it is ~25KB of string per pass.
@@ -88,8 +96,7 @@ function WorkspaceKanbanStatusLane({
       return undefined
     }
     return (
-      serializeWorkspaceLaneFullIds(fullWorktreeIds ?? items.map((worktree) => worktree.id)) ??
-      undefined
+      serializeWorkspaceLaneFullIds(fullWorktreeIds ?? getLaneItemWorktreeIds(items)) ?? undefined
     )
   }, [fullWorktreeIds, hasQuery, items])
   const createTooltip = `New workspace in ${status.label}`
@@ -166,7 +173,7 @@ function WorkspaceKanbanStatusLane({
             {status.label}
           </div>
           <div className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium leading-none text-muted-foreground">
-            {isFiltered ? `${items.length} / ${laneTotalCount}` : items.length}
+            {isFiltered ? `${cardCount} / ${laneTotalCount}` : cardCount}
           </div>
         </div>
         <Tooltip>

@@ -6,7 +6,8 @@ import type {
 } from '../../../../shared/worktree/types'
 import {
   parseWorkspaceLaneFullIds,
-  resolveFullLaneDropIndex
+  resolveFullLaneDropIndex,
+  toWorktreeDropIndex
 } from './workspace-kanban-filtered-drop-index'
 import { getWorkspaceStatus } from './workspace-status'
 import {
@@ -24,7 +25,7 @@ import {
   updateCardDropIndicator,
   type WorkspaceKanbanCardDropTarget
 } from './workspace-kanban-card-pointer-drag-dom'
-import { getWorkspaceKanbanVirtualLaneItemIds } from './workspace-kanban-virtual-lane-layout'
+import { getWorkspaceKanbanVirtualLaneItemWorktreeIds } from './workspace-kanban-virtual-lane-layout'
 
 const BOARD_SELECTOR = '[data-workspace-board-selection-surface]'
 const BOARD_SHEET_SELECTOR = '[data-workspace-board-sheet]'
@@ -61,9 +62,11 @@ function getCardWorktreeId(card: HTMLElement): string | undefined {
 }
 
 /**
- * `viewIds` is the lane in the index space `getCardDropTarget` reports, and
- * `fullLaneIds` is the lane's whole membership. Board search hides non-matching
- * cards, so lanes publish their full membership for exactly this reader.
+ * `viewIds` is the lane's view in worktrees, and `viewItemWorktreeCounts` how
+ * many of them each card of the index space `getCardDropTarget` reports holds
+ * (a task card holds several). `fullLaneIds` is the lane's whole membership.
+ * Board search hides non-matching cards, so lanes publish their full membership
+ * for exactly this reader.
  *
  * Why the virtual layout first: lanes virtualize, so the mounted cards are a
  * window rather than the lane view, and `getCardDropTarget` indexes the same
@@ -71,20 +74,30 @@ function getCardWorktreeId(card: HTMLElement): string | undefined {
  * never claimed — there the unfiltered card list is the full lane, since a card
  * the browser is not laying out is still a member for manual-order purposes.
  */
-function toLaneDropIds(lane: HTMLElement): { fullLaneIds: string[]; viewIds: string[] } {
+function toLaneDropIds(lane: HTMLElement): {
+  fullLaneIds: string[]
+  viewIds: string[]
+  viewItemWorktreeCounts: number[]
+} {
   const publishedFullLaneIds = parseWorkspaceLaneFullIds(lane.dataset.workspaceLaneFullIds)
   const laneScroll = lane.querySelector<HTMLElement>(LANE_SCROLL_SELECTOR)
-  const virtualItemIds = laneScroll ? getWorkspaceKanbanVirtualLaneItemIds(laneScroll) : null
-  if (virtualItemIds) {
-    const viewIds = [...virtualItemIds]
-    return { fullLaneIds: publishedFullLaneIds ?? viewIds, viewIds }
+  const virtualItems = laneScroll ? getWorkspaceKanbanVirtualLaneItemWorktreeIds(laneScroll) : null
+  if (virtualItems) {
+    const viewIds = virtualItems.flat()
+    return {
+      fullLaneIds: publishedFullLaneIds ?? viewIds,
+      viewIds,
+      viewItemWorktreeCounts: virtualItems.map((ids) => ids.length)
+    }
   }
   const cards = getLaneCardIds(lane)
+  const viewIds = cards
+    .filter((card) => card.offsetParent !== null)
+    .flatMap((card) => getCardWorktreeId(card) ?? [])
   return {
     fullLaneIds: publishedFullLaneIds ?? cards.flatMap((card) => getCardWorktreeId(card) ?? []),
-    viewIds: cards
-      .filter((card) => card.offsetParent !== null)
-      .flatMap((card) => getCardWorktreeId(card) ?? [])
+    viewIds,
+    viewItemWorktreeCounts: viewIds.map(() => 1)
   }
 }
 
@@ -174,11 +187,11 @@ export function resolveWorkspaceKanbanSidebarFullLaneDropIndex(
   if (!lane) {
     return viewDropIndex
   }
-  const { fullLaneIds, viewIds } = toLaneDropIds(lane)
+  const { fullLaneIds, viewIds, viewItemWorktreeCounts } = toLaneDropIds(lane)
   return resolveFullLaneDropIndex({
     fullLaneIds,
     renderedIds: viewIds,
-    filteredDropIndex: viewDropIndex
+    filteredDropIndex: toWorktreeDropIndex(viewItemWorktreeCounts, viewDropIndex)
   })
 }
 

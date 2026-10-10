@@ -6,6 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 import { serializeWorkspaceLaneFullIds } from './workspace-kanban-filtered-drop-index'
+import {
+  toWorkspaceKanbanWorktreeLaneItems,
+  type WorkspaceKanbanLaneItem
+} from './workspace-kanban-lane-items'
 import WorkspaceKanbanStatusLane from './WorkspaceKanbanStatusLane'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -15,12 +19,12 @@ vi.mock('./WorkspaceKanbanLaneCardList', () => ({
     items,
     activeWorktreeIdentity
   }: {
-    items: readonly Worktree[]
+    items: readonly WorkspaceKanbanLaneItem[]
     activeWorktreeIdentity: string | null
   }) => (
     <div data-active-worktree-identity={activeWorktreeIdentity ?? ''}>
       {items.map((item) => (
-        <div key={item.id} data-workspace-board-card-id={item.id} />
+        <div key={item.key} data-workspace-board-card-id={item.key} />
       ))}
     </div>
   )
@@ -44,6 +48,8 @@ let root: Root
 
 function renderLane(props: {
   items: Worktree[]
+  /** Overrides `items` for lanes holding project headers. */
+  laneItems?: WorkspaceKanbanLaneItem[]
   totalCount: number
   hasQuery: boolean
   fullWorktreeIds?: string[]
@@ -53,7 +59,7 @@ function renderLane(props: {
     root.render(
       <WorkspaceKanbanStatusLane
         status={status}
-        items={props.items}
+        items={props.laneItems ?? toWorkspaceKanbanWorktreeLaneItems(props.items)}
         totalCount={props.totalCount}
         hasQuery={props.hasQuery}
         fullWorktreeIds={props.fullWorktreeIds}
@@ -108,6 +114,24 @@ describe('WorkspaceKanbanStatusLane', () => {
 
     renderLane({ items: [worktree('a')], totalCount: 5, hasQuery: true })
     expect(container.textContent).toContain('1 / 5')
+  })
+
+  it('leaves project headers out of the card count', () => {
+    const header: WorkspaceKanbanLaneItem = {
+      type: 'project-header',
+      key: 'project-header:todo:repo:a',
+      projectKey: 'repo:a',
+      label: 'a',
+      count: 2
+    }
+    renderLane({
+      items: [],
+      laneItems: [header, ...toWorkspaceKanbanWorktreeLaneItems([worktree('a'), worktree('b')])],
+      totalCount: 4,
+      hasQuery: true
+    })
+
+    expect(container.textContent).toContain('2 / 4')
   })
 
   it('keeps a fully filtered lane as a labeled drop target', () => {
