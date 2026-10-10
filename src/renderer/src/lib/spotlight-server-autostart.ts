@@ -4,7 +4,6 @@ import { useAppStore } from '@/store'
 import type { SpotlightServerStartResult } from '../../../shared/spotlight'
 import { isSafeSpotlightVariant } from '../../../shared/spotlight-server-variant'
 import { buildWorktreeTaskKeys } from '@/components/sidebar/worktree-list/grouping/worktree-task-keys'
-import { resolveSidebarSpaceScopeFromState } from '@/components/sidebar/sidebar-space-scope'
 import {
   dismissSpotlightVariantPrompt,
   showSpotlightVariantPrompt
@@ -266,9 +265,9 @@ export async function chooseSpotlightVariant(args: {
 }
 
 /**
- * After an environment switch: for every repo of the active space whose Spotlight is held by a
- * workspace with this env key, starts the command of the new environment (main replaces only a
- * server Orca launched).
+ * After an environment switch: for every repo whose Spotlight is held by a workspace with this env
+ * key, in any space, starts the command of the new environment (main replaces only a server Orca
+ * launched).
  * A repo with no command there is left running; one whose command needs an unknown variant asks
  * for it first. Never throws.
  */
@@ -276,18 +275,13 @@ export async function applySpotlightEnvChange(envKey: string): Promise<void> {
   try {
     const state = useAppStore.getState()
     const taskKeys = buildWorktreeTaskKeys(listAllWorktrees())
-    // Why: env keys are task names, so a same-named task in another space must keep its server.
-    const spaceScope = resolveSidebarSpaceScopeFromState(state)
+    // Why no space limit: the env setting is stored per task key, so a same-named task in another space shares it.
     const holders: { repoId: string; worktreeId: string }[] = []
     for (const [repoId, spotlight] of Object.entries(state.spotlightByRepo)) {
       const holder = state.worktreesByRepo[repoId]?.find(
         (entry) => entry.id === spotlight.holderWorktreeId
       )
-      if (
-        holder &&
-        (spaceScope === null || spaceScope.repoIds.has(repoId)) &&
-        toSpotlightEnvKey(taskKeys.getTaskKey(holder), holder.id) === envKey
-      ) {
+      if (holder && toSpotlightEnvKey(taskKeys.getTaskKey(holder), holder.id) === envKey) {
         holders.push({ repoId, worktreeId: holder.id })
       }
     }

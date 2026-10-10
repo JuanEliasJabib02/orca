@@ -13,7 +13,14 @@ import {
 
 export type TaskKeyWorktree = Pick<
   Worktree,
-  'id' | 'repoId' | 'linkedWorkItem' | 'branch' | 'displayName' | 'isMainWorktree' | 'isArchived'
+  | 'id'
+  | 'repoId'
+  | 'linkedWorkItem'
+  | 'branch'
+  | 'displayName'
+  | 'isMainWorktree'
+  | 'isArchived'
+  | 'ephemeralVmCheckoutMode'
 >
 
 /** Resolves every worktree's task key against one worktree set, so all callers agree. */
@@ -33,10 +40,11 @@ function toTaskName(raw: string | undefined): string | null {
 /**
  * The name a key-less worktree's task goes by: its branch's last `/` segment, else (e.g. detached
  * HEAD) its display name. Null for main checkouts, archived worktrees and folder workspaces.
+ * A provisioned VM root is the recipe-created workspace, not a project root, so it is named.
  */
 function getWorktreeTaskName(worktree: TaskKeyWorktree): string | null {
   if (
-    worktree.isMainWorktree ||
+    (worktree.isMainWorktree && worktree.ephemeralVmCheckoutMode !== 'provisioned-root') ||
     worktree.isArchived ||
     parseWorkspaceKey(worktree.id)?.type === 'folder'
   ) {

@@ -8,6 +8,7 @@ import { useAppStore } from '@/store'
 import type { Worktree } from '../../../../../../shared/worktree/types'
 import type { TaskSectionInfo } from '../grouping/row-types'
 import { TaskHeaderMenu } from './TaskHeaderMenu'
+import { spaceFilterStoreState } from '../../sidebar-space-project-filter-fixtures'
 import { makeTaskWorktree } from './task-spotlight-test-fixtures'
 
 const runWorktreeBatchDelete = vi.hoisted(() => vi.fn())
@@ -306,6 +307,63 @@ describe('TaskHeaderMenu', () => {
       })
 
       expect(useAppStore.getState().taskNoteByTaskKey).toEqual({ 'AX-3450': 'POS Action Wear' })
+    })
+
+    describe('with a same-named task in another space', () => {
+      const SIDEBAR_TASK: TaskSectionInfo = {
+        taskKey: 'sidebar',
+        title: null,
+        worktrees: [{ worktreeId: 'wk-1', repoId: 'work-api' }],
+        folderWorkspaceIds: []
+      }
+
+      function seedTwoSpaces(otherSpaceOverrides: Partial<Worktree> = {}): void {
+        // Why displayName: the fixture's default (the id, e.g. "wk-1") reads as a ticket key.
+        const named = (id: string, repoId: string, overrides: Partial<Worktree> = {}): Worktree =>
+          makeTaskWorktree(id, repoId, {
+            branch: 'refs/heads/sidebar',
+            displayName: 'sidebar',
+            instanceId: `inst-${id}`,
+            ...overrides
+          })
+        useAppStore.setState({
+          ...spaceFilterStoreState('work'),
+          worktreesByRepo: {
+            'work-api': [named('wk-1', 'work-api')],
+            'personal-blog': [named('pb-1', 'personal-blog', otherSpaceOverrides)]
+          },
+          taskNoteByTaskKey: { sidebar: 'Sidebar note' }
+        })
+      }
+
+      async function deleteInWorkSpace(): Promise<void> {
+        const container = await render(SIDEBAR_TASK)
+        await act(async () => {
+          getDeleteItem(container)?.click()
+        })
+        await act(async () => {
+          getOnDeleted()([{ id: 'wk-1', executionHostId: null }])
+        })
+      }
+
+      it('deletes only the active space and keeps the note the other space still uses', async () => {
+        seedTwoSpaces()
+
+        await deleteInWorkSpace()
+
+        expect(runWorktreeBatchDelete.mock.calls[0]?.[0]).toEqual([
+          { id: 'wk-1', instanceId: 'inst-wk-1', hostId: undefined }
+        ])
+        expect(useAppStore.getState().taskNoteByTaskKey).toEqual({ sidebar: 'Sidebar note' })
+      })
+
+      it('removes the note when nothing of the task is left in any space', async () => {
+        seedTwoSpaces({ isArchived: true })
+
+        await deleteInWorkSpace()
+
+        expect(useAppStore.getState().taskNoteByTaskKey).toEqual({})
+      })
     })
 
     it('keeps the note when the delete is cancelled', async () => {

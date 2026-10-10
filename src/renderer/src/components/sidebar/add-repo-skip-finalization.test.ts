@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 import {
   finalizeImportedRepoAfterSkip,
@@ -28,9 +29,23 @@ function makeWorktree(overrides: Partial<Worktree> & { id: string; repoId: strin
   }
 }
 
+function makeFolderRepo(id: string): Repo {
+  return {
+    id,
+    path: `/tmp/${id}`,
+    displayName: id,
+    badgeColor: '#000000',
+    addedAt: 0,
+    kind: 'folder'
+  }
+}
+
 function makeState(overrides: Partial<AddRepoSkipFinalizationState>): AddRepoSkipFinalizationState {
   return {
     activeRepoId: null,
+    activeSidebarSpaceGroupId: null,
+    projectGroups: [],
+    folderWorkspaces: [],
     filterRepoIds: [],
     showActiveOnly: false,
     hideDefaultBranchWorkspace: false,
@@ -98,7 +113,7 @@ describe('finalizeImportedRepoAfterSkip', () => {
   it('clears default-branch hiding for a folder project whose only row is its root', () => {
     const state = makeState({
       hideDefaultBranchWorkspace: true,
-      repos: [{ id: 'folder-new', kind: 'folder' }],
+      repos: [makeFolderRepo('folder-new')],
       worktreesByRepo: {
         'folder-new': [
           makeWorktree({
@@ -124,7 +139,7 @@ describe('finalizeImportedRepoAfterSkip', () => {
         hideDefaultBranchWorkspace: true,
         showSleepingWorkspaces: false,
         alwaysShowDefaultBranchWorkspace: false,
-        repos: [{ id: 'folder-new', kind: 'folder' }],
+        repos: [makeFolderRepo('folder-new')],
         worktreesByRepo: {
           'folder-new': [
             makeWorktree({

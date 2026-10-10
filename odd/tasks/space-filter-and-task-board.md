@@ -53,7 +53,15 @@ Two things Juan hit while using spaces (2026-10-07, again 2026-10-09):
 
 ## Verification (2026-10-09)
 
-47 test files of the changed areas (547 tests) pass and `pnpm tc` is clean. Next: `/code-review-strict` over `cc459632de..HEAD`.
+47 test files of the changed areas (547 tests) pass and `pnpm tc` is clean.
+
+`/code-review-strict` over `cc459632de..97f13b201d` (opus + sonnet), two rounds: ESCALATED only
+on J-001 (cross-space Group by in the Servers-root skip), fixed right after with the user's OK.
+Fixed: the Projects-filter reveal and Cmd+J seed read the space's picks (the target space's on a
+jump); Servers roots never touch filters on any activation path; task-card row keys; a task note
+is cleared only when no worktree of the task is left in any space; the env restart reaches every
+space again; provisioned VM roots stay in their task. Final check: 70 test files (770 tests) and
+`pnpm tc` clean.
 
 ## Verification rule
 

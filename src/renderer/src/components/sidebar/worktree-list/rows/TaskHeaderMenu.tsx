@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { Ellipsis, StickyNote, Trash2 } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { useAllWorktrees } from '@/store/selectors'
+import { getAllWorktreesFromState, useAllWorktrees } from '@/store/selectors'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -21,7 +21,7 @@ import {
   stopRepoHeaderKeyboardToggle,
   stopRepoHeaderMenuEvent
 } from './header-event-guards'
-import { resolveTaskDeleteTargets } from './task-delete-targets'
+import { hasTaskWorktreesBesides, resolveTaskDeleteTargets } from './task-delete-targets'
 import { getTaskNoteActionLabel } from './task-note-action-label'
 import { createTaskDeleteCompletion } from './task-note-delete-cleanup'
 
@@ -102,8 +102,18 @@ export function TaskHeaderMenu({
             runWorktreeBatchDelete(targets, {
               // Why forceConfirm: deleting a task must confirm even when it holds one worktree and the user skips single-delete prompts.
               forceConfirm: true,
-              // Why: the note outlives a partial delete; it goes only once the task's last worktree is gone.
-              onDeleted: createTaskDeleteCompletion(targets, () => setTaskNote(taskKey, ''))
+              // Why: the note outlives a partial delete and a same-named task in another space; it goes with the last worktree.
+              onDeleted: createTaskDeleteCompletion(targets, () => {
+                if (
+                  !hasTaskWorktreesBesides(
+                    taskKey,
+                    getAllWorktreesFromState(useAppStore.getState()),
+                    targets
+                  )
+                ) {
+                  setTaskNote(taskKey, '')
+                }
+              })
             })
           }
         >

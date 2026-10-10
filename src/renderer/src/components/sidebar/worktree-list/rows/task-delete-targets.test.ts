@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Worktree } from '../../../../../../shared/worktree/types'
 import type { SidebarSpaceScope } from '../../sidebar-space-scope'
-import { resolveTaskDeleteTargets } from './task-delete-targets'
+import { hasTaskWorktreesBesides, resolveTaskDeleteTargets } from './task-delete-targets'
 import { makeTaskWorktree } from './task-spotlight-test-fixtures'
 
 const TASK_KEY = 'AX-3450'
@@ -15,6 +15,10 @@ function makeMember(id: string, repoId: string, overrides: Partial<Worktree> = {
 function makeNamed(id: string, repoId: string, name: string): Worktree {
   // Why displayName: the fixture's default (the id, e.g. "be-1") reads as a ticket key.
   return makeTaskWorktree(id, repoId, { branch: `refs/heads/${name}`, displayName: name })
+}
+
+function toDeleteIdentities(worktrees: readonly Worktree[]) {
+  return worktrees.map(({ id, instanceId, hostId }) => ({ id, instanceId, hostId }))
 }
 
 function ids(targets: readonly { id: string }[]): string[] {
@@ -131,6 +135,18 @@ describe('resolveTaskDeleteTargets', () => {
     expect(ids(targets)).toEqual(['ad-1'])
   })
 
+  it('leaves a provisioned VM root out, which is deleted through its own flow', () => {
+    const vmRoot = makeTaskWorktree('vm-1', 'vm-repo', {
+      branch: 'refs/heads/sidebar',
+      displayName: 'sidebar',
+      isMainWorktree: true,
+      ephemeralVmCheckoutMode: 'provisioned-root'
+    })
+    const all = [makeNamed('be-1', 'backend', 'sidebar'), vmRoot]
+
+    expect(ids(resolveTaskDeleteTargets('sidebar', all, null))).toEqual(['be-1'])
+  })
+
   it('returns nothing for a section without a task key', () => {
     expect(resolveTaskDeleteTargets(null, [makeMember('be-1', 'backend')], null)).toEqual([])
   })
@@ -143,5 +159,66 @@ describe('resolveTaskDeleteTargets', () => {
     )
 
     expect(targets).toEqual([])
+  })
+})
+
+describe('hasTaskWorktreesBesides', () => {
+  it('is false once the deleted worktrees were the whole task', () => {
+    const all = [makeNamed('be-1', 'backend', 'sidebar'), makeNamed('ad-1', 'admin', 'sidebar')]
+
+    expect(hasTaskWorktreesBesides('sidebar', all, toDeleteIdentities(all))).toBe(false)
+  })
+
+  it('is true while a worktree of the task is outside the deleted ones, in any space', () => {
+    const inSpace = makeNamed('be-1', 'backend', 'sidebar')
+    const elsewhere = makeNamed('home-1', 'personal-repo', 'sidebar')
+
+    expect(hasTaskWorktreesBesides('sidebar', [inSpace, elsewhere], [inSpace])).toBe(true)
+  })
+
+  it('tells the same id apart across hosts', () => {
+    const local = makeNamed('be-1', 'backend', 'sidebar')
+    const remote = makeTaskWorktree('be-1', 'backend', {
+      branch: 'refs/heads/sidebar',
+      displayName: 'sidebar',
+      hostId: 'ssh:box'
+    })
+
+    expect(hasTaskWorktreesBesides('sidebar', [local, remote], [local])).toBe(true)
+    expect(hasTaskWorktreesBesides('sidebar', [local, remote], [local, remote])).toBe(false)
+  })
+
+  it('counts a provisioned VM root of the task, which the delete never removes', () => {
+    const target = makeNamed('be-1', 'backend', 'sidebar')
+    const vmRoot = makeTaskWorktree('vm-1', 'vm-repo', {
+      branch: 'refs/heads/sidebar',
+      displayName: 'sidebar',
+      isMainWorktree: true,
+      ephemeralVmCheckoutMode: 'provisioned-root'
+    })
+
+    expect(hasTaskWorktreesBesides('sidebar', [target, vmRoot], [target])).toBe(true)
+    expect(
+      hasTaskWorktreesBesides('sidebar', [target, vmRoot], toDeleteIdentities([target, vmRoot]))
+    ).toBe(false)
+    expect(
+      hasTaskWorktreesBesides('sidebar', [target, { ...vmRoot, isArchived: true }], [target])
+    ).toBe(false)
+  })
+
+  it('ignores archived and main worktrees, which are never part of the delete', () => {
+    const target = makeNamed('be-1', 'backend', 'sidebar')
+    const archived = makeTaskWorktree('be-2', 'backend', {
+      branch: 'refs/heads/sidebar',
+      displayName: 'sidebar',
+      isArchived: true
+    })
+    const main = makeTaskWorktree('be-main', 'backend', {
+      branch: 'refs/heads/sidebar',
+      displayName: 'sidebar',
+      isMainWorktree: true
+    })
+
+    expect(hasTaskWorktreesBesides('sidebar', [target, archived, main], [target])).toBe(false)
   })
 })

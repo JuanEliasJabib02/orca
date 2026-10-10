@@ -2,7 +2,7 @@ import type { WorktreeRemovalTarget } from '../../../../../../shared/worktree/re
 import type { WorktreeDeleteIdentity } from '../../worktree-delete-request'
 
 // Why host + id: the same `repoId::path` id can exist on two hosts (STA-4343).
-function targetKey(id: string, hostId: string | null | undefined): string {
+export function deleteTargetKey(id: string, hostId: string | null | undefined): string {
   return `${hostId ?? ''}|${id}`
 }
 
@@ -14,13 +14,13 @@ export function createTaskDeleteCompletion(
   targets: readonly WorktreeDeleteIdentity[],
   onAllDeleted: () => void
 ): (deleted: readonly WorktreeRemovalTarget[]) => void {
-  const remaining = new Set(targets.map((target) => targetKey(target.id, target.hostId)))
+  const remaining = new Set(targets.map((target) => deleteTargetKey(target.id, target.hostId)))
   return (deleted) => {
     if (remaining.size === 0) {
       return
     }
     for (const target of deleted) {
-      remaining.delete(targetKey(target.id, target.executionHostId))
+      remaining.delete(deleteTargetKey(target.id, target.executionHostId))
     }
     if (remaining.size === 0) {
       onAllDeleted()

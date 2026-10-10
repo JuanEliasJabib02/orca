@@ -5,6 +5,7 @@ import {
   type WorktreeDeleteIdentity
 } from '../../worktree-delete-request'
 import { getTaskKeysForAllWorktrees } from '../grouping/worktree-task-keys'
+import { deleteTargetKey } from './task-note-delete-cleanup'
 
 /**
  * Delete identities for every worktree filed under `taskKey` in the active space, hidden by sidebar
@@ -24,10 +25,35 @@ export function resolveTaskDeleteTargets(
   return toWorktreeDeleteIdentities(
     allWorktrees.filter(
       (worktree) =>
+        // Why: a provisioned VM root is in the task but is deleted through its own flow, not here.
         !worktree.isMainWorktree &&
         !worktree.isArchived &&
         (spaceScope === null || isWorktreeInSidebarSpace(worktree, spaceScope)) &&
         taskKeys.getTaskKey(worktree) === taskKey
     )
+  )
+}
+
+/**
+ * Whether a worktree of `taskKey` is left once `deleted` is gone, in any space: task keys, and the
+ * task note keyed by them, are global, so another space's same-named task still owns them.
+ */
+export function hasTaskWorktreesBesides(
+  taskKey: string | null,
+  allWorktrees: readonly Worktree[],
+  deleted: readonly WorktreeDeleteIdentity[]
+): boolean {
+  if (taskKey === null) {
+    return false
+  }
+  const deletedKeys = new Set(deleted.map((target) => deleteTargetKey(target.id, target.hostId)))
+  const taskKeys = getTaskKeysForAllWorktrees(allWorktrees)
+  // Why not resolveTaskDeleteTargets: a provisioned VM root is not deleted with the task but keeps the note.
+  return allWorktrees.some(
+    (worktree) =>
+      !worktree.isArchived &&
+      (!worktree.isMainWorktree || worktree.ephemeralVmCheckoutMode === 'provisioned-root') &&
+      taskKeys.getTaskKey(worktree) === taskKey &&
+      !deletedKeys.has(deleteTargetKey(worktree.id, worktree.hostId))
   )
 }

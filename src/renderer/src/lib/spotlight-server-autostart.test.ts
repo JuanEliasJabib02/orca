@@ -22,7 +22,7 @@ const mountRequests = vi.hoisted(() => {
   const requests: { pending: unknown; tabIds?: string[] }[] = []
   return requests
 })
-// Why: the test store has no space state; null is "no active space", where every repo counts.
+// Why: the test store has no space state; a set narrows to one space, where the restart must still reach every repo.
 const activeSpace = vi.hoisted(() => ({ repoIds: null as ReadonlySet<string> | null }))
 
 vi.mock('@/components/sidebar/sidebar-space-scope', async (importOriginal) => ({
@@ -586,14 +586,21 @@ describe('applySpotlightEnvChange', () => {
     expect(startedCommands()).toEqual([[REPO, 'pnpm dev:do --port 3000']])
   })
 
-  it('leaves the servers of the same task in another space alone', async () => {
+  it('restarts the servers of the same task in every space, whichever one is active', async () => {
+    // Why: the env setting is stored per task key, so a space that is not active shows it too.
     activeSpace.repoIds = new Set([BACKEND])
     try {
       seedTask()
 
       await applySpotlightEnvChange('AX-3447')
 
-      expect(startedCommands()).toEqual([[BACKEND, 'ax-dev-back']])
+      expect(startedCommands()).toHaveLength(2)
+      expect(startedCommands()).toEqual(
+        expect.arrayContaining([
+          [BACKEND, 'ax-dev-back'],
+          [REPO, 'pnpm local --port 3000']
+        ])
+      )
     } finally {
       activeSpace.repoIds = null
     }

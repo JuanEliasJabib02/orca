@@ -1,4 +1,3 @@
-import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 import { isDefaultBranchWorkspace } from './default-branch-workspace'
 import { revealRepoInProjectFilter, type ProjectFilterRevealState } from './project-filter-reveal'
@@ -9,7 +8,6 @@ export type AddRepoSkipFinalizationState = ProjectFilterRevealState & {
   hideDefaultBranchWorkspace: boolean
   showSleepingWorkspaces: boolean
   alwaysShowDefaultBranchWorkspace: boolean
-  repos: readonly Pick<Repo, 'id' | 'kind'>[]
   worktreesByRepo: Record<string, Worktree[]>
   setActiveRepo: (repoId: string | null) => void
   setShowActiveOnly: (value: boolean) => void

@@ -176,6 +176,18 @@ describe('computeVisibleWorktrees keeping the Servers roots (Group by → Task)'
     expect(ids).not.toContain('api-root')
   })
 
+  it('lets the filters hide a provisioned ephemeral VM root, which is a task workspace', () => {
+    const ids = visibleIds(
+      { hideCliCreatedWorkspaces: true, keepServerRoots: true },
+      {
+        ...worktreesByRepo,
+        api: [{ ...apiRoot, ephemeralVmCheckoutMode: 'provisioned-root' as const }]
+      }
+    )
+
+    expect(ids).not.toContain('api-root')
+  })
+
   it('changes nothing without the option, as in every other Group by', () => {
     expect(visibleIds({ hideDefaultBranchWorkspace: true })).toEqual(['web-feature', 'remote-root'])
   })

@@ -191,6 +191,31 @@ describe('buildWorktreeTaskKeys', () => {
     })
   })
 
+  describe('provisioned VM root', () => {
+    it('is named like any workspace and joins the task of that name', () => {
+      const vmRoot = make('vm-repo', `refs/heads/${NAME}`, {
+        isMainWorktree: true,
+        ephemeralVmCheckoutMode: 'provisioned-root'
+      })
+      const linked = make('ai-bulk-hours', `refs/heads/juan/${NAME}`)
+      const keys = buildWorktreeTaskKeys([vmRoot, linked])
+
+      expect(keys.getTaskKey(vmRoot)).toBe(NAME)
+      expect(keys.getLaneKey(vmRoot)).toBe(`task:${NAME}`)
+      expect(keys.getTaskKey(linked)).toBe(NAME)
+    })
+
+    it('still skips an archived one', () => {
+      const archived = make('vm-repo', `refs/heads/${NAME}`, {
+        isMainWorktree: true,
+        isArchived: true,
+        ephemeralVmCheckoutMode: 'provisioned-root'
+      })
+
+      expect(buildWorktreeTaskKeys([archived]).getTaskKey(archived)).toBeNull()
+    })
+  })
+
   it('resolves a worktree outside the set by its own name, in the set casing when known', () => {
     const upper = make('merchant-doc-agent', 'refs/heads/Merchant-Doc-Cost-Review')
     const keys = buildWorktreeTaskKeys([upper])

@@ -19,6 +19,7 @@ import {
 } from './folder-workspace-path-status'
 import { toast } from 'sonner'
 import { isDetachedHeadWorkspace } from '@/components/sidebar/visible-worktrees'
+import { isServersRowOnReveal } from '@/components/sidebar/worktree-list/grouping/server-root-lane'
 import { revealRepoInProjectFilter } from '@/components/sidebar/project-filter-reveal'
 import type { ExecutionHostId } from '../../../shared/execution-host'
 import { findFolderWorkspaceOwner } from './folder-workspace-runtime-owner'
@@ -287,7 +288,8 @@ export function activateAndRevealWorktree(
   }
 
   // 5. Lift the sidebar filters hiding the target — reveal needs the card rendered, else it silently no-ops.
-  if (opts?.clearSidebarFilters !== false) {
+  // Why: Group by → Task lists project roots under Servers whatever the filters say, so opening one must not widen them.
+  if (opts?.clearSidebarFilters !== false && !isServersRowOnReveal(state, wt)) {
     revealRepoInProjectFilter(state, wt.repoId)
     if (
       state.hideAutomationGeneratedWorkspaces &&

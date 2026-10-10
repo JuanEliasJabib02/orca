@@ -227,6 +227,13 @@ describe('isServerRootWorktree', () => {
     expect(isServerRootWorktree({ ...backendRoot, isArchived: true }, BACKEND)).toBe(false)
     expect(isServerRootWorktree(backendRoot, undefined)).toBe(false)
   })
+
+  it('leaves a provisioned ephemeral VM root out, as it is the recipe-created workspace', () => {
+    const provisioned = { ...backendRoot, ephemeralVmCheckoutMode: 'provisioned-root' as const }
+
+    expect(isServerRootWorktree(provisioned, BACKEND)).toBe(false)
+    expect(itemIdsUnder(build([backendTask, provisioned]), SERVERS_LANE_KEY)).toEqual([])
+  })
 })
 
 describe('Servers end to end, from the store filters to the rows', () => {

@@ -6,6 +6,8 @@ import {
   type PaletteFilterState
 } from '@/components/cmd-j/palette-filter'
 import { useAppStore } from '@/store'
+import { getSpaceRepoFilterIds } from '@/components/sidebar/sidebar-space-scope'
+import { useActiveSidebarSpaceScope } from '@/components/sidebar/use-active-sidebar-space'
 import { parseCmdJTaskSourceUrl } from '@/lib/worktree-palette-task-url-match'
 import { getWorktreePaletteCreateActionState } from '@/lib/worktree-palette-create-action'
 import type { CmdJActiveGroupSnapshot } from '@/components/cmd-j/quick-action-context'
@@ -19,12 +21,21 @@ export function useWorktreeJumpPaletteLocalState({
   createLookupGuard: WorktreePaletteRequestGuard
   visible: boolean
 }) {
-  const sidebarScope = useAppStore(
+  const spaceScope = useActiveSidebarSpaceScope()
+  const sidebarFilters = useAppStore(
     useShallow((state) => ({
       filterRepoIds: state.filterRepoIds,
       visibleWorkspaceHostIds: state.visibleWorkspaceHostIds,
       workspaceHostScope: state.workspaceHostScope
     }))
+  )
+  // Why: the Projects filter is one global list, but the sidebar shows only the active space's picks.
+  const sidebarScope = useMemo(
+    () => ({
+      ...sidebarFilters,
+      filterRepoIds: getSpaceRepoFilterIds(sidebarFilters.filterRepoIds, spaceScope)
+    }),
+    [sidebarFilters, spaceScope]
   )
   const [query, setQuery] = useState('')
   const deferredQuery = useDeferredValue(query)

@@ -47,8 +47,8 @@ vi.mock('./WorktreeStatusMenuItems', () => ({
   )
 }))
 vi.mock('./WorktreeCardSpotlightControls', () => ({
-  canHoldSpotlight: () => false,
-  SpotlightQuickAction: () => null
+  canHoldSpotlight: () => true,
+  SpotlightQuickAction: () => <button type="button" data-spotlight-quick-action="" />
 }))
 
 const { default: WorkspaceKanbanTaskCard } = await import('./WorkspaceKanbanTaskCard')
@@ -205,6 +205,19 @@ describe('WorkspaceKanbanTaskCard', () => {
 
     expect(activateWorktreeFromSidebar).toHaveBeenCalledWith(api.id, 'local')
     expect(onActivate).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves Enter and Space on the nested Spotlight button to that button', () => {
+    const { onActivate } = renderCard()
+    const spotlight = memberRow(api.id).querySelector<HTMLElement>('[data-spotlight-quick-action]')!
+
+    act(() => {
+      spotlight.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      spotlight.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }))
+    })
+
+    expect(activateWorktreeFromSidebar).not.toHaveBeenCalled()
+    expect(onActivate).not.toHaveBeenCalled()
   })
 
   it('selects the card, without opening anything, from a click outside the rows', () => {

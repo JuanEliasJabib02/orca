@@ -76,6 +76,10 @@ function WorkspaceKanbanTaskMemberRow({
       )}
       onClick={(event) => onClick(event, worktree)}
       onKeyDown={(event) => {
+        // Why: keys bubble from the nested Spotlight button, whose own Enter/Space must not open the worktree.
+        if (event.target !== event.currentTarget) {
+          return
+        }
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
           onOpen(worktree)
