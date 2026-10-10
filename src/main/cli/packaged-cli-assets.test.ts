@@ -347,7 +347,8 @@ printf 'arg=%s\\n' "$@"
     async (launcherFixture) => {
       const root = await mkdtemp(join(tmpdir(), 'orca-unix-cli-env-'))
       try {
-        const appDir = join(root, ...launcherFixture.appDir)
+        // Why realpath: the macOS launcher resolves with `cd -P`, and macOS tmpdir is a /var symlink.
+        const appDir = join(await realpath(root), ...launcherFixture.appDir)
         const launcherPath = join(appDir, ...launcherFixture.launcher)
         const electronPath = join(appDir, ...launcherFixture.executable)
         const cliPath = join(appDir, ...launcherFixture.cli)
