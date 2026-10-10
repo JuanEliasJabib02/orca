@@ -1,3 +1,5 @@
+import type { ExecutionHostId } from './execution-host'
+
 /** Optional routing hints for shell:openUrl; older mains ignore the extra argument. */
 export type ShellOpenUrlOptions = {
   /** Arc space to open the link in, when the user opted into Arc space links. */
@@ -8,6 +10,8 @@ export type ShellOpenExternalEditorRequest = {
   path: string
   command?: string
   connectionId?: string | null
+  /** Host that owns `path`; main refuses unless it is `local` or, with `connectionId`, that SSH host. */
+  ownerHostId: ExecutionHostId
 }
 
 export type ShellOpenPathFailureReason =

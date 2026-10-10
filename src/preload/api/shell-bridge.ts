@@ -5,13 +5,18 @@ import type {
   ShellOpenLocalPathResult,
   ShellOpenUrlOptions
 } from '../../shared/shell-open-types'
+import type { ExecutionHostId } from '../../shared/execution-host'
 import type { PreloadApi } from '../api-types'
 
 export const shellApi = {
-  openPath: (path: string): Promise<void> => ipcRenderer.invoke('shell:openPath', path),
+  openPath: (path: string, ownerHostId: ExecutionHostId): Promise<void> =>
+    ipcRenderer.invoke('shell:openPath', path, ownerHostId),
 
-  openInFileManager: (path: string): Promise<ShellOpenLocalPathResult> =>
-    ipcRenderer.invoke('shell:openInFileManager', path),
+  openInFileManager: (
+    path: string,
+    ownerHostId: ExecutionHostId
+  ): Promise<ShellOpenLocalPathResult> =>
+    ipcRenderer.invoke('shell:openInFileManager', path, ownerHostId),
 
   openInExternalEditor: (
     request: ShellOpenExternalEditorRequest
@@ -21,9 +26,11 @@ export const shellApi = {
   openUrl: (url: string, options?: ShellOpenUrlOptions): Promise<void> =>
     ipcRenderer.invoke('shell:openUrl', url, options),
 
-  openFilePath: (path: string): Promise<boolean> => ipcRenderer.invoke('shell:openFilePath', path),
+  openFilePath: (path: string, ownerHostId: ExecutionHostId): Promise<boolean> =>
+    ipcRenderer.invoke('shell:openFilePath', path, ownerHostId),
 
-  openFileUri: (uri: string): Promise<void> => ipcRenderer.invoke('shell:openFileUri', uri),
+  openFileUri: (uri: string, ownerHostId: ExecutionHostId): Promise<void> =>
+    ipcRenderer.invoke('shell:openFileUri', uri, ownerHostId),
 
   pathsExist: (paths: string[]): Promise<boolean[]> =>
     ipcRenderer.invoke('shell:pathsExist', paths),

@@ -16,13 +16,18 @@ import {
   withLeadingAgentArgs
 } from '../../../../shared/agent-add-dir-args'
 import { resolveStartupShell } from '../../../../shared/tui-agent-startup-shell'
+import {
+  requireExecutionHostPlatform,
+  type ExecutionHostPlatformFact
+} from '@/lib/execution-host-facts'
 
 export type QuickComposerStartupInput = {
   agent: TuiAgent | null
   prompt: string
   draftPrompt: string | null | undefined
   settings: GlobalSettings | null | undefined
-  platform: NodeJS.Platform
+  /** Withheld fails an agent launch; a workspace created without an agent never reads it. */
+  launchHost: ExecutionHostPlatformFact
   shell: AgentStartupShell | null | undefined
   isRemote: boolean
   telemetrySource: WorktreeCreationRequest['telemetrySource']
@@ -41,7 +46,10 @@ function resolveQuickAgentArgs(input: QuickComposerStartupInput, agent: TuiAgent
   if (!agentSupportsAddDir(agent) || !input.addDirPaths?.length) {
     return configured
   }
-  const shell = resolveStartupShell(input.platform, input.shell ?? undefined)
+  const shell = resolveStartupShell(
+    requireExecutionHostPlatform(input.launchHost),
+    input.shell ?? undefined
+  )
   return withLeadingAgentArgs(configured, buildAddDirAgentArgs(input.addDirPaths, shell))
 }
 
@@ -56,7 +64,7 @@ export function buildQuickComposerStartup(input: QuickComposerStartupInput): Qui
           cmdOverrides: settings?.agentCmdOverrides ?? {},
           agentArgs: resolveQuickAgentArgs(input, agent),
           agentEnv: resolveTuiAgentLaunchEnv(agent, settings?.agentDefaultEnv),
-          platform: input.platform,
+          platform: requireExecutionHostPlatform(input.launchHost),
           shell: input.shell ?? undefined,
           isRemote: input.isRemote
         })
@@ -80,7 +88,7 @@ export function buildQuickComposerStartup(input: QuickComposerStartupInput): Qui
       cmdOverrides: settings?.agentCmdOverrides ?? {},
       agentArgs: resolveQuickAgentArgs(input, agent),
       agentEnv: resolveTuiAgentLaunchEnv(agent, settings?.agentDefaultEnv),
-      platform: input.platform,
+      platform: requireExecutionHostPlatform(input.launchHost),
       shell: input.shell ?? undefined,
       isRemote: input.isRemote,
       allowEmptyPromptLaunch: true

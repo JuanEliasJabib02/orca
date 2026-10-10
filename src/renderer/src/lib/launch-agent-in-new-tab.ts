@@ -133,11 +133,11 @@ function launchAgentInNewTabInternal(args: LaunchAgentInNewTabArgs): LaunchAgent
     activate
   } = args
   const store = useAppStore.getState()
-  const { resolvedLaunchPlatform, isRemote, queuedShell, repo } =
-    resolveAgentLaunchExecutionContext(store, {
-      worktreeId,
-      ...(launchPlatform ? { launchPlatform } : {})
-    })
+  const executionContext = resolveAgentLaunchExecutionContext(store, { worktreeId, launchPlatform })
+  if (!executionContext) {
+    return null
+  }
+  const { resolvedLaunchPlatform, isRemote, queuedShell, repo } = executionContext
   const cmdOverrides = store.settings?.agentCmdOverrides ?? {}
   const { effectiveAgentArgs, hostAgentArgs } = resolveNewTabAgentLaunchArgs(
     agent,

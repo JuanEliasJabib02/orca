@@ -1,4 +1,9 @@
-import { getRepoExecutionHostId, parseExecutionHostId } from '../../../shared/execution-host'
+import {
+  getRepoExecutionHostId,
+  parseExecutionHostId,
+  toRuntimeExecutionHostId,
+  UNRESOLVED_OWNER_HOST_ID
+} from '../../../shared/execution-host'
 import type { ExecutionHostId } from '../../../shared/execution-host'
 import type { GlobalSettings } from '../../../shared/global-settings-types'
 import type { Worktree } from '../../../shared/worktree/types'
@@ -12,6 +17,7 @@ import {
   resolveIndexedWorktreeOwner
 } from './worktree-runtime-owner-index'
 import { getSingleFocusedRuntimeEnvironmentId } from './single-runtime-legacy-owner'
+import { getPairedWebClientEnvironmentId } from './paired-web-client-host'
 import {
   findFolderWorkspaceOwner,
   getExecutionHostIdForFolderWorkspace,
@@ -84,9 +90,12 @@ export function getRuntimeEnvironmentIdForWorktree(
     const projectedRuntimeOwner = getProjectedRuntimeOwnerEnvironmentId(owner)
     const parsedHost = parseExecutionHostId(owner.hostId)
     const hasDetectedOwner = hasIndexedDetectedWorktree(state.detectedWorktreesByRepo, worktreeId)
+    // Why: a row on a web client that names no server is still reached through its only one.
+    const onlyHost = getPairedWebClientEnvironmentId(state)
     if (!hasDetectedOwner && (projectedRuntimeOwner || parsedHost)) {
       return (
-        projectedRuntimeOwner || (parsedHost?.kind === 'runtime' ? parsedHost.environmentId : null)
+        projectedRuntimeOwner ||
+        (parsedHost?.kind === 'runtime' ? parsedHost.environmentId : onlyHost)
       )
     }
     if (!hasDetectedOwner) {
@@ -100,7 +109,7 @@ export function getRuntimeEnvironmentIdForWorktree(
       ) {
         const repoHost = parseExecutionHostId(getRepoExecutionHostId(repoResolution.owner))
         if (repoHost) {
-          return repoHost.kind === 'runtime' ? repoHost.environmentId : null
+          return repoHost.kind === 'runtime' ? repoHost.environmentId : onlyHost
         }
       }
     }
@@ -204,11 +213,13 @@ export function getKnownExecutionHostIdForWorktree(
     if (resolution.kind === 'resolved') {
       return (
         resolution.route.executionHostId ??
-        `runtime:${encodeURIComponent(resolution.route.runtimeEnvironmentId ?? 'unresolved-owner')}`
+        (resolution.route.runtimeEnvironmentId
+          ? toRuntimeExecutionHostId(resolution.route.runtimeEnvironmentId)
+          : UNRESOLVED_OWNER_HOST_ID)
       )
     }
     // Why: conflicting detected publications must never enable paired-client-local PTY behavior.
-    return 'runtime:unresolved-owner'
+    return UNRESOLVED_OWNER_HOST_ID
   }
   const worktree = findWorktreeRecord(state.worktreesByRepo, worktreeId)
   const worktreeHostId = getExecutionHostIdFromWorktreeHost(worktree?.hostId)
