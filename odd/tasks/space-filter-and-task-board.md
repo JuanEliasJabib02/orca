@@ -39,17 +39,21 @@ Two things Juan hit while using spaces (2026-10-07, again 2026-10-09):
 
 ## Tasks
 
-- [ ] **1. Projects filter scoped to the active space** (`147a9205a8`, tests pending Juan's OK; resumes `wip/space-project-filter` 9f664f73fe; Clear / Select all / Clear filters keep other spaces' picks via `replaceSpaceRepoFilterIds`)
+- [x] **1. Projects filter scoped to the active space** (`147a9205a8`; resumes `wip/space-project-filter` 9f664f73fe; Clear / Select all / Clear filters keep other spaces' picks via `replaceSpaceRepoFilterIds`)
   - Check: `sidebar-space-scope`, `SidebarRepositoryFilterSection`, `SidebarFilter`, `use-active-sidebar-space`, `workspace-options-filter-badge`, `visible-worktrees-space-scope`, `use-visible-workspace-kanban-worktree-ids` tests.
-- [ ] **2. Board task cards (Group by Task)**: card per task, drag moves every worktree, mixed statuses → least advanced lane (coder opus; committed together with task 3 because they share six files' hunks; tests pending)
+- [x] **2. Board task cards (Group by Task)**: card per task, drag moves every worktree, mixed statuses → least advanced lane (coder opus, `f7620040ea` together with task 3: they share six files' hunks)
   - Check: unit tests for the board items (grouping, lane placement, counts, search) and the drag moving all of a task's worktrees; component test for the task card.
-- [ ] **3. Board project sections (Group by Project)**: sub-headers per project inside each lane (same commit as task 2)
+- [x] **3. Board project sections (Group by Project)**: sub-headers per project inside each lane (same commit as task 2)
   - Check: unit tests for the section rows and that drag/selection skip headers.
 
-- [ ] **4. Every named workspace is a task**: branch-name key even for a single worktree; task actions scoped to the active space
+- [x] **4. Every named workspace is a task**: branch-name key even for a single worktree; task actions scoped to the active space (coder opus, `4994f490ff` with task 5)
   - Check: task-key tests (single worktree, shared merge, main/archived/reserved), delete/Spotlight targets scoped to the space.
-- [ ] **5. "Servers" section with the project roots** in Group by Task, filter-proof, click opens the root's Spotlight terminal
+- [x] **5. "Servers" section with the project roots** in Group by Task, filter-proof, click opens the root's Spotlight terminal (`4994f490ff`; test harness fixes `2cfbbd7570`)
   - Check: section composition (every root of the space despite filters, no other worktrees, last), "No task" only when non-empty, click target.
+
+## Verification (2026-10-09)
+
+47 test files of the changed areas (547 tests) pass and `pnpm tc` is clean. Next: `/code-review-strict` over `cc459632de..HEAD`.
 
 ## Verification rule
 
