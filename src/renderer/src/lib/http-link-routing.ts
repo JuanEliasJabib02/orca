@@ -6,6 +6,7 @@ import {
 } from '../../../shared/localhost-worktree-labels'
 import type { GlobalSettings } from '../../../shared/global-settings-types'
 import type { WorkspacePort, WorkspacePortScanResult } from '../../../shared/workspace-ports'
+import { resolveArcSpaceForWorktree, type ArcSpaceLinkSources } from './arc-space-link-target'
 import { toast } from 'sonner'
 
 export type OpenHttpLinkOptions = {
@@ -35,6 +36,8 @@ type StoreAccessor = () => {
       | 'openLinksInAppModifierInverts'
       | 'activeRuntimeEnvironmentId'
       | 'localhostWorktreeLabelsEnabled'
+      | 'openLinksInArcSpaces'
+      | 'arcSpaceNameBySidebarSpaceId'
     >
   > | null
   setActiveWorktree: (worktreeId: string) => void
@@ -45,7 +48,7 @@ type StoreAccessor = () => {
   allWorktrees?: () => LocalhostLinkWorktree[]
   workspacePortScan?: { result: WorkspacePortScanResult } | null
   workspacePortScansByKey?: Record<string, WorkspacePortScanResult>
-}
+} & Pick<ArcSpaceLinkSources, 'projectGroups' | 'folderWorkspaces' | 'activeSidebarSpaceGroupId'>
 
 type WorkspaceHttpLinkBrowserRequest = {
   workspaceId: string
@@ -60,6 +63,7 @@ type WorkspaceHttpLinkBrowserOpener = (request: WorkspaceHttpLinkBrowserRequest)
 type LocalhostLinkRepo = {
   id: string
   displayName: string
+  projectGroupId?: string | null
 }
 
 type LocalhostLinkProject = LocalhostLinkRepo
@@ -194,13 +198,19 @@ export function openHttpLink(url: string, opts: OpenHttpLinkOptions = {}): void 
   }
 
   const localhostRoute = state ? localhostLabelRouteForHttpLink(url, state, sourceOwner) : null
+  const arcSpace = resolveArcSpaceForWorktree(worktreeId, state)
   if (!localhostRoute) {
-    void window.api.shell.openUrl(url)
+    openInSystemBrowser(url, arcSpace)
     return
   }
   void openLabeledLocalhostLink(url, localhostRoute, (labeledUrl) => {
-    void window.api.shell.openUrl(labeledUrl)
+    openInSystemBrowser(labeledUrl, arcSpace)
   })
+}
+
+function openInSystemBrowser(url: string, arcSpace: string | undefined): void {
+  // Why only with a space: with the opt-in off, the call stays exactly what it was.
+  void (arcSpace ? window.api.shell.openUrl(url, { arcSpace }) : window.api.shell.openUrl(url))
 }
 
 function localhostLabelRouteForHttpLink(

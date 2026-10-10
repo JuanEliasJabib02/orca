@@ -229,6 +229,18 @@ export function findSidebarSpaceToReveal(
   if (!scope || isWorktreeInSidebarSpace(worktree, scope)) {
     return null
   }
+  return findWorktreeSidebarSpaceId(worktree, sources)
+}
+
+/** The space (top-level group id) holding a worktree's project, or null when it belongs to none. */
+export function findWorktreeSidebarSpaceId(
+  worktree: Pick<Worktree, 'id' | 'repoId'>,
+  sources: {
+    projectGroups: readonly Pick<ProjectGroup, 'id' | 'parentGroupId'>[]
+    repos: readonly Pick<Repo, 'id' | 'projectGroupId'>[]
+    folderWorkspaces: readonly Pick<FolderWorkspace, 'id' | 'projectGroupId'>[]
+  }
+): string | null {
   const workspaceScope = parseWorkspaceKey(worktree.id)
   const groupId =
     workspaceScope?.type === 'folder'
