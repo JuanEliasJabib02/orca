@@ -1,22 +1,18 @@
 {
+  "goldenFormatVersion": 6,
   "operation": "session.diff-review-actions",
   "family": "session.diff-review-actions",
   "namedDeltas": [],
-  "runnerVersion": 1,
-  "baseline": "1cae30b028e6b967575d65f18e8a0e868583e993",
-  "lockfileSha256": "9317f3a98ab047f9f96fe26fd8531b8a632ac5954064b322f41a904148cbf6bb",
-  "recorderSha256": "0317fe2aebe4743ce5e7ae194531aa91b4fe0a84df457640851fe6dfdb9362af",
-  "adapterSha256": "dc3a746274b4197b02b0b3060bbf8ab0f67eb54355c8b9888e1f061e37f777af",
-  "scenarioSha256": "0816742351babdb260fcdba92d0020e0216c8ec0d106b560357f295671c83fe2",
-  "platform": "darwin",
-  "scenarioVersion": 1,
-  "projectionVersion": 2,
-  "goldenFormatVersion": 5,
   "values": {
     "1c2564f1daca": {
       "name": "settings.get#1",
       "ordinal": 4,
       "json": "{\"id\":\"frame-2\",\"deviceToken\":\"recording-device\",\"method\":\"settings.get\"}"
+    },
+    "2398eeb5ec74": {
+      "name": "preflight.detectAgents#1",
+      "ordinal": 6,
+      "json": "{\"id\":\"frame-3\",\"deviceToken\":\"recording-device\",\"method\":\"preflight.detectAgents\",\"params\":{\"worktreeId\":\"workspace-1\"}}"
     },
     "5ee9e7b49320": {
       "name": "agent.launchReplay#1",
@@ -100,6 +96,38 @@
         }
       }
     },
+    "bca41ddb4705": {
+      "name": "preflight.detectAgents#1",
+      "ordinal": 5,
+      "args": [
+        {
+          "name": "method",
+          "value": "preflight.detectAgents"
+        },
+        {
+          "name": "params",
+          "value": {
+            "worktreeId": "workspace-1"
+          }
+        },
+        {
+          "name": "options",
+          "value": {
+            "$rpc": "absent"
+          }
+        }
+      ],
+      "settlement": {
+        "status": "fulfilled",
+        "startedAt": 0,
+        "settledAt": 0,
+        "value": {
+          "id": "frame-3",
+          "ok": true,
+          "result": ["claude"]
+        }
+      }
+    },
     "bcb5111e6012": {
       "name": "agent.launchReplay#1",
       "ordinal": 7,
@@ -158,11 +186,6 @@
         "$rpc": "undefined"
       }
     },
-    "f49d184679d1": {
-      "name": "preflight.detectAgents#1",
-      "ordinal": 6,
-      "json": "{\"id\":\"frame-3\",\"deviceToken\":\"recording-device\",\"method\":\"preflight.detectAgents\"}"
-    },
     "fc1691a7deca": {
       "actionError": "Workspace not found",
       "busyAction": {
@@ -195,38 +218,6 @@
       "sendSheet": {
         "$rpc": "null"
       }
-    },
-    "fc3974e714de": {
-      "name": "preflight.detectAgents#1",
-      "ordinal": 5,
-      "args": [
-        {
-          "name": "method",
-          "value": "preflight.detectAgents"
-        },
-        {
-          "name": "params",
-          "value": {
-            "$rpc": "absent"
-          }
-        },
-        {
-          "name": "options",
-          "value": {
-            "$rpc": "absent"
-          }
-        }
-      ],
-      "settlement": {
-        "status": "fulfilled",
-        "startedAt": 0,
-        "settledAt": 0,
-        "value": {
-          "id": "frame-3",
-          "ok": true,
-          "result": ["claude"]
-        }
-      }
     }
   },
   "recording": {
@@ -235,8 +226,8 @@
       {
         "id": "refused",
         "observation": {
-          "sender": ["9239a4f232b8", "96a9a954e28f", "fc3974e714de", "bcb5111e6012"],
-          "payloads": ["e0eef7c9fafe", "1c2564f1daca", "f49d184679d1", "5ee9e7b49320"],
+          "sender": ["9239a4f232b8", "96a9a954e28f", "bca41ddb4705", "bcb5111e6012"],
+          "payloads": ["e0eef7c9fafe", "1c2564f1daca", "2398eeb5ec74", "5ee9e7b49320"],
           "settlements": {
             "create-and-send": "eb79a9b3682a"
           },

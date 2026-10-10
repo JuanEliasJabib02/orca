@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type * as RunProcess from '../../shared/child-process/run-process'
+import type * as RunProcess from '@orca/process-host'
 
 const { childSpawnMock, readFileMock, resolveCodexCommandMock, ptySpawnMock } = vi.hoisted(() => ({
   childSpawnMock: vi.fn(),
@@ -14,7 +14,7 @@ const { childSpawnMock, readFileMock, resolveCodexCommandMock, ptySpawnMock } = 
 
 vi.mock('node:child_process', () => ({ spawn: childSpawnMock }))
 // The chokepoint is the seam: assertions see what the fetcher asked for, before shim resolution.
-vi.mock('../../shared/child-process/run-process', async (importOriginal) => ({
+vi.mock('@orca/process-host', async (importOriginal) => ({
   ...(await importOriginal<typeof RunProcess>()),
   spawnProcess: (spec: { program: string; args?: readonly string[] }) =>
     childSpawnMock(spec.program, spec.args ?? [], spec)
@@ -82,7 +82,7 @@ describe('codex rate-limit spawn runtime pairing', () => {
     const rpcChild = makeRpcChild()
     childSpawnMock.mockReturnValue(rpcChild)
 
-    const resultPromise = fetchCodexRateLimits({ allowPtyFallback: false })
+    const resultPromise = fetchCodexRateLimits()
     await vi.advanceTimersByTimeAsync(0)
 
     const spawnEnv = childSpawnMock.mock.calls[0]?.[2]?.env as NodeJS.ProcessEnv
@@ -105,7 +105,7 @@ describe('codex rate-limit spawn runtime pairing', () => {
       const rpcChild = makeRpcChild()
       childSpawnMock.mockReturnValue(rpcChild)
 
-      const resultPromise = fetchCodexRateLimits({ allowPtyFallback: false })
+      const resultPromise = fetchCodexRateLimits()
       await vi.advanceTimersByTimeAsync(0)
 
       const spawnCommand = childSpawnMock.mock.calls[0]?.[0] as string
@@ -127,7 +127,7 @@ describe('codex rate-limit spawn runtime pairing', () => {
     const rpcChild = makeRpcChild()
     childSpawnMock.mockReturnValue(rpcChild)
 
-    const resultPromise = fetchCodexRateLimits({ allowPtyFallback: false })
+    const resultPromise = fetchCodexRateLimits()
     await vi.advanceTimersByTimeAsync(0)
 
     const spawnEnv = childSpawnMock.mock.calls[0]?.[2]?.env as NodeJS.ProcessEnv

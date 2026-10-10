@@ -1,6 +1,7 @@
 import { useAppStore } from '@/store'
-import { appendTerminalToPersistedTabOrder } from '@/components/tab-bar/reconcile-order'
+import { persistAgentLaunchTabOrder } from '@/lib/launch-agent-tab-order'
 import { launchAgentInNewTab } from '@/lib/launch-agent-in-new-tab'
+import { newAgentLaunchRequestId } from '@/lib/agent-launch-request-id'
 import {
   flattenTerminalQuickCommand,
   isTerminalAgentQuickCommand,
@@ -65,6 +66,7 @@ export function runQuickCommandInNewTab({
       return null
     }
     const result = launchAgentInNewTab({
+      requestId: newAgentLaunchRequestId(),
       agent: command.agent,
       prompt: command.prompt,
       worktreeId,
@@ -75,10 +77,7 @@ export function runQuickCommandInNewTab({
       launchSource: 'quick_command',
       quickCommandLabel: command.label
     })
-    if (
-      result?.surface.kind === 'local-terminal' ||
-      result?.surface.kind === 'local-agent-session'
-    ) {
+    if (result?.surface.kind === 'local-terminal') {
       const launchedGroupId = resolveQuickCommandGroupId(worktreeId, result.surface.tabId, groupId)
       if (launchedGroupId) {
         useAppStore.getState().setRecentQuickCommandForGroup(launchedGroupId, historyId)
@@ -116,12 +115,14 @@ export function runQuickCommandInNewTab({
   // terminal tab stays invisible.
   store.setActiveTabType('terminal', worktreeId)
 
-  const fresh = useAppStore.getState()
-  appendTerminalToPersistedTabOrder(fresh, worktreeId, tab.id)
+  // Why: persist tab-bar order with the new terminal appended. Without this,
+  // reconcileTabOrder falls back to terminals-first when the stored order is
+  // unset, jumping the new tab to index 0.
+  persistAgentLaunchTabOrder(worktreeId, tab.id)
 
   const launchedGroupId = resolveQuickCommandGroupId(worktreeId, tab.id, groupId)
   if (launchedGroupId) {
-    fresh.setRecentQuickCommandForGroup(launchedGroupId, historyId)
+    useAppStore.getState().setRecentQuickCommandForGroup(launchedGroupId, historyId)
   }
 
   return { tabId: tab.id }

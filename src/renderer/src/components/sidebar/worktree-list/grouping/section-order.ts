@@ -127,6 +127,19 @@ export function recentRankForEntry(entry: OrderedGroupEntry): RecentRank {
   }
 }
 
+export function createRecentRankLookup(): (entry: OrderedGroupEntry) => RecentRank {
+  const ranks = new Map<OrderedGroupEntry, RecentRank>()
+  return (entry) => {
+    const existing = ranks.get(entry)
+    if (existing) {
+      return existing
+    }
+    const rank = recentRankForEntry(entry)
+    ranks.set(entry, rank)
+    return rank
+  }
+}
+
 export function compareRecentRank(a: RecentRank, b: RecentRank): number {
   if (a.hasActivity !== b.hasActivity) {
     return a.hasActivity ? -1 : 1
@@ -186,8 +199,12 @@ export function sortProjectEntries(
   repoOrder: Map<string, number> | undefined
 ): OrderedGroupEntry[] {
   if (projectOrderBy === 'recent') {
+    if (entries.length < 2) {
+      return [...entries]
+    }
+    const getRecentRank = createRecentRankLookup()
     return [...entries].sort((a, b) => {
-      const byRecent = compareRecentRank(recentRankForEntry(a), recentRankForEntry(b))
+      const byRecent = compareRecentRank(getRecentRank(a), getRecentRank(b))
       if (byRecent !== 0) {
         return byRecent
       }

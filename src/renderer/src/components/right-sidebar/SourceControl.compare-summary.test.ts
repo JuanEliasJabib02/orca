@@ -2,15 +2,16 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   CompareSummary,
   CompareSummaryToolbarButton,
-  refreshSourceControlAfterRemoteAction,
-  resolveSourceControlBaseRef,
-  resolveSourceControlCompareBaseRef,
-  resolveSourceControlPickerBaseRef,
-  shouldClearBranchCompareForMissingBase,
   shouldRefreshBranchCompareForRemoteStatus,
   shouldRefreshBranchCompareForStatusHead,
   shouldShowCompareSummary
-} from './SourceControl'
+} from './source-control/sync/compare-summary'
+import {
+  resolveSourceControlBaseRef,
+  resolveSourceControlCompareBaseRef,
+  resolveSourceControlPickerBaseRef,
+  shouldClearBranchCompareForMissingBase
+} from './source-control/sync/base-ref-resolution'
 import type { GitBranchCompareSummary } from '../../../../shared/git-diff-compare-types'
 import type { GitUpstreamStatus } from '../../../../shared/git-status-types'
 
@@ -495,23 +496,5 @@ describe('SourceControl compare summary', () => {
         ahead: 1
       })
     ).toBe(false)
-  })
-
-  it('keeps immediate refresh paths for remote actions', () => {
-    const refreshGitStatus = vi.fn(async () => {})
-    const refreshBranchCompare = vi.fn(async () => {})
-    const refreshGitHistory = vi.fn(async () => {})
-
-    refreshSourceControlAfterRemoteAction({
-      refreshGitStatus,
-      refreshBranchCompare,
-      refreshGitHistory
-    })
-
-    expect(refreshGitStatus).toHaveBeenCalledTimes(1)
-    expect(refreshBranchCompare).toHaveBeenCalledTimes(1)
-    expect(refreshGitHistory).toHaveBeenCalledTimes(1)
-    // Direct commit, manual, retry, and base-ref refresh paths remain component-level
-    // behavior covered by the existing UI wiring; keep this test on the pure helper.
   })
 })

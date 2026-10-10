@@ -1,5 +1,5 @@
 // `agentSession.queuedMessageSend` / `agentSession.queuedMessageDelete`, and
-// /clear's carry of the source's drafts to its replacement session. Settling
+// mutations of the conversation's queued drafts. Settling
 // operations stamp op-scoped tombstone receipts, so a lost acknowledgement
 // replays from the rows themselves — never from the operation ledger, which
 // records only that an operation happened. No mutation returns draft text:
@@ -15,26 +15,22 @@ import type {
   AgentSessionSendResult
 } from '../../../shared/agent-session-wire'
 import type { AgentSessionJournal } from '../agent-session-journal/journal-store'
-import { QueuedMessageNotConsumableError } from '../agent-session-journal/journal-queued-messages'
+import { QueuedMessageNotConsumableError } from '../agent-session-journal/queued-message-consume-error'
 import {
   isJournalWrittenByNewerOrca,
   journalOpenRefusal
 } from '../agent-session-journal/journal-open-failure'
 import type { QueuedMessageRow } from '../agent-session-journal/queued-message-table'
 import type { MutationPlan } from './structured-agent-session-mutation-plans'
-import {
-  queuedMessageFingerprint,
-  structuredQueueHold
-} from './structured-agent-session-queued-messages'
+import { structuredQueueHold } from './structured-agent-session-queued-messages'
 import {
   resumeStructuredQueue,
   structuredAgentSessionHostInstance
 } from './structured-agent-session-queued-pause'
-import { unsettledQueuedMessages } from './structured-agent-session-queued-stop'
 import {
   mutateStructuredAgentSession,
   type StructuredAgentSessionMutationContext
-} from './structured-agent-session-host-mutations'
+} from './structured-agent-session-mutation-context'
 import type { StructuredAgentSessionCaller } from './structured-agent-session-host-types'
 import {
   openForWrite,
@@ -74,69 +70,9 @@ export async function withdrawQueuedMessagesForOperation(
   })
 }
 
-/**
- * /clear's carry: the source's unsettled drafts become rows on the replacement
- * session — the SAME for every client version, with no text on the wire — so the
- * cards stay visible where the user now is. The replacement's queue starts
- * paused ('cleared'), lifted exactly like a Stop's: the cards were written for the context /clear just
- * discarded, so they wait for the user's next turn there, or Resume, rather than
- * sending into the fresh context unasked. Each card lands with the pause in one
- * transaction, so the drain never sees a carried card unpaused and no pause is
- * left over an empty queue if an insert fails. Runs after the
- * replacement's attach succeeded and before the clear commits. Each insert is
- * idempotent on (session, message), so a retried clear replays it safely; the source rows are then tombstoned. Bookkeeping around the clear:
- * a failure leaves the cards on the superseded source — whose supersession
- * fence already blocks the drain — reported, never gating the clear. A crash
- * between the copy and the tombstone leaves both, which the fence also makes
- * harmless: nothing is lost and nothing runs.
- */
-export async function carryQueuedMessagesToClearReplacement(
-  ctx: AgentSessionTurnContext,
-  input: {
-    replacementSessionId: string
-    replacementJournal: AgentSessionJournal | undefined
-    callerKey: string
-    operationId: string
-  }
-): Promise<void> {
-  try {
-    const rows = unsettledQueuedMessages(ctx.journal)
-    if (rows.length === 0) {
-      return
-    }
-    const replacement = input.replacementJournal
-    if (!replacement) {
-      throw new Error('the replacement journal is not open')
-    }
-    for (const row of rows) {
-      // A returned card carries over as a plain waiting draft — its refusal
-      // belonged to the source's submissions. The fingerprint is re-scoped to the
-      // replacement, or its echo could never alias the sent bubble.
-      await replacement.queuedMessages.insert({
-        messageId: row.messageId,
-        body: row.body,
-        fingerprint: queuedMessageFingerprint(input.replacementSessionId, row.body),
-        hostInstance: structuredAgentSessionHostInstance(),
-        pausedBy: 'cleared'
-      })
-    }
-    await withdrawQueuedMessagesForOperation(ctx.journal, {
-      sessionId: ctx.sessionId,
-      messageIds: rows.map((row) => row.messageId),
-      callerKey: input.callerKey,
-      operationId: input.operationId
-    })
-  } catch (error) {
-    console.warn("[agent-session] /clear's queued-draft carry skipped:", {
-      sessionId: ctx.sessionId,
-      error: error instanceof Error ? error.message : String(error)
-    })
-  }
-}
-
 /** Draft actions run like any mutation: admitted on the session's lane, the
  *  conversation opened for the write. */
-function mutateQueued<TValue>(
+export function mutateQueued<TValue>(
   context: StructuredAgentSessionMutationContext,
   caller: StructuredAgentSessionCaller,
   envelope: AgentSessionMutationEnvelope,
@@ -214,12 +150,17 @@ export function sendQueuedStructuredAgentMessage(
           ? { ok: true, value: { clientMessageId: submission.clientMessageId, submission } }
           : invalid('This queued message was already sent.')
       }
+      // A command never steers: handed over mid-turn it would only be refused. Clients offer its
+      // Send only while the agent is idle; this answers an older one that offers it mid-turn.
+      if (hold === 'working' && row.body.command) {
+        return invalid("A command can't be sent while the agent is working.")
+      }
       const submissionId = operationId
       try {
         await ctx.journal.appendSubmission(
           {
             clientMessageId: submissionId,
-            // The person asked for this turn, so it ends a Stop's pause once it starts.
+            // The person asked for this turn: a restart or a close keeps it as a card.
             origin: 'client',
             payloadFingerprint: row.fingerprint,
             body: row.body,
@@ -311,7 +252,7 @@ export function deleteQueuedStructuredAgentMessage(
 
 /** Resume: ends the queue's pause — a Stop's, or a restart's — so the cards send
  *  again, oldest first, as the session goes idle. A no-op when nothing is paused,
- *  and a per-card `send_failed` hold stays for its own Send. */
+ *  and a per-card hold (`send_failed`, `kept`) stays for its own Send. */
 export function resumeStructuredAgentQueue(
   context: StructuredAgentSessionMutationContext,
   caller: StructuredAgentSessionCaller,
@@ -321,11 +262,11 @@ export function resumeStructuredAgentQueue(
     method: 'agentSession.queuedMessagesResume',
     fields: {},
     conversationWrite: true,
-    // The lift notifies through the journal's commit listener, which publishes the
-    // cleared pause and wakes the drain.
+    // The Resume row notifies through the journal's commit listener, which publishes the
+    // lifted pause and wakes the drain.
     run: async (ctx) => ({
       ok: true,
-      value: { resumed: await resumeStructuredQueue(ctx.journal) }
+      value: { resumed: await resumeStructuredQueue(ctx.journal, ctx.fence) }
     }),
     // Like Stop's replay: the Resume already ran, so this one lifts nothing.
     replay: () => ({ resumed: false })

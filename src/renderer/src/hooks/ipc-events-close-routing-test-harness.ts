@@ -155,10 +155,7 @@ export async function useIpcEventsForCloseRouting({
     dispatchEvent: vi.fn(),
     api: {
       repos: { onChanged: () => () => {} },
-      spotlight: {
-        onChanged: () => () => {},
-        getState: () => Promise.resolve({ byRepo: {} })
-      },
+      spotlight: { onChanged: () => () => {}, getState: () => Promise.resolve({ byRepo: {} }) },
       automations: { onChanged: () => () => {} },
       worktrees: {
         onChanged: () => () => {},
@@ -184,6 +181,8 @@ export async function useIpcEventsForCloseRouting({
         onActivateWorktree: () => () => {},
         onCreateTerminal: () => () => {},
         onRequestTerminalCreate: () => () => {},
+        onPublishAgentLaunchTab: () => () => {},
+        onAgentLaunchPaneVerdict: () => () => {},
         onRequestTerminalTabMount: () => () => {},
         replyTerminalCreate: () => {},
         onSplitTerminal: () => () => {},
@@ -263,9 +262,7 @@ export async function useIpcEventsForCloseRouting({
         getZoomLevel: () => 0,
         set: vi.fn()
       },
-      settings: {
-        onChanged: () => () => {}
-      },
+      settings: { onChanged: () => () => {} },
       updater: {
         getStatus: () => Promise.resolve({ state: 'idle' }),
         onStatus: () => () => {},

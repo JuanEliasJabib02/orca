@@ -13,6 +13,11 @@ import type { AgentSessionJournal } from '../agent-session-journal/journal-store
 import type { StructuredAgentSessionAdapter } from './structured-agent-session-adapter'
 import { AGENT_SESSION_HISTORY_MAX_PAGE_BYTES } from './agent-session-history-page-bounds'
 import { rewindRefusal } from './structured-rewind-refusal'
+import type { StructuredAgentSessionLogger } from './structured-agent-session-logger'
+import type { JournalOperationReceipt } from '../agent-session-journal/journal-row-writer'
+import type { AgentJournalCursor } from '../../../shared/agent-session-journal-types'
+
+type RewindRecoveryDeps = { store: AgentSessionRecordStore; logger: StructuredAgentSessionLogger }
 
 export function persistRewindRecord(
   store: AgentSessionRecordStore,
@@ -33,7 +38,7 @@ export function persistRewindRecord(
  * settled refused rather than proven. Bookkeeping only: the chat is already attached either way.
  */
 async function settleUnsupportedClaudeRewind(
-  store: AgentSessionRecordStore,
+  { store, logger }: RewindRecoveryDeps,
   sessionId: string,
   fence: number,
   rewind: AgentSessionRewindRecord
@@ -52,7 +57,8 @@ async function settleUnsupportedClaudeRewind(
       outcome: { status: 'failed', code: refusal.code, rewindReason: 'unsupported' }
     })
   } catch (error) {
-    console.warn('[structured-rewind] pending Claude rewind was not settled:', {
+    logger.warn('a pending Claude rewind was not settled', {
+      scope: 'rewind-unsupported-settlement',
       sessionId,
       operationId: rewind.operationId,
       error
@@ -62,20 +68,26 @@ async function settleUnsupportedClaudeRewind(
 
 /** Recovery observes provider state; it never repeats an ambiguous native mutation. */
 export async function recoverStructuredRewind(
-  store: AgentSessionRecordStore,
+  deps: RewindRecoveryDeps,
   sessionId: string,
   journal: AgentSessionJournal,
   fence: number,
   adapter?: StructuredAgentSessionAdapter,
-  now: () => number = Date.now
+  now: () => number = Date.now,
+  receipt?: (
+    rewind: AgentSessionRewindRecord,
+    fence: number,
+    cursor: AgentJournalCursor
+  ) => JournalOperationReceipt
 ): Promise<void> {
+  const { store } = deps
   let rewind = store.getRecord(sessionId)?.rewind
   if (rewind?.phase !== 'provider-succeeded' && rewind?.phase !== 'prepared') {
     return
   }
   const target = parseAgentJournalItemKey(rewind.providerItemId ?? rewind.itemId)
   if (target?.provider === 'claude') {
-    await settleUnsupportedClaudeRewind(store, sessionId, fence, rewind)
+    await settleUnsupportedClaudeRewind(deps, sessionId, fence, rewind)
     return
   }
   if (target?.provider === 'codex' && !rewind.hydrationVerified) {
@@ -142,12 +154,35 @@ export async function recoverStructuredRewind(
     return
   }
   const replacement = rewind.retained.map(retainedRowReplacement)
+  if (rewind.contextClearOperationId && rewind.contextClearSequence) {
+    if (
+      store.getRecord(sessionId)?.providerContextBoundary?.operationId !==
+        rewind.contextClearOperationId ||
+      journal.cursor().epoch !== rewind.expectedEpoch ||
+      journal.context.floor()?.sequence !== rewind.contextClearSequence
+    ) {
+      throw new Error('agent_session_rewind:stale-context')
+    }
+    const completed = rewind
+    await journal.context.rewind(
+      { epoch: completed.expectedEpoch, sequence: completed.contextClearSequence! },
+      fence,
+      replacement,
+      (cursor) =>
+        receipt?.(completed, fence, cursor) ??
+        store.conversationReceipts.rewind(sessionId, fence, completed, cursor)
+    )
+    return
+  }
   // A crash after the journal transaction must settle its existing epoch, not replace it twice.
   const alreadyReplaced = journal.cursor().epoch !== rewind.expectedEpoch
   if (
     alreadyReplaced &&
     !isDeepStrictEqual(
-      journal.snapshot().items.map(({ itemId, body }) => ({ itemId, body })),
+      journal.snapshot().items.map(({ itemId }) => ({
+        itemId,
+        body: journal.itemBody(itemId)
+      })),
       replacement.map(({ identity, body }) => ({ itemId: agentJournalItemKey(identity), body }))
     )
   ) {

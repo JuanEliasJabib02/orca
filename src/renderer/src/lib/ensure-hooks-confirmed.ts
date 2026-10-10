@@ -123,7 +123,7 @@ export type ConfirmedRuntimeIssueCommand = {
   trustDecision: 'run' | 'skip'
 }
 
-export function confirmRuntimeIssueCommandRead(
+function confirmRuntimeIssueCommandRead(
   state: AppState,
   repoId: string,
   hostId: ExecutionHostId,
@@ -164,7 +164,8 @@ export async function readAndConfirmRuntimeIssueCommand(
 }
 
 export async function ensureHooksConfirmed(
-  state: AppState,
+  // Why a getter: a caller that queues behind an earlier prompt must see the trust it recorded.
+  stateOrGetter: AppState | (() => AppState),
   repoId: string,
   scriptKind: HookScriptKind,
   hostId?: ExecutionHostId,
@@ -175,6 +176,7 @@ export async function ensureHooksConfirmed(
     if (isCancelled()) {
       return 'skip'
     }
+    const state = typeof stateOrGetter === 'function' ? stateOrGetter() : stateOrGetter
     const trustContent = await resolveHookTrustContent(
       state,
       repoId,

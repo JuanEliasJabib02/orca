@@ -23,10 +23,6 @@ const ERROR_LINE = /^(\S.*?)\(\d+,\d+\): error TS\d+:/
 // disappears from this gate silently.
 export const TESTS_OUTSIDE_PROGRAM = new Map([
   [
-    'scripts/rpc-recording-pin-guard.test.ts',
-    'Node-side: imports the desktop main process, checked against @types/node rather than RN libs'
-  ],
-  [
     'src/tasks/agent-launch-mobile-replay.test.ts',
     'Node-side: imports the desktop main process, checked against @types/node rather than RN libs'
   ],
@@ -35,8 +31,12 @@ export const TESTS_OUTSIDE_PROGRAM = new Map([
     'Node-side: imports the desktop main process, checked against @types/node rather than RN libs'
   ],
   [
+    'src/test-support/rpc-recording/recorded-request-params.test.ts',
+    'Node-side: imports the desktop RPC dispatcher, checked against @types/node rather than RN libs'
+  ],
+  [
     'src/transport/mobile-relay-browser-cancel-budget.test.ts',
-    'Node-side: imports src/shared/child-process, checked against @types/node rather than RN libs'
+    'Node-side: imports @orca/process-host, checked against @types/node rather than RN libs'
   ]
 ])
 

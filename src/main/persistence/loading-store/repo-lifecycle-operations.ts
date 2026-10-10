@@ -7,6 +7,7 @@ import {
 } from '../../orca-profiles/profile-project-session-state'
 import {
   getRepoExecutionHostId,
+  LOCAL_EXECUTION_HOST_ID,
   parseExecutionHostId,
   type ExecutionHostId
 } from '../../../shared/execution-host'
@@ -62,36 +63,6 @@ export class RepoLifecycleOperations {
     return getRepoOrderOperations(this).reorderReposForHost(orderedIds, hostId)
   }
 
-  removeProject(id: string): void {
-    const repoRemoved = this[repoLifecycleOperationsContext].runtime.state.repos.some(
-      (repo) => repo.id === id
-    )
-    this[repoLifecycleOperationsContext].runtime.state.repos = this[
-      repoLifecycleOperationsContext
-    ].runtime.state.repos.filter((r) => r.id !== id)
-    if (repoRemoved) {
-      retireLocalWorktreeScanGeneration(id)
-    }
-    syncProjectHostSetupCompatibilityState(this)
-    delete this[repoLifecycleOperationsContext].runtime.state.sparsePresetsByRepo[id]
-    if (this[repoLifecycleOperationsContext].runtime.state.spotlightByRepoId) {
-      delete this[repoLifecycleOperationsContext].runtime.state.spotlightByRepoId[id]
-    }
-    delete this[repoLifecycleOperationsContext].runtime.state.retiredWorktreeNamesByRepo?.[id]
-    pruneWorktreeStateForRepo(this, id, null)
-    this[repoLifecycleOperationsContext].runtime.state.workspaceSession =
-      removeRepoFromWorkspaceSession(
-        this[repoLifecycleOperationsContext].runtime.state.workspaceSession,
-        id
-      )
-    this[repoLifecycleOperationsContext].runtime.state.workspaceSessionsByHostId =
-      removeRepoFromHostWorkspaceSessions(
-        this[repoLifecycleOperationsContext].runtime.state.workspaceSessionsByHostId,
-        id
-      )
-    scheduleSave(this[repoLifecycleOperationsContext].scheduling)
-  }
-
   // ── Spotlight testing ──────────────────────────────────────────────
 
   getSpotlightState(repoId: string): SpotlightRepoState | null {
@@ -136,6 +107,10 @@ export class RepoLifecycleOperations {
       retireLocalWorktreeScanGeneration(id)
       delete this[repoLifecycleOperationsContext].runtime.state.sparsePresetsByRepo[id]
       delete this[repoLifecycleOperationsContext].runtime.state.retiredWorktreeNamesByRepo?.[id]
+    }
+    // Why: Spotlight only runs on local repos, so its record leaves with the local copy.
+    if (!idStillPresent || hostId === LOCAL_EXECUTION_HOST_ID) {
+      delete this[repoLifecycleOperationsContext].runtime.state.spotlightByRepoId?.[id]
     }
     syncProjectHostSetupCompatibilityState(this)
     pruneWorktreeStateForRepo(this, id, idStillPresent ? hostId : null)
@@ -297,13 +272,4 @@ export function updateIndependentProjectHostSetup(
 
 export function hydrateRepo(owner: RepoLifecycleOperations, repo: Repo): Repo {
   return hydrateRepoOperation(repo, owner[repoLifecycleOperationsContext].runtime.gitUsernameCache)
-}
-
-export function installRepoLifecycleOperationsContext(
-  target: RepoLifecycleOperations,
-  source: RepoLifecycleOperations
-): void {
-  Object.defineProperty(target, repoLifecycleOperationsContext, {
-    value: source[repoLifecycleOperationsContext]
-  })
 }

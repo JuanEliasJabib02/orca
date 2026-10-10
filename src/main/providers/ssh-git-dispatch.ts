@@ -1,4 +1,5 @@
 import type { SshGitProvider } from './ssh-git-provider'
+import { getSshPlainSshMode, PlainSshUnsupportedError } from '../ssh/ssh-plain-ssh-mode'
 
 const sshProviders = new Map<string, SshGitProvider>()
 const sshProviderGenerations = new Map<string, number>()
@@ -52,10 +53,18 @@ export function getSshGitProvider(connectionId: string): SshGitProvider | undefi
   return sshProviders.get(connectionId)
 }
 
+/** A plain-SSH host has no git by design, which is "unsupported", not "connection dropped". */
+export function sshGitProviderMissingError(connectionId: string): Error {
+  const plainMode = getSshPlainSshMode(connectionId)
+  return plainMode
+    ? new PlainSshUnsupportedError('Git', plainMode)
+    : new Error(SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE)
+}
+
 export function requireSshGitProvider(connectionId: string): SshGitProvider {
   const provider = getSshGitProvider(connectionId)
   if (!provider) {
-    throw new Error(SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE)
+    throw sshGitProviderMissingError(connectionId)
   }
   return provider
 }

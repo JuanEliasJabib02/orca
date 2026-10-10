@@ -13,7 +13,7 @@ import {
   toWorkspaceKanbanWorktreeLaneItem,
   type WorkspaceKanbanLaneItem
 } from './workspace-kanban-lane-items'
-import { updateWorktreeSelection } from './worktree-multi-selection'
+import { updateSelection } from '@/lib/list-multi-selection'
 
 function worktree(id: string): Worktree {
   return makeWorktree({ id, repoId: id, hostId: 'local' })
@@ -128,7 +128,7 @@ describe('updateWorkspaceKanbanCardSelection', () => {
     ).toEqual(['local|api', 'local|top', 'local|web'])
   })
 
-  it('matches updateWorktreeSelection exactly when the board has no task cards', () => {
+  it('matches updateSelection exactly when the board has no task cards', () => {
     for (const intent of ['replace', 'toggle', 'range'] as const) {
       const args = {
         visibleIds: ['a', 'b', 'c'],
@@ -142,7 +142,7 @@ describe('updateWorkspaceKanbanCardSelection', () => {
           cardId: 'c',
           members: EMPTY_WORKSPACE_KANBAN_CARD_MEMBERS
         })
-      ).toEqual(updateWorktreeSelection({ ...args, targetId: 'c' }))
+      ).toEqual(updateSelection({ ...args, targetId: 'c' }))
     }
   })
 })

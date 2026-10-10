@@ -59,10 +59,6 @@ describe('SshFilesystemProvider', () => {
     provider = new SshFilesystemProvider('conn-1', mux as never)
   })
 
-  it('returns the connectionId', () => {
-    expect(provider.getConnectionId()).toBe('conn-1')
-  })
-
   describe('readDir', () => {
     it('sends fs.readDir request', async () => {
       const entries = [
@@ -72,7 +68,10 @@ describe('SshFilesystemProvider', () => {
       mux.request.mockResolvedValue(entries)
 
       const result = await provider.readDir('/home/user/project')
-      expect(mux.request).toHaveBeenCalledWith('fs.readDir', { dirPath: '/home/user/project' })
+      expect(mux.request).toHaveBeenCalledWith('fs.readDirBounded', {
+        dirPath: '/home/user/project',
+        __streamResponse: true
+      })
       expect(result).toEqual(entries)
     })
   })
@@ -474,7 +473,7 @@ describe('SshFilesystemProvider', () => {
       caseSensitive: true
     }
     const result = await provider.search(opts)
-    expect(mux.request).toHaveBeenCalledWith('fs.search', opts)
+    expect(mux.request).toHaveBeenCalledWith('fs.search', opts, { signal: undefined })
     expect(result).toEqual(searchResult)
   })
 
@@ -492,6 +491,7 @@ describe('SshFilesystemProvider', () => {
   })
 
   it('listFiles forwards listing and query options', async () => {
+    mux.request.mockResolvedValue([])
     await provider.listFiles('/home/user/project', {
       excludePaths: ['/home/user/project/worktrees/b'],
       maxResults: 20_000,

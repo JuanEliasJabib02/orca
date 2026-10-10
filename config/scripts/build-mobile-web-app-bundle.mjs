@@ -139,9 +139,17 @@ export const MOBILE_WEB_APP_ROOT_RESET =
  * Inputs and textareas: Chromium rings a focused one (`:focus-visible` matches every focused
  * text field); no native TextInput paints one, and the caret and the IME already mark focus.
  * Those only: a button reached by a hardware keyboard keeps the browser's ring.
+ *
+ * Text: native `Text` is unselectable unless `selectable`; react-native-web's is selectable. On
+ * iOS a hold on it raises WebKit's selection over the page's own long press; on Android the
+ * selection's `selectionchange` and `touchcancel` end a held press. `body`, not `#root`: modals
+ * portal to `document.body`. Fields opt back in, callout too, since WebKit inherits it.
  */
 export const MOBILE_WEB_APP_NATIVE_PARITY_STYLE =
-  '<style id="orca-native-parity">:where(input:focus,textarea:focus){outline:none}</style>'
+  '<style id="orca-native-parity">:where(input:focus,textarea:focus){outline:none}' +
+  ':where(body){-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}' +
+  ':where(input,textarea,[contenteditable]){-webkit-user-select:text;user-select:text;' +
+  '-webkit-touch-callout:default}</style>'
 
 const PAGE_ASYNC_STORAGE_MODULE = join(
   mobileDir,
@@ -355,15 +363,12 @@ export function mobileWebAppBuildOptions(routes) {
  */
 export function entryStaticClosure(metafile, entryOutputPath) {
   const reached = new Set([entryOutputPath])
-  const queue = [entryOutputPath]
-  while (queue.length > 0) {
-    const current = queue.shift()
+  for (const current of reached) {
     for (const imported of metafile.outputs[current]?.imports ?? []) {
       if (imported.kind !== 'import-statement' || reached.has(imported.path)) {
         continue
       }
       reached.add(imported.path)
-      queue.push(imported.path)
     }
   }
   return reached
@@ -581,7 +586,8 @@ export function resolveMobileWebPageRoutes(routeKeys, declared = MOBILE_WEB_PAGE
     grants: [...route.grants],
     ...(route.optionalGrants === undefined || route.optionalGrants.length === 0
       ? {}
-      : { optionalGrants: [...route.optionalGrants] })
+      : { optionalGrants: [...route.optionalGrants] }),
+    ...(route.canOwnHostArea === true ? { canOwnHostArea: true } : {})
   }))
 }
 
@@ -613,7 +619,7 @@ export async function buildMobileWebAppBundle({
 
   // Root-absolute, unlike the Phase A bootstrap's bare relative src: this document is served at
   // every route depth (/h/<hostId>/tasks), where a relative href resolves against the route and
-  // 404s. A <base> tag would be the other fix, but the shell's CSP sets base-uri 'none'.
+  // 404s. A <base> tag would be the other fix, but the shell's CSP admits only an about: base.
   // type="module", because the entry is esm and reaches its routes through import(). Same-origin
   // module and chunk both load under the shell's script-src 'self'; the policy is unchanged.
   const html =

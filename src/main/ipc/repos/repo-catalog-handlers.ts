@@ -6,7 +6,7 @@ import type {
   HostRepoCatalogSnapshot,
   ListReposForExecutionHostArgs
 } from '../../../shared/host-repo-catalog-contract'
-import { normalizeExecutionHostId } from '../../../shared/execution-host'
+import { LOCAL_EXECUTION_HOST_ID, normalizeExecutionHostId } from '../../../shared/execution-host'
 import { enrichRepoGitUsernames } from '../../repo-git-username-enrichment'
 import { enrichMissingRepoGitRemoteIdentities } from '../../repo-git-remote-identity-enrichment'
 import { invalidateAuthorizedRootsCache } from '../registered-worktree-roots-cache'
@@ -14,6 +14,7 @@ import { notifyReposChanged } from './repos-changed-notification'
 import { deactivateSpotlightBeforeTeardown } from '../spotlight'
 import { ProjectUpdateIpcArgs, parseProjectGroupIpcArgs } from './repo-ipc-arg-schemas'
 import { listReposForExecutionHost } from './host-repo-catalog-snapshot'
+import { visibleRepos } from '../../ssh/orcad-retained-source'
 
 export function registerRepoCatalogHandlers(mainWindow: BrowserWindow, store: Store): void {
   // Why one shared reference: enrichment dedupes coalesced callers by callback identity, so a fresh
@@ -24,7 +25,7 @@ export function registerRepoCatalogHandlers(mainWindow: BrowserWindow, store: St
     enrichMissingRepoGitRemoteIdentities(store, { onChanged: broadcastReposChanged })
     // Why: username resolution spawns git/gh, so keep it off this sync handler (issue #7225); it re-lists when values land.
     enrichRepoGitUsernames(store, { onChanged: broadcastReposChanged })
-    return store.getRepos()
+    return visibleRepos(store)
   })
 
   ipcMain.handle(
@@ -86,17 +87,6 @@ export function registerRepoCatalogHandlers(mainWindow: BrowserWindow, store: St
     }
   )
 
-  ipcMain.handle('repos:remove', async (_event, args: { repoId: string }) => {
-    // Restore the root first: removeProject deletes the Spotlight record, and
-    // without a prior deactivate the root would stay detached on the snapshot,
-    // the log capture would leak, and no store entry would remain for reconcile
-    // to repair.
-    await deactivateSpotlightBeforeTeardown(args.repoId)
-    store.removeProject(args.repoId)
-    invalidateAuthorizedRootsCache()
-    notifyReposChanged(mainWindow)
-  })
-
   // Why: forget a project on one execution host without disturbing the same repo id on other hosts (SSH-workspace forget flow).
   ipcMain.handle(
     'repos:removeForHost',
@@ -104,6 +94,11 @@ export function registerRepoCatalogHandlers(mainWindow: BrowserWindow, store: St
       const hostId = normalizeExecutionHostId(args.hostId)
       if (!hostId) {
         throw new Error(`Invalid host ID: ${args.hostId}`)
+      }
+      // Why: removal drops the Spotlight record, so restore the root first or it stays
+      // detached on the snapshot with its log capture leaked. Spotlight is local-only.
+      if (hostId === LOCAL_EXECUTION_HOST_ID) {
+        await deactivateSpotlightBeforeTeardown(args.repoId)
       }
       store.removeProjectForHost(args.repoId, hostId)
       invalidateAuthorizedRootsCache()

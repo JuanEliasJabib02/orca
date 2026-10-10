@@ -3,9 +3,11 @@ import { getActiveExecutionHostIdForWorktree } from '@/lib/unified-tab-host-owne
 import type { Tab, TabGroup } from '../../../../../shared/tab-types'
 import type { TabsSlice, TabsSliceGet, TabsSliceSet } from './tabs-slice-contract'
 import { buildActiveSurfacePatch } from './tabs-surface'
-import { buildSplitNode, replaceLeaf } from './tabs-layout'
 import {
-  dedupeTabOrder,
+  buildSplitNode,
+  replaceLeaf
+} from '../../../../../shared/workspace-layout/tab-group-layout-tree'
+import {
   ensureGroup,
   findGroupForTab,
   pushRecentTabId,
@@ -15,8 +17,9 @@ import {
 import {
   applyTabOrderSortValues,
   canReplacePreviewContentType,
+  dedupeTabOrder,
   insertTabIdIntoOrder
-} from './tabs-tab-order'
+} from '../../../../../shared/workspace-layout/tab-order'
 import { resolveUnifiedTabCreatePlacement } from './tabs-create-placement'
 import { folderWorkspaceToWorktree } from '../../../../../shared/folder-workspace-worktree'
 
@@ -66,6 +69,7 @@ export function createTabsCreateActions(
         }
 
         const shouldActivate = init?.activate ?? true
+        const recordsFocus = shouldActivate && init?.recordFocus !== false
         const createdAt = Date.now()
         const executionHostId =
           init?.executionHostId ?? getActiveExecutionHostIdForWorktree(state, worktreeId)
@@ -100,7 +104,7 @@ export function createTabsCreateActions(
           sortOrder: insertedIndex,
           createdAt,
           // Why: creating an active tab is a focus event; Cmd+J recency reads lastFocusedAt.
-          ...(shouldActivate ? { lastFocusedAt: createdAt } : {}),
+          ...(recordsFocus ? { lastFocusedAt: createdAt } : {}),
           isPreview: init?.isPreview,
           isPinned: init?.isPinned
         }

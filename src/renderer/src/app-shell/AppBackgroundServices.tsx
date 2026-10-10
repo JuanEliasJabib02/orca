@@ -5,6 +5,7 @@ import { AiVaultTabTitleSyncGate } from '../components/AiVaultTabTitleSyncGate'
 import RetainedAgentsSyncGate from '../components/dashboard/RetainedAgentsSyncGate'
 import SpotlightAutoSyncGate from '../components/sidebar/SpotlightAutoSyncGate'
 import { WorkspacePortScanner } from '../components/ports/WorkspacePortScanner'
+import { SavedHostScopeWidenGate } from '../components/sidebar/SavedHostScopeWidenGate'
 import { MacosTccPromptNoticeHost } from '../hooks/MacosTccPromptNoticeHost'
 import { useAppStore } from '../store'
 import { StructuredAgentSessionAttentionBridge } from '../components/native-chat/StructuredAgentSessionAttentionBridge'
@@ -31,6 +32,7 @@ export function AppBackgroundServices(): React.JSX.Element {
       <RetainedAgentsSyncGate />
       <SpotlightAutoSyncGate />
       <AiVaultTabTitleSyncGate />
+      <SavedHostScopeWidenGate />
       {dashboardPopoutEnabled ? (
         <Suspense fallback={null}>
           <DashboardPopoutBridge />

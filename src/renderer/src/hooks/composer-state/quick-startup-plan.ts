@@ -9,8 +9,6 @@ import {
   resolveTuiAgentLaunchArgs,
   resolveTuiAgentLaunchEnv
 } from '../../../../shared/tui-agent-launch-defaults'
-import { resolveInitialNativeChatSessionOptions } from '@/components/native-chat/native-chat-launch-session-options'
-import { isNativeChatTranscriptLocalReadable } from '@/lib/native-chat-transcript-readability'
 import { tuiAgentToAgentKind } from '@/lib/telemetry'
 import {
   agentSupportsAddDir,
@@ -24,7 +22,6 @@ export type QuickComposerStartupInput = {
   prompt: string
   draftPrompt: string | null | undefined
   settings: GlobalSettings | null | undefined
-  repoConnectionId: string | null | undefined
   platform: NodeJS.Platform
   shell: AgentStartupShell | null | undefined
   isRemote: boolean
@@ -50,25 +47,6 @@ function resolveQuickAgentArgs(input: QuickComposerStartupInput, agent: TuiAgent
 
 export function buildQuickComposerStartup(input: QuickComposerStartupInput): QuickComposerStartup {
   const { agent, draftPrompt, prompt, settings } = input
-  const sessionOptions =
-    agent === null
-      ? undefined
-      : resolveInitialNativeChatSessionOptions(
-          {
-            experimentalNativeChat: settings?.experimentalNativeChat,
-            openAgentTabsInChatByDefault: settings?.openAgentTabsInChatByDefault,
-            nativeChatSessionOptions: settings?.nativeChatSessionOptions
-          },
-          {
-            agent,
-            ...(draftPrompt
-              ? { promptDelivery: 'draft' as const, launchDraftText: draftPrompt }
-              : {}),
-            nativeChatTranscriptIsLocalReadable: isNativeChatTranscriptLocalReadable(
-              input.repoConnectionId
-            )
-          }
-        )
   const draftLaunchPlan =
     agent === null || !draftPrompt
       ? null
@@ -78,7 +56,6 @@ export function buildQuickComposerStartup(input: QuickComposerStartupInput): Qui
           cmdOverrides: settings?.agentCmdOverrides ?? {},
           agentArgs: resolveQuickAgentArgs(input, agent),
           agentEnv: resolveTuiAgentLaunchEnv(agent, settings?.agentDefaultEnv),
-          sessionOptions,
           platform: input.platform,
           shell: input.shell ?? undefined,
           isRemote: input.isRemote
@@ -91,7 +68,6 @@ export function buildQuickComposerStartup(input: QuickComposerStartupInput): Qui
       expectedProcess: draftLaunchPlan.expectedProcess,
       followupPrompt: null,
       launchConfig: draftLaunchPlan.launchConfig,
-      ...(draftLaunchPlan.sessionOptions ? { sessionOptions: draftLaunchPlan.sessionOptions } : {}),
       ...(draftLaunchPlan.startupCommandDelivery
         ? { startupCommandDelivery: draftLaunchPlan.startupCommandDelivery }
         : {}),
@@ -104,7 +80,6 @@ export function buildQuickComposerStartup(input: QuickComposerStartupInput): Qui
       cmdOverrides: settings?.agentCmdOverrides ?? {},
       agentArgs: resolveQuickAgentArgs(input, agent),
       agentEnv: resolveTuiAgentLaunchEnv(agent, settings?.agentDefaultEnv),
-      sessionOptions,
       platform: input.platform,
       shell: input.shell ?? undefined,
       isRemote: input.isRemote,

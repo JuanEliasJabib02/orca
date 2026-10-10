@@ -36,6 +36,10 @@ vi.mock('./zcode-usage-fetcher', () => ({
   fetchZcodeRateLimits: vi.fn()
 }))
 
+vi.mock('./antigravity-usage-fetcher', () => ({
+  fetchAntigravityRateLimits: vi.fn()
+}))
+
 vi.mock('./minimax/minimax-fetcher', () => ({
   fetchMiniMaxRateLimits: vi.fn()
 }))
@@ -364,7 +368,6 @@ describe('RateLimitService', () => {
       wslDistro: target?.wslDistro ?? null,
       wslLinuxConfigDir: target?.runtime === 'wsl' ? '/home/jin/.claude' : null,
       envPatch: target?.runtime === 'wsl' ? { CLAUDE_CONFIG_DIR: '/home/jin/.claude' } : {},
-      stripAuthEnv: target?.runtime === 'wsl',
       provenance: target?.runtime === 'wsl' ? 'managed:wsl-account:wsl:Ubuntu' : 'system'
     }))
     service.setClaudeAuthPreparationResolver(resolver)
@@ -381,8 +384,7 @@ describe('RateLimitService', () => {
         authPreparation: expect.objectContaining({
           runtime: 'wsl',
           wslDistro: 'Ubuntu',
-          wslLinuxConfigDir: '/home/jin/.claude',
-          stripAuthEnv: true
+          wslLinuxConfigDir: '/home/jin/.claude'
         }),
         allowPtyFallback: true,
         allowUsagePanelSupplement: true,
@@ -400,7 +402,6 @@ describe('RateLimitService', () => {
       wslDistro: null,
       wslLinuxConfigDir: null,
       envPatch: {},
-      stripAuthEnv: false,
       provenance: 'system'
     }))
 
@@ -446,7 +447,6 @@ describe('RateLimitService', () => {
       wslDistro: 'Ubuntu',
       wslLinuxConfigDir: '/home/jin/.claude',
       envPatch: {},
-      stripAuthEnv: true,
       provenance: 'wsl:Ubuntu:system'
     }))
 
@@ -547,9 +547,7 @@ describe('RateLimitService', () => {
 
   it('does not cache host Claude usage under an outgoing WSL account', async () => {
     const service = new RateLimitService()
-    service.setInactiveClaudeAccountsResolver(() => [
-      { id: 'wsl-account-1', managedAuthPath: '/tmp/account-1/auth' }
-    ])
+    service.setInactiveClaudeAccountsResolver(() => [{ id: 'wsl-account-1' }])
     service.setClaudeAuthPreparationResolver(async (target) => ({
       configDir:
         target?.runtime === 'wsl'
@@ -559,7 +557,6 @@ describe('RateLimitService', () => {
       wslDistro: target?.wslDistro ?? null,
       wslLinuxConfigDir: target?.runtime === 'wsl' ? '/home/jin/.claude' : null,
       envPatch: {},
-      stripAuthEnv: target?.runtime === 'wsl',
       provenance: target?.runtime === 'wsl' ? 'managed:wsl-account-1:wsl:Ubuntu' : 'system'
     }))
 

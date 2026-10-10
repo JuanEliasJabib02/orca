@@ -41,27 +41,6 @@ const session: NativeChatLiveSession = {
 }
 
 describe('NativeChatMessageList assistant messages', () => {
-  it('keeps prose selectable and places non-selectable controls after it', () => {
-    render(
-      <NativeChatMessageList
-        session={session}
-        isWorking={false}
-        expandSignal={false}
-        fontScale={1}
-      />
-    )
-
-    const prose = screen.getByText('Selectable agent response.')
-    const row = prose.closest('.group')
-    const copyButton = screen.getByRole('button', { name: 'Copy message' })
-    const controls = copyButton.parentElement
-
-    expect(row).toHaveClass('select-text')
-    expect(controls).toHaveClass('select-none', 'can-hover:pointer-events-none', 'mt-1')
-    expect(controls).not.toHaveClass('absolute')
-    expect(prose.compareDocumentPosition(controls!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-  })
-
   it('keeps a running tool live when transcript lifecycle metadata is absent', () => {
     render(
       <NativeChatMessageList
@@ -87,7 +66,6 @@ describe('NativeChatMessageList assistant messages', () => {
         }}
         isWorking
         expandSignal={false}
-        fontScale={1}
       />
     )
 
@@ -95,6 +73,47 @@ describe('NativeChatMessageList assistant messages', () => {
     expect(screen.getByText('sleep 5')).toBeInTheDocument()
     expect(screen.queryByText('1×')).toBeNull()
     expect(document.querySelector('.text-destructive')).toBeNull()
+  })
+
+  it("holds back only the running turn's controls, and shows them once it ends", () => {
+    const text = (
+      id: string,
+      role: 'user' | 'assistant',
+      words: string,
+      timestamp: number
+    ): NativeChatMessage => ({
+      id,
+      role,
+      blocks: [{ type: 'text', text: words }],
+      timestamp,
+      source: 'transcript'
+    })
+    const list = (isWorking: boolean) => (
+      <NativeChatMessageList
+        session={{
+          ...session,
+          status: isWorking ? 'working' : 'ready',
+          messages: [
+            text('user-1', 'user', 'First ask', 1),
+            text('assistant-1', 'assistant', 'Finished reply.', 2),
+            text('user-2', 'user', 'Second ask', 3),
+            text('assistant-2', 'assistant', 'Reply still coming', 4)
+          ]
+        }}
+        isWorking={isWorking}
+        expandSignal={false}
+      />
+    )
+    const copyButtons = () => screen.queryAllByRole('button', { name: 'Copy message' })
+
+    const { rerender } = render(list(true))
+    // The finished turn keeps its controls; user bubbles carry their own copy button.
+    expect(copyButtons()).toHaveLength(3)
+    expect(screen.getAllByRole('button', { name: 'Scroll this message to top' })).toHaveLength(1)
+
+    rerender(list(false))
+    expect(copyButtons()).toHaveLength(4)
+    expect(screen.getAllByRole('button', { name: 'Scroll this message to top' })).toHaveLength(2)
   })
 
   // Only the turn's trailing run is live. Once the agent has said something
@@ -127,7 +146,6 @@ describe('NativeChatMessageList assistant messages', () => {
         session={{ ...session, status: 'working', messages: [run, after('reasoning')] }}
         isWorking
         expandSignal={false}
-        fontScale={1}
       />
     )
     expect(screen.getByText('Running 1 command')).toBeInTheDocument()
@@ -137,7 +155,6 @@ describe('NativeChatMessageList assistant messages', () => {
         session={{ ...session, status: 'working', messages: [run, after('assistant')] }}
         isWorking
         expandSignal={false}
-        fontScale={1}
       />
     )
     expect(screen.queryByText('Running 1 command')).toBeNull()
@@ -170,7 +187,6 @@ describe('NativeChatMessageList assistant messages', () => {
         }}
         isWorking
         expandSignal={false}
-        fontScale={1}
       />
     )
 
@@ -250,7 +266,6 @@ describe('NativeChatMessageList spawn-group roster', () => {
         isWorking={false}
         workingStartedAt={startedAt}
         expandSignal={false}
-        fontScale={1}
       />
     )
 
@@ -292,7 +307,6 @@ describe('NativeChatMessageList spawn-group roster', () => {
         isWorking={false}
         workingStartedAt={startedAt}
         expandSignal={false}
-        fontScale={1}
       />
     )
 
@@ -312,7 +326,6 @@ describe('NativeChatMessageList spawn-group roster', () => {
         isWorking={false}
         workingStartedAt={startedAt}
         expandSignal={false}
-        fontScale={1}
       />
     )
 
@@ -340,7 +353,6 @@ describe('NativeChatMessageList spawn-group roster', () => {
         isWorking
         workingStartedAt={Date.now()}
         expandSignal={false}
-        fontScale={1}
       />
     )
 
@@ -383,7 +395,6 @@ describe('NativeChatMessageList spawn-group roster', () => {
         isWorking
         workingStartedAt={startedAt + 3}
         expandSignal={false}
-        fontScale={1}
       />
     )
 
@@ -421,7 +432,7 @@ describe('NativeChatMessageList childless spawn group', () => {
 
   /** Every slot the transcript column lays out — one per row that mounted. */
   function emptySlots(container: HTMLElement): Element[] {
-    const column = container.querySelector('.max-w-4xl')
+    const column = container.querySelector('[data-native-chat-transcript-column]')
     expect(column).not.toBeNull()
     return Array.from(column!.children).filter((slot) => slot.textContent === '')
   }
@@ -437,7 +448,6 @@ describe('NativeChatMessageList childless spawn group', () => {
         isWorking={false}
         workingStartedAt={startedAt}
         expandSignal={false}
-        fontScale={1}
       />
     )
 
@@ -459,7 +469,6 @@ describe('NativeChatMessageList childless spawn group', () => {
         isWorking={false}
         workingStartedAt={startedAt}
         expandSignal={false}
-        fontScale={1}
       />
     )
 

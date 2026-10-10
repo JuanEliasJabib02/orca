@@ -8,7 +8,6 @@ import {
   isClaudeAgent,
   isClaudeManagementTitle,
   normalizeTerminalTitle,
-  isExplicitAgentStatusFresh,
   mapAgentStatusStateToVisualStatus,
   formatAgentTypeLabel,
   agentTypeToIconAgent
@@ -735,23 +734,6 @@ describe('createAgentStatusTracker', () => {
   })
 })
 
-describe('isExplicitAgentStatusFresh', () => {
-  it('treats the boundary (now - updatedAt == staleAfterMs) as fresh', () => {
-    // Why: uses `<=`, so equality at the boundary stays fresh (not stale one tick before the TTL).
-    const staleAfterMs = 60_000
-    const now = 1_000_000
-    const entry = { updatedAt: now - staleAfterMs }
-    expect(isExplicitAgentStatusFresh(entry, now, staleAfterMs)).toBe(true)
-  })
-
-  it('treats one millisecond past the boundary as stale', () => {
-    const staleAfterMs = 60_000
-    const now = 1_000_000
-    const entry = { updatedAt: now - staleAfterMs - 1 }
-    expect(isExplicitAgentStatusFresh(entry, now, staleAfterMs)).toBe(false)
-  })
-})
-
 describe('mapAgentStatusStateToVisualStatus', () => {
   it("maps 'working' to 'working'", () => {
     expect(mapAgentStatusStateToVisualStatus('working')).toBe('working')
@@ -799,6 +781,10 @@ describe('agentTypeToIconAgent', () => {
 
   it("returns null for 'unknown'", () => {
     expect(agentTypeToIconAgent('unknown')).toBeNull()
+  })
+
+  it('keeps an icon identity for recognition-only DeepSeek Build', () => {
+    expect(agentTypeToIconAgent('dsb')).toBe('dsb')
   })
 
   it('returns null for arbitrary non-iconable strings', () => {

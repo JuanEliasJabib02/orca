@@ -8,7 +8,8 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { agentJournalItemKey } from '../../../shared/agent-session-journal-item-key'
 import { computeAgentSessionPayloadFingerprint } from '../../../shared/agent-session-mutation-envelope'
-import { AgentSessionRecordStore } from '../../runtime/agent-session-record-store'
+import type { AgentSessionRecordStore } from '../../runtime/agent-session-record-store'
+import { openTestAgentSessionRecordStore } from '../../runtime/agent-session-record-store-test-harness'
 import type {
   AgentSessionDispatchOutcome,
   StructuredAgentSessionAdapter
@@ -25,6 +26,9 @@ import {
   resetHostTestOperationIds
 } from './structured-agent-session-host-test-data'
 import { openTestJournalHostDatabase } from '../agent-session-journal/journal-host-database-test-support'
+import { createStructuredAgentSessionLogger } from './structured-agent-session-logger'
+import { codexProviderHandle } from '../../../shared/agent-session-provider-handle-encoding'
+import { claudeAndCodexDeclared } from './structured-agent-session-adapter-router-test-support'
 
 const caller = { callerKey: 'desktop' }
 const KEPT = { provider: 'codex' as const, threadId: THREAD, turnId: 'kept', ordinal: 0 }
@@ -59,7 +63,7 @@ function adapter(): StructuredAgentSessionAdapter {
           mintedAtFence: input.fence,
           observedAt: HOST_TEST_NOW,
           origin: acquires === 1 ? 'created' : 'resumed',
-          handle: { provider: 'codex', threadId: THREAD }
+          handle: codexProviderHandle(THREAD)
         }
       }
     },
@@ -77,6 +81,8 @@ function adapter(): StructuredAgentSessionAdapter {
 
 function openHost(): StructuredAgentSessionHost {
   return new StructuredAgentSessionHost({
+    agents: claudeAndCodexDeclared(),
+    logger: createStructuredAgentSessionLogger(),
     store,
     adapter: adapter(),
     journalDatabase: openTestJournalHostDatabase(directory),
@@ -106,10 +112,7 @@ beforeEach(async () => {
     }
   }))
   directory = await mkdtemp(join(tmpdir(), 'orca-rewind-rest-'))
-  store = await AgentSessionRecordStore.open({
-    directory: join(directory, 'store'),
-    hostId: 'local'
-  })
+  store = await openTestAgentSessionRecordStore(directory)
   host = openHost()
 })
 
@@ -174,10 +177,7 @@ async function interruptedRewindAtRest(): Promise<void> {
   )
   expect(store.getRecord(SESSION)?.rewind).toMatchObject({ phase: 'prepared' })
   await host.flushAllStreamedEvents()
-  store = await AgentSessionRecordStore.open({
-    directory: join(directory, 'store'),
-    hostId: 'local'
-  })
+  store = await openTestAgentSessionRecordStore(directory)
   host = openHost()
 }
 
@@ -203,6 +203,29 @@ describe('an interrupted Codex rewind on a chat at rest (R16)', () => {
     expect(texts).toEqual(['verified history', 'after the rewind'])
     expect(snapshot.submissions.at(-1)?.dispatchState).toBe('accepted')
   })
+
+  it('is settled by the start a /clear makes, and the clear commits', async () => {
+    await interruptedRewindAtRest()
+    const before = acquires
+
+    const cleared = await host.conversationCommand(caller, {
+      command: 'clear',
+      envelope: {
+        sessionId: SESSION,
+        clientOperationId: hostTestOperationId(),
+        expectedRuntimeFence: fence(),
+        payloadFingerprint: computeAgentSessionPayloadFingerprint({
+          method: 'agentSession.conversationCommand',
+          sessionId: SESSION,
+          fields: { command: 'clear' }
+        })
+      }
+    })
+    expect(cleared).toMatchObject({ ok: true, value: { phase: 'committed', state: 'completed' } })
+    expect(acquires - before).toBe(1)
+    expect(recoverRewind).toHaveBeenCalledOnce()
+    expect(store.getRecord(SESSION)?.rewind?.phase).toBe('completed')
+  })
 })
 
 describe('a rewind asked of a chat at rest (P2-23)', () => {
@@ -212,10 +235,7 @@ describe('a rewind asked of a chat at rest (P2-23)', () => {
     await host.flushStreamedEvents(SESSION)
     const epoch = (await host.journalSnapshot(SESSION)).cursor.epoch
     await host.flushAllStreamedEvents()
-    store = await AgentSessionRecordStore.open({
-      directory: join(directory, 'store'),
-      hostId: 'local'
-    })
+    store = await openTestAgentSessionRecordStore(directory)
     host = openHost()
     const before = acquires
     rewindSupport.mockReturnValue({ supported: false, reason: 'history-not-paginated' })

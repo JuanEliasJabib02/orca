@@ -31,7 +31,15 @@ type HooksConfig = {
 
 let tempRoots: string[] = []
 
+beforeEach(() => {
+  // Why: the trust-grant ledger lives in Orca's userData, which otherwise resolves to the live one.
+  const userData = mkdtempSync(join(tmpdir(), 'orca-codex-wsl-hooks-userdata-'))
+  tempRoots.push(userData)
+  vi.stubEnv('ORCA_USER_DATA_PATH', userData)
+})
+
 afterEach(() => {
+  vi.unstubAllEnvs()
   for (const root of tempRoots) {
     rmSync(root, { recursive: true, force: true })
   }
@@ -95,9 +103,9 @@ describe('Codex WSL runtime hook install', () => {
     const independent = firstHome.replace('\\Alice\\', '\\Bob\\')
     const target = { runtime: 'wsl' as const, wslDistro: 'Ubuntu' }
 
-    const first = service.prepareRuntimeHomeForLaunch(firstHome, target, true)
-    const second = service.prepareRuntimeHomeForLaunch(alias, target, true)
-    const third = service.prepareRuntimeHomeForLaunch(independent, target, true)
+    const first = service.prepareRuntimeHomeForLaunch(firstHome, target, () => true, false)
+    const second = service.prepareRuntimeHomeForLaunch(alias, target, () => true, false)
+    const third = service.prepareRuntimeHomeForLaunch(independent, target, () => true, false)
     await vi.waitFor(() => expect(started).toEqual([firstHome, independent]))
 
     releases.splice(0).forEach((release) => release())

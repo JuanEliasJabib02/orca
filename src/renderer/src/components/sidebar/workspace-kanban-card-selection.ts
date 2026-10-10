@@ -2,10 +2,10 @@ import type { WorkspaceStatus } from '../../../../shared/worktree/types'
 import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
 import type { WorkspaceKanbanLaneItem } from './workspace-kanban-lane-items'
 import {
-  updateWorktreeSelection,
-  type WorktreeSelectionIntent,
-  type WorktreeSelectionResult
-} from './worktree-multi-selection'
+  updateSelection,
+  type SelectionIntent,
+  type SelectionResult
+} from '@/lib/list-multi-selection'
 
 /**
  * Selection stays keyed by worktree identity; a task card stands for its board-visible members.
@@ -79,16 +79,16 @@ function expandToWholeCards(
 
 /**
  * A click, toggle or range gesture on one card. A task card selects, deselects or bounds a range
- * with all its members; with no task cards this is exactly updateWorktreeSelection.
+ * with all its members; with no task cards this is exactly updateSelection.
  */
 export function updateWorkspaceKanbanCardSelection(args: {
   visibleIds: readonly string[]
   previousSelectedIds: ReadonlySet<string>
   previousAnchorId: string | null
   cardId: string
-  intent: WorktreeSelectionIntent
+  intent: SelectionIntent
   members: WorkspaceKanbanCardMembers
-}): WorktreeSelectionResult {
+}): SelectionResult {
   const memberIds = getCardMemberIds(args.cardId, args.members)
   const firstId = memberIds[0] ?? args.cardId
   if (args.intent === 'replace') {
@@ -112,7 +112,7 @@ export function updateWorkspaceKanbanCardSelection(args: {
     anchorIndex !== -1 && args.visibleIds.indexOf(firstId) > anchorIndex
       ? (memberIds.at(-1) ?? firstId)
       : firstId
-  const result = updateWorktreeSelection({
+  const result = updateSelection({
     visibleIds: args.visibleIds,
     previousSelectedIds: args.previousSelectedIds,
     previousAnchorId: args.previousAnchorId,

@@ -6,7 +6,6 @@ import type { AppState } from '@/store/types'
 import { RepoIconGlyph } from '@/components/repo/repo-icon'
 import { RepoForkIndicator } from '@/components/repo/repo-fork-indicator'
 import type { FolderWorkspacePathStatus } from '../../../../../../shared/folder-workspace-path-status'
-import { isConfirmedStaleFolderPathStatus } from '../../../../../../shared/folder-workspace-path-status'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { ExecutionHostId } from '../../../../../../shared/execution-host'
 import { getProjectGroupHostId } from '@/store/slices/project-group-owner-routing'
@@ -26,6 +25,7 @@ import {
   WORKTREE_SECTION_HEADER_PADDING_LEFT
 } from './indentation'
 import { FolderPathStatusIndicator } from './FolderPathStatusIndicator'
+import { isFolderWorkspaceCreateDisabled } from './folder-workspace-create-availability'
 import { RepoScanUnavailableIndicator } from './RepoScanUnavailableIndicator'
 import {
   ProjectGroupCreateWorkspaceButton,
@@ -71,14 +71,6 @@ export type SectionHeaderRowContext = {
   onWorkspacePinDragOver: (event: React.DragEvent) => void
   onWorkspacePinDragLeave: (event: React.DragEvent) => void
   onWorkspaceStatusDrop: (event: React.DragEvent, status: WorkspaceStatus) => void
-}
-
-// The folder-scan project group whose parent path is gone can't create new workspaces.
-function isFolderWorkspaceCreateDisabled(status: FolderWorkspacePathStatus | null): boolean {
-  return (
-    status?.exists === false &&
-    (isConfirmedStaleFolderPathStatus(status) || status.reason === 'ambiguous-connection')
-  )
 }
 
 export function renderWorktreeSectionHeaderRow(args: {
@@ -175,7 +167,8 @@ export function renderWorktreeSectionHeaderRow(args: {
         projectGroupId: folderBackedProjectGroup.id
       })
     : null
-  const isHeaderCollapsed = ctx.collapsedGroups.has(row.key)
+  const collapseKey = row.collapseKey ?? row.key
+  const isHeaderCollapsed = ctx.collapsedGroups.has(collapseKey)
   // Why: repo/project/status/pinned share compact section chrome; flat "All" stays a simple label.
   const showHeaderCollapseAffordance =
     row.count > 0 &&
@@ -293,7 +286,7 @@ export function renderWorktreeSectionHeaderRow(args: {
             if (shouldIgnoreRepoHeaderToggle(event)) {
               return
             }
-            ctx.toggleGroupWithScrollAnchor(row.key)
+            ctx.toggleGroupWithScrollAnchor(collapseKey)
           }}
           onKeyDown={(e) => {
             if (shouldIgnoreRepoHeaderToggle(e)) {
@@ -301,7 +294,7 @@ export function renderWorktreeSectionHeaderRow(args: {
             }
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault()
-              ctx.toggleGroupWithScrollAnchor(row.key)
+              ctx.toggleGroupWithScrollAnchor(collapseKey)
             }
           }}
         >
@@ -365,7 +358,7 @@ export function renderWorktreeSectionHeaderRow(args: {
                 onClick={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
-                  ctx.toggleGroupWithScrollAnchor(row.key)
+                  ctx.toggleGroupWithScrollAnchor(collapseKey)
                 }}
               >
                 <ChevronDown

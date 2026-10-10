@@ -5,11 +5,10 @@ import { AGENT_JOURNAL_THREAD_SCOPE } from '../../../shared/agent-session-journa
 // new child starts: a start that then fails would leave the turn running for every reader.
 
 import { cp, rm } from 'node:fs/promises'
-import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { AgentSessionOwnerProbe } from '../../../shared/agent-session-lease-adjudication'
 import { readAgentJournalTurn } from '../../../shared/agent-session-turn-record'
-import { AgentSessionRecordStore } from '../../runtime/agent-session-record-store'
+import { openTestAgentSessionRecordStore } from '../../runtime/agent-session-record-store-test-harness'
 import { StructuredAgentSessionHost } from './structured-agent-session-host'
 import {
   adapter,
@@ -26,6 +25,8 @@ import {
   hostTestMessage
 } from './structured-agent-session-host-test-data'
 import { openTestJournalHostDatabase } from '../agent-session-journal/journal-host-database-test-support'
+import { createStructuredAgentSessionLogger } from './structured-agent-session-logger'
+import { NO_STRUCTURED_AGENTS } from './structured-agent-session-adapter-router-test-support'
 
 /** Delivery runs on its own serialized steps; under a loaded runner they take more than a second. */
 function eventually(assertion: () => unknown): Promise<unknown> {
@@ -66,14 +67,13 @@ async function relaunchAfterCrashMidTurn(
     recursive: true,
     filter: (source) => !source.includes('.lock')
   })
-  const store = await AgentSessionRecordStore.open({
-    directory: join(relaunched, 'store'),
-    hostId: 'local'
-  })
+  const store = await openTestAgentSessionRecordStore(relaunched)
   const acquire = vi.fn(async () => {
     throw new Error('claude: command not found')
   })
   const host = new StructuredAgentSessionHost({
+    agents: NO_STRUCTURED_AGENTS,
+    logger: createStructuredAgentSessionLogger(),
     store,
     adapter: { ...adapter(), acquire },
     journalDatabase: openTestJournalHostDatabase(relaunched),

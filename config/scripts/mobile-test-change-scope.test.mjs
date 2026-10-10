@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { matchesGlob } from 'node:path'
 import { parse } from 'yaml'
 import { expect, it } from 'vitest'
 import { shouldRunMobileTests } from './mobile-test-change-scope.mjs'
@@ -28,6 +29,7 @@ it.each([
   'pnpm-lock.yaml',
   'src/main/runtime/runtime-rpc.ts',
   'src/shared/protocol-version.ts',
+  'src/packages/process-host/src/run-process.ts',
   '.github/workflows/mobile.yml',
   '.github/actions/install-node-dependencies/action.yml',
   'config/scripts/mobile-test-change-scope.mjs',
@@ -40,6 +42,25 @@ it.each([
 it('retains tests on missing evidence and a move out of the source tree', () => {
   expect(shouldRunMobileTests([])).toBe(true)
   expect(shouldRunMobileTests(['mobile/src/deleted.ts', 'mobile/docs/moved.ts'])).toBe(true)
+})
+
+it('runs Mobile Checks for shared modules, process-host tooling and the root lockfile on PRs and main', () => {
+  const workflow = parse(
+    readFileSync(new URL('../../.github/workflows/mobile.yml', import.meta.url), 'utf8')
+  )
+  for (const paths of [workflow.on.pull_request.paths, workflow.on.push.paths]) {
+    for (const file of [
+      'src/shared/any/module.ts',
+      'src/packages/process-host/src/run-process.ts',
+      'src/packages/process-host/package.json',
+      'pnpm-lock.yaml'
+    ]) {
+      expect(paths.some((pattern) => matchesGlob(file, pattern))).toBe(true)
+    }
+    expect(
+      paths.some((pattern) => matchesGlob('src/packages/unrelated/src/index.ts', pattern))
+    ).toBe(false)
+  }
 })
 
 it('skips only tests, after successful detection, and retains all other mobile gates', () => {

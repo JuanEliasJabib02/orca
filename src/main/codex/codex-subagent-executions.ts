@@ -25,10 +25,20 @@ export type CodexExecutionChild = {
   turnCount: number
 }
 
+/** Told when a child's current execution changes, whichever frame changed it. */
+export type CodexExecutionListener = (child: Readonly<CodexExecutionChild>) => void
+
 /** Child turn events own execution; activity items only identify the child. */
 export class CodexSubagentExecutions {
   private readonly children = new Map<string, CodexExecutionChild>()
   private readonly settledTurns = new Map<string, NativeChatSubagentState>()
+  private readonly listeners = new Set<CodexExecutionListener>()
+
+  /** Every reader of a child's execution follows it here, so none needs the frames that end it. */
+  onExecutionChanged(listener: CodexExecutionListener): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
 
   register(
     agentThreadId: string,
@@ -90,6 +100,7 @@ export class CodexSubagentExecutions {
     }
     if (state === 'working' || !child.execution || child.execution.turnId === turnId) {
       child.execution = execution
+      this.changed(child)
     }
     return { child, execution }
   }
@@ -123,6 +134,27 @@ export class CodexSubagentExecutions {
     return this.children.get(agentThreadId)
   }
 
+  /** The child and every child it spawned, at any depth. */
+  lineage(agentThreadId: string): CodexExecutionChild[] {
+    const lineage: CodexExecutionChild[] = []
+    const seen = new Set<string>()
+    const pending = [agentThreadId]
+    for (let id = pending.pop(); id !== undefined; id = pending.pop()) {
+      const child = this.children.get(id)
+      if (!child || seen.has(id)) {
+        continue
+      }
+      seen.add(id)
+      lineage.push(child)
+      for (const spawned of this.children.values()) {
+        if (spawned.spawnerThreadId === id) {
+          pending.push(spawned.agentThreadId)
+        }
+      }
+    }
+    return lineage
+  }
+
   workingChildren(): CodexExecutionChild[] {
     return [...this.children.values()].filter(
       (child) => child.registered && child.execution?.state === 'working'
@@ -133,6 +165,7 @@ export class CodexSubagentExecutions {
     for (const child of this.children.values()) {
       if (child.execution?.state === 'working') {
         child.execution = { ...child.execution, state: 'unverifiable' }
+        this.changed(child)
       }
     }
   }
@@ -145,6 +178,12 @@ export class CodexSubagentExecutions {
   /** Retention bounds are not observable through the child/turn API, so expose the two counts. */
   retentionSizes(): { children: number; settledTurns: number } {
     return { children: this.children.size, settledTurns: this.settledTurns.size }
+  }
+
+  private changed(child: CodexExecutionChild): void {
+    for (const listener of this.listeners) {
+      listener(child)
+    }
   }
 
   private child(agentThreadId: string): CodexExecutionChild | undefined {

@@ -15,7 +15,10 @@ export const SESSION_ID = 'session-1'
 export const CAPABLE: StructuredAgentSessionHostSupport = {
   promptCancel: false,
   questionAnswers: false,
-  queuedMessages: true
+  queuedMessages: true,
+  queuedCommands: false,
+  statusFeed: false,
+  quietRepeatedStop: false
 }
 export const LEGACY: StructuredAgentSessionHostSupport = { ...CAPABLE, queuedMessages: false }
 

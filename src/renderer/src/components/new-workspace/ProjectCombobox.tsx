@@ -1,3 +1,4 @@
+import { ImeInput } from '@/lib/ime-text-field'
 import React, { useCallback, useMemo } from 'react'
 import { ChevronDown, FolderPlus } from 'lucide-react'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
@@ -162,7 +163,7 @@ export default function ProjectCombobox({
             {committed && selected ? <ProjectOptionMark option={selected} /> : null}
           </span>
           <div className="relative min-w-0 flex-1 overflow-hidden">
-            <input
+            <ImeInput
               ref={inputRef}
               type="text"
               role="combobox"

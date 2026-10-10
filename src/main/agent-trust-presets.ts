@@ -1,5 +1,4 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { writeFileAtomically } from './codex-accounts/fs-utils'
 import { upsertProjectTrustLevel } from './codex/config-toml-trust'
@@ -37,13 +36,13 @@ export type AgentTrustPreset = NonNullable<TuiAgentConfig['preflightTrust']>
  * (versions/2026.04.17-787b533/index.ts: `_=".workspace-trusted"`, slug
  * derived via the same util that resolves `~/.cursor/projects/<slug>`).
  */
-export function markCursorWorkspaceTrusted(workspacePath: string): void {
+export function markCursorWorkspaceTrusted(workspacePath: string, home: string): void {
   const absPath = canonicalize(workspacePath)
   const slug = cursorWorkspaceSlug(absPath)
   if (!slug) {
     return
   }
-  const trustDir = join(homedir(), '.cursor', 'projects', slug)
+  const trustDir = join(home, '.cursor', 'projects', slug)
   const trustFile = join(trustDir, '.workspace-trusted')
   if (existsSync(trustFile)) {
     return
@@ -67,9 +66,9 @@ export function markCursorWorkspaceTrusted(workspacePath: string): void {
  * We append to the array in-place so unrelated config keys (loggedInUsers,
  * copilotTokens, etc.) survive untouched.
  */
-export function markCopilotFolderTrusted(workspacePath: string): void {
+export function markCopilotFolderTrusted(workspacePath: string, home: string): void {
   const absPath = canonicalize(workspacePath)
-  const configDir = join(homedir(), '.copilot')
+  const configDir = join(home, '.copilot')
   const configPath = join(configDir, 'config.json')
   let config: Record<string, unknown> = {}
   try {
@@ -98,7 +97,8 @@ export function markCopilotFolderTrusted(workspacePath: string): void {
   if (!existsSync(configDir)) {
     mkdirSync(configDir, { recursive: true })
   }
-  writeFileAtomically(configPath, `${JSON.stringify(config, null, 2)}\n`)
+  // Why: config.json can hold copilotTokens, so it must stay owner-only (also on shared SSH hosts).
+  writeFileAtomically(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 })
 }
 
 /**
@@ -121,9 +121,9 @@ export function markCopilotFolderTrusted(workspacePath: string): void {
  * We append in-place so the sibling keys in the same file (model, permissions,
  * toolPermission, agentMode, …) survive untouched.
  */
-export function markAntigravityWorkspaceTrusted(workspacePath: string): void {
+export function markAntigravityWorkspaceTrusted(workspacePath: string, home: string): void {
   const absPath = canonicalize(workspacePath)
-  const configDir = join(homedir(), '.gemini', 'antigravity-cli')
+  const configDir = join(home, '.gemini', 'antigravity-cli')
   const configPath = join(configDir, 'settings.json')
   let config: Record<string, unknown> = {}
   try {
@@ -171,9 +171,9 @@ export function markCodexProjectTrusted(
 ): Promise<void> {
   // Why: Codex checks the cwd's own entry before the repo root, so no git-layout logic is needed.
   const absPath = canonicalize(workspacePath)
-  // Why (#16441): hook installs now await a codex app-server grant, so an
-  // unqueued write here can land inside their capture->restore window and be
-  // reverted. Same runtime-before-system lock order the installer takes.
+  // Why (#16441): hook installs read and rewrite these files across awaits, so
+  // an unqueued write here could land between their read and their write and be
+  // lost. Same runtime-before-system lock order the installer takes.
   const write = configFiles.reduceRight<() => Promise<void>>(
     (inner, configFile) => () => runExclusivelyForCodexTrustConfig(configFile, inner),
     async () => {
