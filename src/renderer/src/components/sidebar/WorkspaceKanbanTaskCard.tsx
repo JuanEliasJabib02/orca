@@ -16,6 +16,7 @@ import { TaskSectionHeader } from './worktree-list/rows/TaskSectionHeader'
 import { TaskSpotlightButton } from './worktree-list/rows/TaskSpotlightButton'
 import { WorktreeStatusMenuItems } from './WorktreeStatusMenuItems'
 import { canHoldSpotlight, SpotlightQuickAction } from './WorktreeCardSpotlightControls'
+import { selectSpotlightPortLabel } from './spotlight-holder-ports'
 import { isEventTargetInsideCurrentTarget } from './worktree-card-dom-events'
 import {
   isSameTaskSectionInfo,
@@ -62,6 +63,10 @@ function WorkspaceKanbanTaskMemberRow({
   onOpen: (worktree: Worktree) => void
 }): React.JSX.Element {
   const spotlightEligible = repo ? canHoldSpotlight(worktree, repo, isFolderRepo(repo)) : false
+  // Why: only the member holding the repo's Spotlight reads a label; the others select null.
+  const portLabel = useAppStore((s) =>
+    selectSpotlightPortLabel(s, worktree, repo?.spotlightServer?.port)
+  )
   return (
     <div
       role="button"
@@ -92,6 +97,14 @@ function WorkspaceKanbanTaskMemberRow({
       <span className="min-w-0 flex-1 truncate text-muted-foreground">
         {!repo || showWorkspaceName ? worktree.displayName : null}
       </span>
+      {portLabel ? (
+        <span
+          data-spotlight-port=""
+          className="shrink-0 text-[10px] leading-none tabular-nums text-muted-foreground"
+        >
+          {portLabel}
+        </span>
+      ) : null}
       {spotlightEligible && repo ? <SpotlightQuickAction worktree={worktree} repo={repo} /> : null}
     </div>
   )

@@ -5,8 +5,11 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
+import { useAppStore } from '@/store'
 import { makeWorktree } from '../../store/slices/store-test-helpers'
+import { makeOwnedPort, makePortScan } from './spotlight-holder-ports-test-fixtures'
 import type { WorkspaceKanbanTaskLaneItem } from './workspace-kanban-lane-items'
+import { holdersByRepo } from './worktree-list/rows/task-spotlight-test-fixtures'
 
 const { activateWorktreeFromSidebar } = vi.hoisted(() => ({
   activateWorktreeFromSidebar: vi.fn(() => Promise.resolve())
@@ -83,6 +86,9 @@ const ITEM: WorkspaceKanbanTaskLaneItem = {
   memberIds: [api.id, web.id, 'reset::/hidden']
 }
 
+const initialState = useAppStore.getInitialState()
+const apiRoot = makeWorktree({ id: 'api::/root', repoId: 'api', isMainWorktree: true })
+
 let container: HTMLDivElement
 let root: Root
 
@@ -152,6 +158,7 @@ afterEach(() => {
     root.unmount()
   })
   container.remove()
+  useAppStore.setState(initialState, true)
 })
 
 describe('WorkspaceKanbanTaskCard', () => {
@@ -252,5 +259,74 @@ describe('WorkspaceKanbanTaskCard', () => {
     click(move)
 
     expect(onAssignWorkspaceStatus).toHaveBeenCalledWith([api.id, web.id, other.id], 'done')
+  })
+
+  describe('Spotlight port label', () => {
+    function seedSpotlight(rootPorts: number[], holderId: string | null = api.id): void {
+      act(() => {
+        useAppStore.setState({
+          spotlightByRepo: holderId ? holdersByRepo({ api: holderId }) : {},
+          worktreesByRepo: { api: [apiRoot, api] },
+          workspacePortScan: makePortScan(rootPorts.map((port) => makeOwnedPort(apiRoot.id, port)))
+        })
+      })
+    }
+
+    function portLabel(worktreeId: string): string | null {
+      return memberRow(worktreeId).querySelector('[data-spotlight-port]')?.textContent ?? null
+    }
+
+    it('shows the port the root listens on on the member row that holds the Spotlight', () => {
+      seedSpotlight([8080])
+      renderCard()
+
+      expect(portLabel(api.id)).toBe(':8080')
+      expect(portLabel(web.id)).toBeNull()
+    })
+
+    it('shows several listeners as the first port plus a count', () => {
+      seedSpotlight([8080, 3000])
+      renderCard()
+
+      expect(portLabel(api.id)).toBe(':3000 +1')
+    })
+
+    it("leads with the repo's configured port when it listens", () => {
+      seedSpotlight([8080, 3000])
+      const configured = new Map(repoMap)
+      configured.set('api', {
+        ...repoMap.get('api')!,
+        spotlightServer: { port: 8080 }
+      })
+      renderCard({ repoMap: configured })
+
+      expect(portLabel(api.id)).toBe(':8080 +1')
+    })
+
+    it('shows nothing while the Spotlight is off', () => {
+      seedSpotlight([8080], null)
+      renderCard()
+
+      expect(portLabel(api.id)).toBeNull()
+    })
+
+    it('shows nothing while nothing listens', () => {
+      seedSpotlight([])
+      renderCard()
+
+      expect(portLabel(api.id)).toBeNull()
+    })
+
+    it('drops the label when the Spotlight turns off', () => {
+      seedSpotlight([8080])
+      renderCard()
+      expect(portLabel(api.id)).toBe(':8080')
+
+      act(() => {
+        useAppStore.setState({ spotlightByRepo: {} })
+      })
+
+      expect(portLabel(api.id)).toBeNull()
+    })
   })
 })

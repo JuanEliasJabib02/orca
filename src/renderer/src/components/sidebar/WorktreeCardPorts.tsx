@@ -2,6 +2,7 @@ import React, { useCallback } from 'react'
 import { Plug, Copy, ExternalLink, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAppStore } from '@/store'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useWorktreeRuntimeTarget } from '@/runtime/use-worktree-runtime-target'
@@ -27,29 +28,40 @@ type WorktreeCardPortsProps = {
 }
 
 export function WorktreeCardPortsTrigger({
-  ports
-}: WorktreeCardPortsProps): React.JSX.Element | null {
+  ports,
+  label = null
+}: WorktreeCardPortsProps & {
+  /** Spotlight port text such as `:8080`; replaces the plug icon. */
+  label?: string | null
+}): React.JSX.Element | null {
   const recordFeatureInteraction = useAppStore((s) => s.recordFeatureInteraction)
 
   if (ports.length === 0) {
     return null
   }
 
+  const ariaLabel = translate(
+    'auto.components.sidebar.WorktreeCardPorts.fed49903c9',
+    '{{value0}} live {{value1}}',
+    { value0: ports.length, value1: ports.length === 1 ? 'port' : 'ports' }
+  )
+
   return (
     <button
       type="button"
-      className="inline-flex size-3.5 shrink-0 items-center justify-center rounded text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-worktree-sidebar-ring"
-      aria-label={translate(
-        'auto.components.sidebar.WorktreeCardPorts.fed49903c9',
-        '{{value0}} live {{value1}}',
-        { value0: ports.length, value1: ports.length === 1 ? 'port' : 'ports' }
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center rounded focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-worktree-sidebar-ring',
+        label
+          ? 'h-3.5 px-0.5 text-[10px] leading-none tabular-nums text-muted-foreground'
+          : 'size-3.5 text-muted-foreground/70'
       )}
+      aria-label={label ? `${ariaLabel} ${label}` : ariaLabel}
       onClick={(event) => {
         event.stopPropagation()
         recordFeatureInteraction('ports')
       }}
     >
-      <Plug className="size-3.5" />
+      {label ?? <Plug className="size-3.5" />}
     </button>
   )
 }

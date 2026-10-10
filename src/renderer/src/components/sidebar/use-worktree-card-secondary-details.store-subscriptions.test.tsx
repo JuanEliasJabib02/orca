@@ -8,6 +8,7 @@ import { readStoreListenerCount } from '@/store/store-listener-census'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 import { usePromptCacheCountdownStartedAt } from './CacheTimer'
+import { makeOwnedPort } from './spotlight-holder-ports-test-fixtures'
 import { useWorktreeCardSecondaryDetails } from './use-worktree-card-secondary-details'
 import { useWorktreeAgentRows } from './useWorktreeAgentRows'
 
@@ -220,5 +221,39 @@ describe('useWorktreeCardSecondaryDetails store subscriptions', () => {
     expect(mocks.toastError).toHaveBeenCalledWith(
       'Update the remote runtime to unlink GitHub pull requests'
     )
+  })
+
+  describe('hasPorts', () => {
+    const ports = [makeOwnedPort(WORKTREE_ID, 8080)]
+
+    function readHasPorts(overrides: Record<string, unknown>): boolean {
+      let hasPorts = false
+      function Probe(): null {
+        hasPorts = useWorktreeCardSecondaryDetails({
+          ...secondaryDetailsArgs(makeSettings(300_000)),
+          workspacePorts: ports,
+          ...overrides
+        }).hasPorts
+        return null
+      }
+      mount(<Probe />)
+      unmount()
+      return hasPorts
+    }
+
+    it('follows the Ports property for an ordinary row', () => {
+      expect(readHasPorts({ showPorts: true })).toBe(true)
+      expect(readHasPorts({ showPorts: false })).toBe(false)
+    })
+
+    it('shows a row with a Spotlight port label even with the Ports property off', () => {
+      expect(readHasPorts({ showPorts: false, spotlightPortLabel: ':8080' })).toBe(true)
+    })
+
+    it('shows nothing without ports', () => {
+      expect(
+        readHasPorts({ showPorts: true, spotlightPortLabel: ':8080', workspacePorts: [] })
+      ).toBe(false)
+    })
   })
 })

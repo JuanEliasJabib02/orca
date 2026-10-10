@@ -54,3 +54,32 @@ describe('WorktreeCardPortsDetails', () => {
     expect(markup).toContain('class="border-l border-border/70 pl-3 space-y-0.5"')
   })
 })
+
+describe('WorktreeCardPortsTrigger', () => {
+  it('shows the plug icon when no label is given', async () => {
+    const { WorktreeCardPortsTrigger } = await import('./WorktreeCardPorts')
+
+    const markup = renderToStaticMarkup(<WorktreeCardPortsTrigger ports={[port]} />)
+
+    expect(markup).toContain('aria-label="1 live port"')
+    expect(markup).toContain('<svg')
+  })
+
+  it('shows the Spotlight port label in place of the plug icon', async () => {
+    const { WorktreeCardPortsTrigger } = await import('./WorktreeCardPorts')
+
+    const markup = renderToStaticMarkup(
+      <WorktreeCardPortsTrigger ports={[port]} label=":8080 +1" />
+    )
+
+    expect(markup).toContain(':8080 +1</button>')
+    expect(markup).toContain('aria-label="1 live port :8080 +1"')
+    expect(markup).not.toContain('<svg')
+  })
+
+  it('renders nothing without ports', async () => {
+    const { WorktreeCardPortsTrigger } = await import('./WorktreeCardPorts')
+
+    expect(renderToStaticMarkup(<WorktreeCardPortsTrigger ports={[]} label=":8080" />)).toBe('')
+  })
+})

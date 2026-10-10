@@ -14,7 +14,7 @@ const EMPTY_PORTS_BY_WORKTREE = new Map<string, WorkspacePort[]>()
 const EMPTY_WORKSPACE_PORT_GROUPS: WorkspacePortGroup[] = []
 const EMPTY_EXTERNAL_PORTS: WorkspacePort[] = []
 
-function comparePorts(a: WorkspacePort, b: WorkspacePort): number {
+export function comparePorts(a: WorkspacePort, b: WorkspacePort): number {
   return a.port - b.port || (a.processName ?? '').localeCompare(b.processName ?? '')
 }
 

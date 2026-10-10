@@ -21,6 +21,8 @@ const cacheTimerMocks = vi.hoisted(() => ({
 
 let worktreeCardProperties: WorktreeCardProperty[] = ['status', 'ports']
 let settings: Partial<GlobalSettings> | null = { compactWorktreeCards: true }
+let spotlightByRepo: Record<string, { holderWorktreeId: string }> = {}
+let worktreesByRepo: Record<string, Worktree[]> = {}
 
 vi.mock('@/store', () => ({
   useAppStore: (selector: (state: unknown) => unknown) =>
@@ -48,10 +50,12 @@ vi.mock('@/store', () => ({
       settings,
       sshConnectionStates: new Map(),
       sshTargetLabels: new Map(),
+      spotlightByRepo,
       tabsByWorktree: {},
       updateWorktreeMeta: vi.fn(),
       workspacePortScan,
-      worktreeCardProperties
+      worktreeCardProperties,
+      worktreesByRepo
     })
 }))
 
@@ -217,6 +221,8 @@ describe('WorktreeCard compact ports hover independence', () => {
     openChangeByRoot.clear()
     worktreeCardProperties = ['status', 'ports']
     settings = { compactWorktreeCards: true }
+    spotlightByRepo = {}
+    worktreesByRepo = {}
     cacheTimerMocks.usePromptCacheCountdownStartedAt.mockReturnValue(null)
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -256,5 +262,63 @@ describe('WorktreeCard compact ports hover independence', () => {
 
     expect(portsRoot.dataset.open).toBe('true')
     expect(titleRoot.dataset.open).toBe('false')
+  })
+
+  describe('Spotlight port label', () => {
+    const rootWorktree = makeWorktree({
+      id: 'repo-1::/repo',
+      path: '/repo',
+      displayName: 'orca',
+      isMainWorktree: true
+    })
+
+    function seedSpotlight(holder: Worktree, other: Worktree): void {
+      // Why: the dev server runs in the root, so the scanner attributes its listener there.
+      workspacePortScan = makePortScan(rootWorktree)
+      spotlightByRepo = { 'repo-1': { holderWorktreeId: holder.id } }
+      worktreesByRepo = { 'repo-1': [rootWorktree, holder, other] }
+    }
+
+    async function renderCard(worktree: Worktree): Promise<void> {
+      const { default: WorktreeCard } = await import('./WorktreeCard')
+      act(() => {
+        root.render(<WorktreeCard worktree={worktree} repo={makeRepo()} isActive={false} />)
+      })
+    }
+
+    it('shows the root port on the row holding the Spotlight, even with the Ports property off', async () => {
+      const holder = makeWorktree()
+      worktreeCardProperties = ['status']
+      seedSpotlight(holder, makeWorktree({ id: 'repo-1::/repo/worktrees/other' }))
+
+      await renderCard(holder)
+
+      expect(container.querySelector('[aria-label="1 live port :58941"]')?.textContent).toBe(
+        ':58941'
+      )
+    })
+
+    it('leaves the other task rows of the repo without the label', async () => {
+      const other = makeWorktree({ id: 'repo-1::/repo/worktrees/other' })
+      worktreeCardProperties = ['status']
+      seedSpotlight(makeWorktree(), other)
+
+      await renderCard(other)
+
+      expect(container.querySelector('[aria-label*="live port"]')).toBeNull()
+    })
+
+    it('keeps the plug icon when the Spotlight is off', async () => {
+      const holder = makeWorktree()
+      seedSpotlight(holder, holder)
+      spotlightByRepo = {}
+      workspacePortScan = makePortScan(holder)
+
+      await renderCard(holder)
+
+      const trigger = container.querySelector('[aria-label="1 live port"]')
+      expect(trigger?.querySelector('svg')).not.toBeNull()
+      expect(trigger?.textContent).toBe('')
+    })
   })
 })

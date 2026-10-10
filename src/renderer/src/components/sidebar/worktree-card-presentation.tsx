@@ -45,6 +45,7 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
     remoteBranchConflict,
     visibleCardTitle,
     workspacePorts,
+    spotlightPortLabel,
     metaIssue,
     metaLinearIssue,
     metaJiraIssue,
@@ -234,7 +235,7 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
   const detailsAndPortsContent =
     hasDetails || hasPorts ? (
       <div className="flex shrink-0 items-center gap-1">
-        {hasPorts && <WorktreeCardPortsTrigger ports={workspacePorts} />}
+        {hasPorts && <WorktreeCardPortsTrigger ports={workspacePorts} label={spotlightPortLabel} />}
         {hasDetails && (
           <WorktreeCardMetaBadges
             issue={metaIssue}

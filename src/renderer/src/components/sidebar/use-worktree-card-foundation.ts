@@ -7,7 +7,6 @@ import {
   toRuntimeExecutionHostId
 } from '../../../../shared/execution-host'
 import { getHostDisplayLabelOverrides } from '../../../../shared/host-setting-overrides'
-import { getWorkspacePortsByWorktreeId } from '@/lib/workspace-port-groups'
 import { getExplicitRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
 import { hydrateRuntimeEnvironmentSshState } from '@/runtime/runtime-environment-ssh-state'
 import {
@@ -20,7 +19,8 @@ import {
   selectRuntimeAwareSshTargetLabel,
   selectRuntimeAwareSshTargetRemoved
 } from '@/store/slices/runtime-environment-ssh'
-import { EMPTY_WORKSPACE_PORTS, type WorktreeCardProps } from './worktree-card-model'
+import { selectRowWorkspacePorts, selectSpotlightPortLabel } from './spotlight-holder-ports'
+import type { WorktreeCardProps } from './worktree-card-model'
 import { getDeleteStateForWorktreeHost } from './worktree-delete-state-host-match'
 
 export function useWorktreeCardFoundation({
@@ -135,10 +135,9 @@ export function useWorktreeCardFoundation({
   })
   const conflictOperation = useAppStore((s) => s.gitConflictOperationByWorktree[worktree.id])
   const remoteBranchConflict = useAppStore((s) => s.remoteBranchConflictByWorktreeId[worktree.id])
-  const workspacePorts = useAppStore(
-    (s) =>
-      getWorkspacePortsByWorktreeId(s.workspacePortScan?.result).get(worktree.id) ??
-      EMPTY_WORKSPACE_PORTS
+  const workspacePorts = useAppStore((s) => selectRowWorkspacePorts(s, worktree))
+  const spotlightPortLabel = useAppStore((s) =>
+    selectSpotlightPortLabel(s, worktree, repo?.spotlightServer?.port)
   )
 
   const sshOwnerEnvironmentId = useAppStore((s) =>
@@ -229,6 +228,7 @@ export function useWorktreeCardFoundation({
     conflictOperation,
     remoteBranchConflict,
     workspacePorts,
+    spotlightPortLabel,
     sshOwnerEnvironmentId,
     sshStatus,
     isSshDisconnected,

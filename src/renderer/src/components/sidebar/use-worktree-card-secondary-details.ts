@@ -43,6 +43,7 @@ export function useWorktreeCardSecondaryDetails({
   compactCards,
   agentActivityDisplayMode,
   workspacePorts,
+  spotlightPortLabel = null,
   openTaskPage,
   updateWorktreeMeta,
   settings
@@ -72,6 +73,8 @@ export function useWorktreeCardSecondaryDetails({
     showCli: boolean
     showComment: boolean
     showPorts: boolean
+    /** Set on the row showing its Spotlight's port; it shows even with the Ports property off. */
+    spotlightPortLabel?: string | null
   }) {
   // Why: unread lives in the left status lane, so the Status toggle owns both the dot/PR slot and unread emphasis.
   const showUnreadEmphasis = showStatus && worktree.isUnread
@@ -236,7 +239,7 @@ export function useWorktreeCardSecondaryDetails({
     automationProvenance: metaAutomationProvenance,
     cliProvenance: metaCliProvenance
   })
-  const hasPorts = showPorts && workspacePorts.length > 0
+  const hasPorts = (showPorts || spotlightPortLabel !== null) && workspacePorts.length > 0
   const cacheStartedAt = usePromptCacheCountdownStartedAt(worktree.id, showAggregateCacheTimer)
   // Why: derived from the settings the card already subscribes to — a third store
   // subscription for this one field costs a listener per card on every store write.

@@ -139,6 +139,7 @@ export function useWorktreeCardController(props: ResolvedWorktreeCardProps) {
     compactCards: foundation.compactCards,
     agentActivityDisplayMode: foundation.agentActivityDisplayMode,
     workspacePorts: foundation.workspacePorts,
+    spotlightPortLabel: foundation.spotlightPortLabel,
     openTaskPage: foundation.openTaskPage,
     updateWorktreeMeta: foundation.updateWorktreeMeta,
     settings: foundation.settings
