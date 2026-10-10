@@ -3,9 +3,11 @@
 import type { SpotlightRefsSnapshot } from './spotlight'
 import { SPOTLIGHT_REFS } from './spotlight'
 import { normalizeRuntimePathForComparison, resolveRuntimePath } from './cross-platform-path'
+import { isSpotlightGeneratedFile } from './spotlight-generated-files'
 import {
   git,
   gitTry,
+  gitUntrimmed,
   IDENTITY_ARGS,
   resolveHead,
   SpotlightCoreError,
@@ -35,13 +37,16 @@ export async function assertNoConflictOperation(
 }
 
 type RootStatus = {
-  /** Tracked paths with staged or unstaged changes exist. */
+  /** Tracked paths with staged or unstaged changes exist, beyond framework-generated files. */
   trackedDirty: boolean
+  /** Untracked root files a reset must not overwrite (generated files left out). */
   untrackedPaths: Set<string>
 }
 
 /** One `status --porcelain -z` read shared by the tracked-dirt guard and the
- *  untracked-collision guard. -z: NUL separators, no quoting of exotic paths. */
+ *  untracked-collision guard. -z: NUL separators, no quoting of exotic paths.
+ *  Framework-generated files (spotlight-generated-files.ts) never count: a dev server at the
+ *  root rewrites them, and the reset restores them. */
 export async function readRootStatus(
   ctx: SpotlightGitContext,
   rootPath: string
@@ -49,7 +54,8 @@ export async function readRootStatus(
   // -uall: expand untracked directories to individual files. Without it git
   // collapses `sub/` to one entry, and a snapshot adding tracked `sub/file.txt`
   // would slip past the collision guard and get overwritten by reset --hard.
-  const raw = await git(ctx, rootPath, ['status', '--porcelain', '-z', '-uall'])
+  // Untrimmed: a trim would eat the first entry's leading space (` M path`) and shift its path.
+  const raw = await gitUntrimmed(ctx, rootPath, ['status', '--porcelain', '-z', '-uall'])
   const tokens = raw.split('\0').filter((token) => token.length > 0)
   let trackedDirty = false
   const untrackedPaths = new Set<string>()
@@ -58,14 +64,20 @@ export async function readRootStatus(
     const xy = entry.slice(0, 2)
     const entryPath = entry.slice(3)
     if (xy === '??') {
-      untrackedPaths.add(entryPath)
+      if (!isSpotlightGeneratedFile(entryPath)) {
+        untrackedPaths.add(entryPath)
+      }
       continue
     }
-    trackedDirty = true
     // Rename/copy records carry the "from" path as the next NUL token.
-    if (xy[0] === 'R' || xy[0] === 'C') {
+    const fromPath = xy[0] === 'R' || xy[0] === 'C' ? (tokens[index + 1] ?? '') : null
+    if (fromPath !== null) {
       index += 1
     }
+    const generatedOnly =
+      isSpotlightGeneratedFile(entryPath) &&
+      (fromPath === null || isSpotlightGeneratedFile(fromPath))
+    trackedDirty ||= !generatedOnly
   }
   return { trackedDirty, untrackedPaths }
 }
@@ -329,9 +341,6 @@ async function resolveGitCommonDir(
   }
   // Drop the unknown-flag line old git echoes, then resolve the path (which may
   // be relative to cwdPath) to an absolute form for comparison.
-  const pathLine = raw
-    .split('\n')
-    .filter((line) => line.length > 0 && !line.startsWith('-'))
-    .at(-1)
+  const pathLine = raw.split('\n').findLast((line) => line.length > 0 && !line.startsWith('-'))
   return pathLine ? resolveRuntimePath(cwdPath, pathLine) : null
 }

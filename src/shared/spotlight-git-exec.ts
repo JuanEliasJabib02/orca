@@ -51,9 +51,19 @@ export async function git(
   args: string[],
   opts?: { env?: Record<string, string> }
 ): Promise<string> {
+  return (await gitUntrimmed(ctx, cwd, args, opts)).trim()
+}
+
+/** Like `git`, but stdout exactly as printed: porcelain status starts with a significant space. */
+export async function gitUntrimmed(
+  ctx: SpotlightGitContext,
+  cwd: string,
+  args: string[],
+  opts?: { env?: Record<string, string> }
+): Promise<string> {
   try {
     const { stdout } = await ctx.git(args, cwd, opts)
-    return stdout.trim()
+    return stdout
   } catch (error) {
     throw new SpotlightCoreError('git-failed', `git ${args[0]} failed: ${stderrOf(error)}`)
   }
