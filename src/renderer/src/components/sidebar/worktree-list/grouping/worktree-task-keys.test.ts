@@ -182,8 +182,8 @@ describe('buildWorktreeTaskKeys', () => {
     })
 
     it('never forms a task named after the No task lane', () => {
-      const first = make('merchant-doc-agent', 'refs/heads/none')
-      const second = make('ai-bulk-hours', 'refs/heads/None')
+      const first = make('merchant-doc-agent', 'refs/heads/none', { displayName: 'none' })
+      const second = make('ai-bulk-hours', 'refs/heads/None', { displayName: 'None' })
       const keys = buildWorktreeTaskKeys([first, second])
 
       expect(keys.getTaskKey(first)).toBeNull()

@@ -9,7 +9,14 @@
  * layout, which the test DOM has none of, and the contract under test is ours.
  */
 import { cleanup, render } from '@testing-library/react'
-import { createRef } from 'react'
+import {
+  createRef,
+  useLayoutEffect,
+  useState,
+  type JSX,
+  type ReactNode,
+  type RefObject
+} from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
@@ -115,13 +122,26 @@ function renderLaneItems(
   return renderCardItems(toWorkspaceKanbanWorktreeLaneItems(items), options)
 }
 
+/** Mounts the list only once the scroll element exists, as the lane's frame-by-frame card mount does. */
+function ScrollHost({
+  scrollRef,
+  children
+}: {
+  scrollRef: RefObject<HTMLDivElement | null>
+  children: ReactNode
+}): JSX.Element {
+  const [ready, setReady] = useState(false)
+  useLayoutEffect(() => setReady(true), [])
+  return <div ref={scrollRef}>{ready ? children : null}</div>
+}
+
 function renderCardItems(
   items: readonly WorkspaceKanbanLaneItem[],
   options: { activeIdentity?: string; selectedIdentities?: readonly string[] } = {},
   scrollRef = createRef<HTMLDivElement>()
 ): HTMLElement {
   const { container } = render(
-    <div ref={scrollRef}>
+    <ScrollHost scrollRef={scrollRef}>
       <WorkspaceKanbanLaneCardList
         items={items}
         repoMap={REPO_MAP}
@@ -134,7 +154,7 @@ function renderCardItems(
         onSelectionGesture={() => false}
         onContextMenuSelect={() => []}
       />
-    </div>
+    </ScrollHost>
   )
   return container
 }
