@@ -5,6 +5,7 @@ import type {
   SpotlightServerState,
   SpotlightStateSnapshot
 } from '../../shared/spotlight'
+import type { SpotlightAutostartNote } from '../../shared/spotlight-autostart-note'
 import type { SpotlightVariantInference } from '../../shared/spotlight-server-variant'
 
 export type SpotlightApi = {
@@ -44,6 +45,8 @@ export type SpotlightApi = {
   /** Whether the server runs in `ptyId`, read like start and turn-off read it. `unknown` unless
    *  Spotlight is on for the repo and `ptyId` is its registered Spotlight terminal. */
   serverState: (args: { repoId: string; ptyId: string }) => Promise<SpotlightServerState>
+  /** One line in the repo's Spotlight log about an autostart decision; main words it. */
+  noteServerAutostart: (args: { repoId: string; note: SpotlightAutostartNote }) => Promise<void>
   /** The variant (`apps/<V>/`) the holder worktree's branch changed: one is inferred, several or none
    *  are ambiguous. Ambiguous with no candidates unless `worktreeId` holds the repo's local Spotlight. */
   inferServerVariant: (args: {

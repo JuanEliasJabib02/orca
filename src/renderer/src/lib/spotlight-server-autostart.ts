@@ -21,6 +21,11 @@ import {
   type SpotlightActivationCommandPlan
 } from '@/lib/spotlight-server-command-plan'
 import { watchSpotlightStartupClaim } from '@/lib/spotlight-startup-claim-watch'
+import {
+  logFailedSpotlightStart,
+  logSpotlightActivationWithoutCommand,
+  logSpotlightAutostart
+} from '@/lib/spotlight-autostart-log'
 
 export { resolveSpotlightActivationCommand } from '@/lib/spotlight-server-command-plan'
 
@@ -40,12 +45,16 @@ const NO_SERVER: SpotlightServerAutostart = { kind: 'none' }
 const START_ATTEMPTS = 5
 export const SPOTLIGHT_START_RETRY_DELAY_MS = 400
 
-async function prepareLaunch(repoId: string, command: string): Promise<string | null> {
+/** The line to queue; `refused` when main declined (Spotlight no longer active, invalid command). */
+type PreparedLaunch = { line: string } | { line: null; refused: boolean }
+
+async function prepareLaunch(repoId: string, command: string): Promise<PreparedLaunch> {
   try {
-    return await window.api.spotlight.prepareServerLaunch({ repoId, command })
+    const line = await window.api.spotlight.prepareServerLaunch({ repoId, command })
+    return line === null ? { line, refused: true } : { line }
   } catch (error) {
     console.warn('[spotlight] Could not prepare the server launch:', error)
-    return null
+    return { line: null, refused: false }
   }
 }
 
@@ -63,8 +72,18 @@ function waitForRetry(): Promise<void> {
 }
 
 /** Main types it only into an idle shell (with any pending install first), or replaces Orca's own
- *  server when the command differs; a server started by hand is left alone. */
+ *  server when the command differs; a server started by hand is left alone. Every outcome lands in
+ *  the repo's Spotlight log: main notes the ones it decides, this the failures. */
 async function startServerInTerminal(
+  repoId: string,
+  command: string
+): Promise<SpotlightServerStartResult | null> {
+  const result = await requestStart(repoId, command)
+  logFailedSpotlightStart(repoId, result)
+  return result
+}
+
+async function requestStart(
   repoId: string,
   command: string
 ): Promise<SpotlightServerStartResult | null> {
@@ -109,10 +128,15 @@ function spawnInBackground(
       repoId,
       worktreeId,
       tabId,
-      onDropped: () => void cancelPreparedLaunch(repoId),
+      // Noted before the cancel: main quotes the line it still holds.
+      onDropped: (reason) => {
+        logSpotlightAutostart(repoId, { kind: 'queued-dropped', reason })
+        void cancelPreparedLaunch(repoId)
+      },
       // Cancel first, so the live start chains the install the queued line had taken.
       onUnclaimed: () =>
-        void cancelPreparedLaunch(repoId).then(() => startServerInTerminal(repoId, command))
+        void cancelPreparedLaunch(repoId).then(() => startServerInTerminal(repoId, command)),
+      onClaimed: () => logSpotlightAutostart(repoId, { kind: 'queued-started' })
     })
   } catch (error) {
     console.warn('[spotlight] Could not spawn the Spotlight terminal in the background:', error)
@@ -137,10 +161,11 @@ async function openAndStart(repoId: string, command: string): Promise<OpenAndSta
   })
   const plan = planSpotlightTerminal(useAppStore.getState(), repoId)
   // Why before opening: the async prepare must finish so the tab is created and queued in one tick.
-  const launch =
+  const prepared =
     plan.kind !== 'no-main-worktree' && plan.ptyId === null
       ? await prepareLaunch(repoId, command)
       : null
+  const launch = prepared?.line ?? null
   const opened = openSpotlightTerminalTab({
     repoId,
     reveal: false,
@@ -151,14 +176,18 @@ async function openAndStart(repoId: string, command: string): Promise<OpenAndSta
     await cancelPreparedLaunch(repoId)
   }
   if (!opened.ok) {
+    logSpotlightAutostart(repoId, { kind: 'no-main-worktree' })
     return done(opened)
   }
   if (opened.startupQueued) {
+    logSpotlightAutostart(repoId, { kind: 'queued' })
     spawnInBackground(repoId, command, opened.worktreeId, opened.tabId)
     return done(opened, { kind: 'queued', command })
   }
   if (opened.ptyId === null) {
     // Prepare was refused (Spotlight went off meanwhile); the tab spawns idle when visited.
+    const refused = prepared?.line === null && prepared.refused
+    logSpotlightAutostart(repoId, { kind: 'prepare-failed', refused })
     return done(opened)
   }
   // Live PTY (or one that bound while preparing): main can type only once it mirrors it.
@@ -209,15 +238,16 @@ export async function openSpotlightTerminalAndStartServer(args: {
   variant?: string
 }): Promise<SpotlightActivationTerminal> {
   const { repoId, worktreeId } = args
-  let plan: SpotlightActivationCommandPlan = { kind: 'none' }
+  let plan: SpotlightActivationCommandPlan | null = null
   try {
     plan = await planSpotlightActivationCommand(repoId, worktreeId, args.variant)
   } catch (error) {
     console.warn('[spotlight] Could not resolve the server command:', error)
   }
-  if (plan.kind !== 'command') {
+  if (plan === null || plan.kind !== 'command') {
     const opened = openSpotlightTerminalTab({ repoId, reveal: false })
-    if (plan.kind === 'ask-variant') {
+    logSpotlightActivationWithoutCommand(repoId, plan)
+    if (plan?.kind === 'ask-variant') {
       askForVariant(repoId, worktreeId, plan.candidates)
     }
     return { opened, server: NO_SERVER }

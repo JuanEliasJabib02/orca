@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   startSpotlightServer: vi.fn(async (_args: unknown) => ({ ok: true, started: true })),
   getSpotlightTerminal: vi.fn<(repoId: string) => { ptyId: string } | null>(),
   readSpotlightServerState: vi.fn(async (_ptyId: string) => 'running'),
+  noteSpotlightAutostart: vi.fn<(repoId: string, rootPath: string, note: unknown) => void>(),
   detectSpotlightServerScripts: vi.fn(async (_root: string) => ({
     detected: {},
     scriptCommands: [],
@@ -50,6 +51,10 @@ vi.mock('../spotlight/spotlight-server-control', () => ({
 
 vi.mock('../spotlight/spotlight-terminal-inspection', () => ({
   readSpotlightServerState: mocks.readSpotlightServerState
+}))
+
+vi.mock('../spotlight/spotlight-server-start-notes', () => ({
+  noteSpotlightAutostart: mocks.noteSpotlightAutostart
 }))
 
 vi.mock('../spotlight/spotlight-server-turn-off', () => ({
@@ -275,5 +280,30 @@ describe('spotlight:inferServerVariant', () => {
       await invoke('spotlight:inferServerVariant', { repoId: LOCAL_REPO.id, worktreeId: HOLDER })
     ).toEqual(none)
     expect(mocks.detectSpotlightServerScripts).not.toHaveBeenCalled()
+  })
+})
+
+describe('spotlight:noteServerAutostart', () => {
+  it("writes a parsed note to a local repo's root, Spotlight off included", async () => {
+    mocks.getState.mockReturnValue(null)
+
+    await invoke('spotlight:noteServerAutostart', {
+      repoId: LOCAL_REPO.id,
+      note: { kind: 'queued-dropped', reason: 'spotlight-off', line: 'ignored' }
+    })
+
+    expect(mocks.noteSpotlightAutostart).toHaveBeenCalledWith(LOCAL_REPO.id, LOCAL_REPO.path, {
+      kind: 'queued-dropped',
+      reason: 'spotlight-off'
+    })
+  })
+
+  it('ignores SSH and unknown repos, and notes it cannot parse', async () => {
+    const note = { kind: 'queued' }
+    await invoke('spotlight:noteServerAutostart', { repoId: SSH_REPO.id, note })
+    await invoke('spotlight:noteServerAutostart', { repoId: 'missing', note })
+    await invoke('spotlight:noteServerAutostart', { repoId: LOCAL_REPO.id, note: { kind: 'x' } })
+
+    expect(mocks.noteSpotlightAutostart).not.toHaveBeenCalled()
   })
 })

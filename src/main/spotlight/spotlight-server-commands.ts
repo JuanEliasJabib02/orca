@@ -9,6 +9,8 @@ export type PreparedSpotlightLaunch = { command: string; installTaken: boolean }
 
 type PreparedLaunchRecord = PreparedSpotlightLaunch & {
   preparedAt: number
+  /** The exact text queued (the command with any install first), once it is known. */
+  line?: string
   /** When a PTY registered as the Spotlight terminal, i.e. the queued line got a shell to run in. */
   registeredAt?: number
   /** When the current unbroken run of busy readings of that terminal began. */
@@ -67,6 +69,24 @@ export function rememberPreparedSpotlightLaunch(
   prepared: PreparedSpotlightLaunch
 ): void {
   preparedByRepoId.set(repoId, { ...prepared, preparedAt: Date.now() })
+}
+
+/** The text queued for `command`, for the log notes about it; ignored once another launch replaced it. */
+export function setPreparedSpotlightLaunchLine(
+  repoId: string,
+  command: string,
+  line: string
+): void {
+  const prepared = preparedByRepoId.get(repoId)
+  if (prepared?.command === command) {
+    prepared.line = line
+  }
+}
+
+/** The queued line the log notes quote: its exact text, else its command; undefined without one. */
+export function getPreparedSpotlightLaunchLine(repoId: string): string | undefined {
+  const prepared = preparedByRepoId.get(repoId)
+  return prepared ? (prepared.line ?? prepared.command) : undefined
 }
 
 /** A PTY registered as the repo's Spotlight terminal: a queued line now has a shell to run in.

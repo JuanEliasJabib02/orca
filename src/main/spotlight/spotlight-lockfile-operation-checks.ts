@@ -8,7 +8,7 @@ import type {
   SpotlightSyncOutcome
 } from '../../shared/spotlight-sync-core'
 import { markSpotlightInstallIfLockfileChanged } from './spotlight-lockfile-install'
-import { restartSpotlightServerForLockfileChange } from './spotlight-server-control'
+import { restartSpotlightServerForLockfileChange } from './spotlight-server-restart'
 
 type ResolvedRoot = { repo: { path: string }; ctx: SpotlightGitContext }
 

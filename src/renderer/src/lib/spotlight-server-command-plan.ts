@@ -2,7 +2,10 @@
 // task's variant filled in when the command holds `{variant}`.
 import { useAppStore } from '@/store'
 import { resolveSpotlightServerCommandTemplate } from '../../../shared/spotlight-server-command'
-import type { SpotlightServerScriptDetection } from '../../../shared/spotlight-server-types'
+import type {
+  SpotlightServerEnv,
+  SpotlightServerScriptDetection
+} from '../../../shared/spotlight-server-types'
 import {
   fillSpotlightVariant,
   isSafeSpotlightVariant,
@@ -20,11 +23,12 @@ export const MAX_SPOTLIGHT_VARIANT_PROMPT_CHOICES = 6
 
 export type SpotlightActivationCommandPlan =
   | { kind: 'command'; command: string }
-  | { kind: 'none' }
+  /** Nothing starts: no command for `env`, or (`env` null) one needs a variant none can fill. */
+  | { kind: 'none'; env: SpotlightServerEnv | null }
   /** The command needs a variant nobody chose and the branch doesn't tell: ask among these. */
   | { kind: 'ask-variant'; candidates: string[] }
 
-const NO_COMMAND: SpotlightActivationCommandPlan = { kind: 'none' }
+const NO_VARIANT: SpotlightActivationCommandPlan = { kind: 'none', env: null }
 
 // Why every repo: a branch-name task is only a task when it spans 2+ repos, like in the sidebar.
 export function listAllWorktrees(): Worktree[] {
@@ -104,13 +108,13 @@ export async function planSpotlightActivationCommand(
   chosenVariant?: string
 ): Promise<SpotlightActivationCommandPlan> {
   const state = useAppStore.getState()
-  const repo = state.repos.find((entry) => entry.id === repoId)
-  if (!repo) {
-    return NO_COMMAND
-  }
   const worktree = state.worktreesByRepo[repoId]?.find((entry) => entry.id === worktreeId)
   const envKey = worktree ? getSpotlightEnvKey(worktree, listAllWorktrees()) : null
   const env = getSpotlightEnvForTask(state.spotlightEnvByTaskKey, envKey)
+  const repo = state.repos.find((entry) => entry.id === repoId)
+  if (!repo) {
+    return { kind: 'none', env }
+  }
   const detection = await detectServerScripts(repoId)
   const template = resolveSpotlightServerCommandTemplate({
     config: repo.spotlightServer,
@@ -118,7 +122,7 @@ export async function planSpotlightActivationCommand(
     env
   })
   if (template === null) {
-    return NO_COMMAND
+    return { kind: 'none', env }
   }
   if (!spotlightCommandNeedsVariant(template)) {
     return { kind: 'command', command: template }
@@ -128,10 +132,10 @@ export async function planSpotlightActivationCommand(
     : await pickVariant({ repoId, worktreeId, envKey, variants: detection?.variants ?? [] })
   if ('candidates' in picked) {
     // Nothing to offer means nothing can start; never type a literal `{variant}`.
-    return picked.candidates.length > 0 ? { kind: 'ask-variant', ...picked } : NO_COMMAND
+    return picked.candidates.length > 0 ? { kind: 'ask-variant', ...picked } : NO_VARIANT
   }
   const command = fillSpotlightVariant(template, picked.variant)
-  return command === null ? NO_COMMAND : { kind: 'command', command }
+  return command === null ? NO_VARIANT : { kind: 'command', command }
 }
 
 /** The command only; null when nothing would start without asking first. */

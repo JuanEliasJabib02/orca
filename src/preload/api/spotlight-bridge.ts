@@ -24,6 +24,8 @@ export const spotlightApi = {
 
   serverState: (args) => ipcRenderer.invoke('spotlight:serverState', args),
 
+  noteServerAutostart: (args) => ipcRenderer.invoke('spotlight:noteServerAutostart', args),
+
   inferServerVariant: (args) => ipcRenderer.invoke('spotlight:inferServerVariant', args),
 
   onChanged: (callback: (event: SpotlightChangedEvent) => void): (() => void) => {

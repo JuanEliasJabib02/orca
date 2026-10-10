@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import type { BrowserWindow } from 'electron'
 import type { SpotlightServerStartResult, SpotlightServerState } from '../../shared/spotlight'
+import { parseSpotlightAutostartNote } from '../../shared/spotlight-autostart-note'
 import type { Store } from '../persistence'
 import { SpotlightService } from '../spotlight/spotlight-service'
 import {
@@ -14,6 +15,7 @@ import {
   startSpotlightServer,
   trackRegisteredSpotlightLaunch
 } from '../spotlight/spotlight-server-control'
+import { noteSpotlightAutostart } from '../spotlight/spotlight-server-start-notes'
 import { watchLateSpotlightTerminal } from '../spotlight/spotlight-server-turn-off'
 import { configureSpotlightTerminalShell } from '../spotlight/spotlight-terminal-shell'
 import { readSpotlightServerState } from '../spotlight/spotlight-terminal-inspection'
@@ -101,6 +103,7 @@ export function registerSpotlightHandlers(
   ipcMain.removeHandler('spotlight:prepareServerLaunch')
   ipcMain.removeHandler('spotlight:cancelPreparedServerLaunch')
   ipcMain.removeHandler('spotlight:serverState')
+  ipcMain.removeHandler('spotlight:noteServerAutostart')
 
   // Only while Spotlight is actually active for a local repo — the
   // spotlightRepoRoot tab flag persists across sessions, so without this a
@@ -173,6 +176,17 @@ export function registerSpotlightHandlers(
       isActiveLocalSpotlight(args.repoId) && getSpotlightTerminal(args.repoId)?.ptyId === args.ptyId
         ? readSpotlightServerState(args.ptyId)
         : 'unknown'
+  )
+  // Main words the line and picks the file (the local root's log), so the renderer sends only a kind.
+  ipcMain.handle(
+    'spotlight:noteServerAutostart',
+    (_event, args: { repoId: string; note: unknown }) => {
+      const repo = store.getRepo(args.repoId)
+      const note = parseSpotlightAutostartNote(args.note)
+      if (repo && !repo.connectionId?.trim() && note) {
+        noteSpotlightAutostart(args.repoId, repo.path, note)
+      }
+    }
   )
   // Reads only the holder's own checkout, so the renderer can't point it at another worktree.
   registerSpotlightVariantHandler(

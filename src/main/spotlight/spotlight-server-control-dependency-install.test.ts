@@ -40,10 +40,10 @@ import { forgetSpotlightServerCommand } from './spotlight-server-commands'
 import {
   cancelPreparedSpotlightServerLaunch,
   prepareSpotlightServerLaunch,
-  restartSpotlightServer,
   startSpotlightServer,
   trackRegisteredSpotlightLaunch
 } from './spotlight-server-control'
+import { restartSpotlightServer } from './spotlight-server-restart'
 import { forgetSpotlightTerminalShell } from './spotlight-terminal-shell'
 import { inspectFakeSpotlightPty } from './spotlight-terminal-test-pty'
 

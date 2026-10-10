@@ -47,10 +47,12 @@ import {
   cancelPreparedSpotlightServerLaunch,
   normalizeSpotlightServerCommand,
   prepareSpotlightServerLaunch,
-  restartSpotlightServer,
-  restartSpotlightServerForLockfileChange,
   startSpotlightServer
 } from './spotlight-server-control'
+import {
+  restartSpotlightServer,
+  restartSpotlightServerForLockfileChange
+} from './spotlight-server-restart'
 import { stopSpotlightServer } from './spotlight-server-turn-off'
 import { forgetSpotlightTerminalShell } from './spotlight-terminal-shell'
 

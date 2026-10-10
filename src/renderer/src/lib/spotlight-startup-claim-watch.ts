@@ -1,5 +1,6 @@
 import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
+import type { SpotlightQueuedLineDrop } from '../../../shared/spotlight-autostart-note'
 import { interruptStraySpotlightStartup } from '@/lib/spotlight-stray-startup-interrupt'
 
 // A background mount spawns within frames; past this the queued command is dropped, never run late.
@@ -26,7 +27,8 @@ function findTabPtyId(
  * So when the tab's PTY binds and the command is still queued a tick later, a pane mounted before
  * the queue spawned that PTY and will never run it: drop the entry (a later remount must not run
  * it either) and call `onUnclaimed` to start the server in the live shell instead, or `onDropped`
- * when Spotlight is off by then. The tab closing or the timeout drop the entry too.
+ * when Spotlight is off by then. The tab closing or the timeout drop the entry too. A pane that
+ * spends it while Spotlight is on calls `onClaimed`: the new PTY was spawned with the line.
  * Spotlight turning off before the bind keeps the entry: only a pane spending it proves the line
  * reached a shell, which is then interrupted (main never mirrors a PTY bound with Spotlight off).
  * Spotlight coming back on before the bind drops it: a newer activation queues its own command.
@@ -35,10 +37,11 @@ export function watchSpotlightStartupClaim(args: {
   repoId: string
   worktreeId: string
   tabId: string
-  onDropped: () => void
+  onDropped: (reason: SpotlightQueuedLineDrop) => void
   onUnclaimed: () => void
+  onClaimed?: () => void
 }): void {
-  const { repoId, worktreeId, tabId, onDropped, onUnclaimed } = args
+  const { repoId, worktreeId, tabId, onDropped, onUnclaimed, onClaimed } = args
   const queued = useAppStore.getState().pendingStartupByTabId[tabId]
   if (!queued) {
     return
@@ -47,7 +50,7 @@ export function watchSpotlightStartupClaim(args: {
   let spotlightWentOff = false
   let unsubscribe: () => void = () => {}
   let timer: ReturnType<typeof setTimeout> | null = null
-  const stop = (dropQueued: boolean): void => {
+  const stop = (drop: SpotlightQueuedLineDrop | null): void => {
     if (done) {
       return
     }
@@ -56,17 +59,22 @@ export function watchSpotlightStartupClaim(args: {
     if (timer !== null) {
       clearTimeout(timer)
     }
-    if (dropQueued) {
+    if (drop !== null) {
       useAppStore.getState().consumeTabStartupCommand(tabId, queued)
-      onDropped()
+      onDropped(drop)
     }
   }
-  timer = setTimeout(() => stop(true), SPOTLIGHT_STARTUP_CLAIM_TIMEOUT_MS)
+  timer = setTimeout(() => stop('timeout'), SPOTLIGHT_STARTUP_CLAIM_TIMEOUT_MS)
 
   /** The entry left the queue after `ptyId` bound. Spent by the pane (not replaced) while
    *  Spotlight was off, the line runs in a shell main never mirrored: the renderer interrupts it. */
   const settleSpent = (state: ClaimWatchState, ptyId: string, spotlightOnAtBind: boolean): void => {
-    if (state.pendingStartupByTabId[tabId] === undefined && !spotlightOnAtBind) {
+    if (state.pendingStartupByTabId[tabId] !== undefined) {
+      return
+    }
+    if (spotlightOnAtBind) {
+      onClaimed?.()
+    } else {
       interruptStraySpotlightStartup({ repoId, worktreeId, tabId, ptyId })
     }
   }
@@ -77,16 +85,16 @@ export function watchSpotlightStartupClaim(args: {
     const ptyId = findTabPtyId(state, worktreeId, tabId)
     if (state.pendingStartupByTabId[tabId] !== queued) {
       // Spent by the pane that bound the PTY, replaced by a newer command, or closed with its tab.
-      stop(false)
+      stop(null)
       if (ptyId === undefined) {
-        onDropped()
+        onDropped('tab-closed')
       } else if (ptyId !== null) {
         settleSpent(state, ptyId, Boolean(state.spotlightByRepo[repoId]))
       }
       return
     }
     if (ptyId === undefined) {
-      stop(true)
+      stop('tab-closed')
       return
     }
     if (ptyId === null) {
@@ -94,13 +102,13 @@ export function watchSpotlightStartupClaim(args: {
       spotlightWentOff ||= !spotlightOn
       if (spotlightOn && spotlightWentOff) {
         // Main forgot this line at turn-off, so there's nothing to cancel there.
-        stop(false)
+        stop(null)
         useAppStore.getState().consumeTabStartupCommand(tabId, queued)
       }
       return
     }
     const spotlightOnAtBind = Boolean(state.spotlightByRepo[repoId])
-    stop(false)
+    stop(null)
     // Why a tick: the owning pane spends the entry in the same synchronous call that binds the PTY.
     setTimeout(() => {
       const store = useAppStore.getState()
@@ -112,7 +120,7 @@ export function watchSpotlightStartupClaim(args: {
       if (store.spotlightByRepo[repoId]) {
         onUnclaimed()
       } else {
-        onDropped()
+        onDropped('spotlight-off')
       }
     }, 0)
   }

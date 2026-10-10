@@ -62,6 +62,58 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+describe('watchSpotlightStartupClaim reasons', () => {
+  const onClaimed = vi.fn()
+
+  beforeEach(() => {
+    onClaimed.mockClear()
+  })
+
+  function watchWithClaim(): void {
+    watchSpotlightStartupClaim({
+      repoId: REPO,
+      worktreeId: MAIN,
+      tabId: TAB,
+      onDropped,
+      onUnclaimed,
+      onClaimed
+    })
+  }
+
+  it('reports the claim when the pane spends the command while Spotlight is on', () => {
+    watchWithClaim()
+
+    const queued = pending()
+    bindTestTabPty(MAIN, TAB, 'pty-1')
+    spotlightTerminalTestStore.getState().consumeTabStartupCommand(TAB, queued)
+    vi.runAllTimers()
+
+    expect(onClaimed).toHaveBeenCalledTimes(1)
+    expect(onUnclaimed).not.toHaveBeenCalled()
+  })
+
+  it('names why each drop happened', async () => {
+    watchWithClaim()
+    vi.advanceTimersByTime(SPOTLIGHT_STARTUP_CLAIM_TIMEOUT_MS)
+    expect(onDropped).toHaveBeenLastCalledWith('timeout')
+
+    spotlightTerminalTestStore.getState().queueTabStartupCommand(TAB, { command: 'pnpm local' })
+    watchWithClaim()
+    removeTestTab(MAIN, TAB)
+    expect(onDropped).toHaveBeenLastCalledWith('tab-closed')
+
+    resetSpotlightTerminalTestStore({
+      tabsByWorktree: { [MAIN]: [makeTestTab({ id: TAB, worktreeId: MAIN })] },
+      pendingStartupByTabId: { [TAB]: { command: 'pnpm local' } }
+    })
+    watchWithClaim()
+    bindTestTabPty(MAIN, TAB, 'pty-1')
+    await vi.runAllTimersAsync()
+    expect(onDropped).toHaveBeenLastCalledWith('spotlight-off')
+    expect(onClaimed).not.toHaveBeenCalled()
+  })
+})
+
 describe('watchSpotlightStartupClaim', () => {
   it('does nothing when the pane spends the command as its PTY binds', () => {
     watch()

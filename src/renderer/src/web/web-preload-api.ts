@@ -100,6 +100,7 @@ function createWebPreloadApi(): Partial<PreloadApi> {
       prepareServerLaunch: async () => null,
       cancelPreparedServerLaunch: async () => {},
       serverState: async () => 'unknown',
+      noteServerAutostart: async () => {},
       inferServerVariant: async () => ({ kind: 'ambiguous', candidates: [] }),
       onChanged: () => () => {}
     },
