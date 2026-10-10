@@ -1,11 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
-import { useAppStore } from '@/store'
 import type { Repo } from '../../../../shared/repo-types'
-import {
-  listComposerCompanionCandidates,
-  mergeRememberedCompanionIds,
-  selectRememberedCompanionIds
-} from './composer-companion-repos'
+import { listComposerCompanionCandidates } from './composer-companion-repos'
 import { useComposerSpaceScope } from './use-composer-space-scope'
 
 export type ComposerCompanionRepos = {
@@ -17,8 +12,8 @@ export type ComposerCompanionRepos = {
 }
 
 /**
- * State for the composer's "Also create in" row. The selection lives in the store, remembered per
- * primary repo, so picking a primary prefills the companions it was last created with.
+ * State for the composer's "Also create in" row. Every new workspace starts with none picked, and
+ * switching the primary clears the picks: a remembered set had to be unpicked one chip at a time.
  */
 export function useComposerCompanionRepos(args: {
   primaryRepoId: string
@@ -28,9 +23,14 @@ export function useComposerCompanionRepos(args: {
 }): ComposerCompanionRepos {
   const { primaryRepoId, eligibleRepos, enabled } = args
   const scope = useComposerSpaceScope()
-  const repos = useAppStore((s) => s.repos)
-  const rememberedByRepoId = useAppStore((s) => s.composerCompanionRepoIdsByRepoId)
-  const setRememberedCompanionIds = useAppStore((s) => s.setComposerCompanionRepoIds)
+  const [picked, setPicked] = useState<{ primaryRepoId: string; ids: readonly string[] }>({
+    primaryRepoId,
+    ids: []
+  })
+  // Why reset rather than hide: switching back to a primary must not revive its old picks.
+  if (picked.primaryRepoId !== primaryRepoId) {
+    setPicked({ primaryRepoId, ids: [] })
+  }
   const [grantAgentAccess, setGrantAgentAccess] = useState(true)
 
   const candidates = useMemo(
@@ -44,31 +44,23 @@ export function useComposerCompanionRepos(args: {
         : [],
     [eligibleRepos, enabled, primaryRepoId, scope]
   )
-  const remembered = rememberedByRepoId?.[primaryRepoId]
-  const selectedIds = useMemo(
-    () => selectRememberedCompanionIds(remembered, candidates),
-    [candidates, remembered]
-  )
+  const pickedIds = picked.primaryRepoId === primaryRepoId ? picked.ids : null
+  const selectedIds = useMemo(() => {
+    const ids = new Set(pickedIds)
+    return candidates.filter((repo) => ids.has(repo.id)).map((repo) => repo.id)
+  }, [candidates, pickedIds])
 
   const toggle = useCallback(
     (repoId: string): void => {
-      const nextSelected = new Set(selectedIds)
-      if (nextSelected.has(repoId)) {
-        nextSelected.delete(repoId)
+      const next = new Set(selectedIds)
+      if (next.has(repoId)) {
+        next.delete(repoId)
       } else {
-        nextSelected.add(repoId)
+        next.add(repoId)
       }
-      setRememberedCompanionIds(
-        primaryRepoId,
-        mergeRememberedCompanionIds({
-          remembered,
-          candidateIds: new Set(candidates.map((repo) => repo.id)),
-          existingRepoIds: new Set((repos ?? []).map((repo) => repo.id)),
-          selectedIds: candidates.filter((repo) => nextSelected.has(repo.id)).map((repo) => repo.id)
-        })
-      )
+      setPicked({ primaryRepoId, ids: [...next] })
     },
-    [candidates, primaryRepoId, remembered, repos, selectedIds, setRememberedCompanionIds]
+    [primaryRepoId, selectedIds]
   )
 
   return { candidates, selectedIds, toggle, grantAgentAccess, setGrantAgentAccess }

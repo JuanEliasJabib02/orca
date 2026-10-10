@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Repo } from '../../../../shared/repo-types'
-import {
-  listComposerCompanionCandidates,
-  mergeRememberedCompanionIds,
-  selectRememberedCompanionIds
-} from './composer-companion-repos'
+import { listComposerCompanionCandidates } from './composer-companion-repos'
 
 function repo(id: string, overrides: Partial<Repo> = {}): Repo {
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: candidate filtering reads only id, kind and host fields.
@@ -57,29 +53,5 @@ describe('listComposerCompanionCandidates', () => {
     expect(listComposerCompanionCandidates({ repos, primaryRepo: undefined, scope: null })).toEqual(
       []
     )
-  })
-})
-
-describe('selectRememberedCompanionIds', () => {
-  it('prefills only remembered repos that are still offered, in row order', () => {
-    const candidates = [repo('backend'), repo('admin'), repo('reset')]
-    expect(selectRememberedCompanionIds(['reset', 'deleted', 'backend'], candidates)).toEqual([
-      'backend',
-      'reset'
-    ])
-    expect(selectRememberedCompanionIds(undefined, candidates)).toEqual([])
-  })
-})
-
-describe('mergeRememberedCompanionIds', () => {
-  it('keeps ids another space hides but drops ids whose repo is gone', () => {
-    expect(
-      mergeRememberedCompanionIds({
-        remembered: ['backend', 'blog', 'deleted'],
-        candidateIds: new Set(['backend', 'admin']),
-        existingRepoIds: new Set(['backend', 'admin', 'blog']),
-        selectedIds: ['admin']
-      })
-    ).toEqual(['admin', 'blog'])
   })
 })

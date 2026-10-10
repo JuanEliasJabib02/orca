@@ -243,6 +243,7 @@ export const UiUpdateFields = z
     setupGuideSidebarDismissed: z.boolean().optional(),
     activeSidebarSpaceGroupId: NullableString.optional(),
     groupByBySpaceId: z.record(z.string(), WorktreeGroupByParam).optional(),
+    // Why: retired (the composer no longer remembers companions); still accepted so an older peer's ui.set isn't rejected.
     composerCompanionRepoIdsByRepoId: z.record(z.string(), StringArray).optional(),
     spotlightEnvByTaskKey: z.record(z.string(), SpotlightServerEnvParam).optional(),
     spotlightVariantByTaskRepo: z.record(z.string(), SpotlightVariantParam).optional(),

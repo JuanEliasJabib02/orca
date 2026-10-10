@@ -156,9 +156,6 @@ export type UISliceSurfaces = {
   setActiveSidebarSpaceGroupId: (groupId: string | null) => void
   /** Group by each space last used, keyed by space id; `groupBy` stays the effective value. */
   groupByBySpaceId: Record<string, UISlicePreferences['groupBy']>
-  /** "Also create in" companions remembered per primary repo; ids may outlive their repos. */
-  composerCompanionRepoIdsByRepoId: Record<string, string[]>
-  setComposerCompanionRepoIds: (primaryRepoId: string, companionRepoIds: readonly string[]) => void
   /** Spotlight environment each task's servers run in, keyed by task key; absent = `local`. */
   spotlightEnvByTaskKey: Record<string, SpotlightServerEnv>
   /** Choosing `local` drops the entry so the map only holds deviations. */

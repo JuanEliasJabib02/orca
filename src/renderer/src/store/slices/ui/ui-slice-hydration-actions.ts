@@ -63,7 +63,6 @@ import {
 } from './ui-slice-hydration-sanitizers'
 import { hydrateAgentReadState, sanitizeTaskResumeState } from './ui-slice-hydration-values'
 import { hydrateStatusBarItems } from './ui-slice-hydration-status-bar-items'
-import { sanitizeComposerCompanionRepoIds } from './ui-slice-composer-companion-actions'
 import { sanitizeGroupByBySpaceId } from './ui-slice-sidebar-space-group-by-actions'
 import { sanitizeSpotlightEnvByTaskKey } from './ui-slice-spotlight-env-actions'
 import { sanitizeSpotlightVariantByTaskRepo } from './ui-slice-spotlight-variant-actions'
@@ -238,9 +237,6 @@ export function createUiHydrationActions(set: UISliceSet, _get: UISliceGet): Par
           activeSidebarSpaceGroupId:
             typeof ui.activeSidebarSpaceGroupId === 'string' ? ui.activeSidebarSpaceGroupId : null,
           groupByBySpaceId: sanitizeGroupByBySpaceId(ui.groupByBySpaceId),
-          composerCompanionRepoIdsByRepoId: sanitizeComposerCompanionRepoIds(
-            ui.composerCompanionRepoIdsByRepoId
-          ),
           spotlightEnvByTaskKey: sanitizeSpotlightEnvByTaskKey(ui.spotlightEnvByTaskKey),
           spotlightVariantByTaskRepo: sanitizeSpotlightVariantByTaskRepo(
             ui.spotlightVariantByTaskRepo

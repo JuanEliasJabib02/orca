@@ -83,8 +83,6 @@ export type PersistedUIState = {
   activeSidebarSpaceGroupId?: string | null
   /** Group by each space last used, keyed by space (top-level project group) id; `groupBy` stays the effective value. */
   groupByBySpaceId?: Record<string, PersistedUIState['groupBy']>
-  /** "Also create in" companions the new-workspace composer last used, keyed by primary repo id. */
-  composerCompanionRepoIdsByRepoId?: Record<string, string[]>
   /** Spotlight environment each task's servers run in, keyed by task key; absent entries mean `local`. */
   spotlightEnvByTaskKey?: Record<string, SpotlightServerEnv>
   /** Spotlight variant (e.g. landing's country) each task runs per repo, keyed `<envKey>::<repoId>`. */
