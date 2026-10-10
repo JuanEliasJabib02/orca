@@ -2,7 +2,8 @@ import { ipcRenderer } from 'electron'
 import type {
   ShellOpenExternalEditorRequest,
   ShellOpenExternalEditorResult,
-  ShellOpenLocalPathResult
+  ShellOpenLocalPathResult,
+  ShellOpenUrlOptions
 } from '../../shared/shell-open-types'
 import type { PreloadApi } from '../api-types'
 
@@ -17,7 +18,8 @@ export const shellApi = {
   ): Promise<ShellOpenExternalEditorResult> =>
     ipcRenderer.invoke('shell:openInExternalEditor', request),
 
-  openUrl: (url: string): Promise<void> => ipcRenderer.invoke('shell:openUrl', url),
+  openUrl: (url: string, options?: ShellOpenUrlOptions): Promise<void> =>
+    ipcRenderer.invoke('shell:openUrl', url, options),
 
   openFilePath: (path: string): Promise<boolean> => ipcRenderer.invoke('shell:openFilePath', path),
 

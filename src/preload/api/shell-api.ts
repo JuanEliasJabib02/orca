@@ -1,13 +1,15 @@
 import type {
   ShellOpenExternalEditorRequest,
   ShellOpenExternalEditorResult,
-  ShellOpenLocalPathResult
+  ShellOpenLocalPathResult,
+  ShellOpenUrlOptions
 } from '../../shared/shell-open-types'
 
 export type {
   ShellOpenExternalEditorRequest,
   ShellOpenExternalEditorResult,
-  ShellOpenLocalPathResult
+  ShellOpenLocalPathResult,
+  ShellOpenUrlOptions
 } from '../../shared/shell-open-types'
 
 export type ShellApi = {
@@ -16,7 +18,7 @@ export type ShellApi = {
   openInExternalEditor: (
     request: ShellOpenExternalEditorRequest
   ) => Promise<ShellOpenExternalEditorResult>
-  openUrl: (url: string) => Promise<void>
+  openUrl: (url: string, options?: ShellOpenUrlOptions) => Promise<void>
   openFilePath: (path: string) => Promise<boolean>
   openFileUri: (uri: string) => Promise<void>
   pathsExist?: (paths: string[]) => Promise<boolean[]>

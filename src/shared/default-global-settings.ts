@@ -129,6 +129,8 @@ export function buildDefaultSettings(args: {
     localhostWorktreeLabelsEnabled: false,
     openLinksInAppPreferencePrompted: false,
     openLinksInAppModifierInverts: false,
+    openLinksInArcSpaces: false,
+    arcSpaceNameBySidebarSpaceId: {},
     terminalLinkActionPopoverEnabled: true,
     terminalLinkClickBehavior: 'actions',
     terminalUrlMiddleClickBehavior: 'open',

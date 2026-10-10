@@ -217,6 +217,10 @@ export type GlobalSettings = NativeChatGlobalSettings & {
   openLinksInAppPreferencePrompted: boolean
   /** Opt-in: Shift+modifier click inverts openLinksInApp instead of always forcing the system browser. Off keeps the historical one-way escape hatch. */
   openLinksInAppModifierInverts?: boolean
+  /** Opt-in (macOS + Arc): system-browser links open in the Arc space mapped to their workspace's sidebar space. */
+  openLinksInArcSpaces?: boolean
+  /** Arc space name per sidebar space (top-level project group id); a missing or empty name opens normally. */
+  arcSpaceNameBySidebarSpaceId?: Record<string, string>
   /** Show link actions on plain click in the terminal and chat; off restores modifier-click-only terminal links. */
   terminalLinkActionPopoverEnabled?: boolean
   /** Plain-click behavior for terminal links; optional for profiles saved before this setting existed. */

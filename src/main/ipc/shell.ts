@@ -17,6 +17,7 @@ import {
   resolveVsCodeRemoteSshLaunchSpec
 } from '../external-editor-launch'
 import { resolveVsCodeSshAuthority } from '../ssh/vscode-ssh-authority'
+import { openUrlInArcSpace, resolveRequestedArcSpace } from '../arc-space-url-open'
 
 export { EXTERNAL_EDITOR_CLI_COMMAND }
 
@@ -154,7 +155,7 @@ export function registerShellHandlers(store: Store): void {
       openInExternalEditor(store, request)
   )
 
-  ipcMain.handle('shell:openUrl', (_event, rawUrl: string) => {
+  ipcMain.handle('shell:openUrl', async (_event, rawUrl: string, options?: unknown) => {
     let parsed: URL
     try {
       parsed = new URL(rawUrl)
@@ -166,7 +167,13 @@ export function registerShellHandlers(store: Store): void {
       return
     }
 
-    return shell.openExternal(parsed.toString())
+    const url = parsed.toString()
+    const arcSpace = resolveRequestedArcSpace(store.getSettings(), options)
+    // Why the fallback: a missing Arc, unknown space or denied Automation prompt still opens the link.
+    if (arcSpace && (await openUrlInArcSpace(url, arcSpace))) {
+      return
+    }
+    return shell.openExternal(url)
   })
 
   ipcMain.handle('shell:openFilePath', async (_event, filePath: string): Promise<boolean> => {
