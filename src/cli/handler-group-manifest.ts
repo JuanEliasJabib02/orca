@@ -65,6 +65,11 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
     load: async () => (await import('./handlers/project.js')).PROJECT_HANDLERS
   },
   {
+    name: 'spotlight',
+    keys: ['spotlight on', 'spotlight off', 'spotlight status'],
+    load: async () => (await import('./handlers/spotlight.js')).SPOTLIGHT_HANDLERS
+  },
+  {
     name: 'repo',
     keys: [
       'repo list',
