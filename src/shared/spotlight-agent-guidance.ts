@@ -6,7 +6,7 @@ import type { TuiAgent } from './tui-agent'
  *  command without shell surprises — cmd.exe's quoter carets `(`/`)`, which would
  *  leak stray `^` into the prompt text on Windows cmd. */
 export const SPOTLIGHT_AGENT_GUIDANCE =
-  'Orca Spotlight is active for this project: a dev server runs at the repository ROOT, not this workspace, and its live output is mirrored to the file .orca/spotlight.log at that root. The absolute log path is in the ORCA_SPOTLIGHT_LOG env var, and the root path in ORCA_SPOTLIGHT_ROOT. To read the server or build logs from any workspace, read that file. Check .orca/spotlight-state.json at the root for which workspace currently holds the Spotlight before assuming a log error belongs to this workspace.'
+  'Orca Spotlight is active for this project: a dev server runs at the repository ROOT, not this workspace, and its live output is mirrored to the file .orca/spotlight.log at that root. The absolute log path is in the ORCA_SPOTLIGHT_LOG env var, and the root path in ORCA_SPOTLIGHT_ROOT. To read the server or build logs from any workspace, read that file. To test your work in the running app, run orca spotlight on from this workspace terminal: it puts your task on every project root, waits in line while another task is testing, starts the servers and prints their URLs and log paths. Run orca spotlight off when you finish testing so the next task can test. Run orca spotlight status to see which task each root runs before assuming a log error belongs to this workspace.'
 
 /** Only the plain `claude` CLI takes --append-system-prompt; other agents get
  *  the guidance via the follow-up, agent-agnostic mechanism (see PR). */
