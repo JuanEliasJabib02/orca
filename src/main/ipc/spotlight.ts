@@ -15,6 +15,7 @@ import {
   startSpotlightServer,
   trackRegisteredSpotlightLaunch
 } from '../spotlight/spotlight-server-control'
+import { installSpotlightAgentTurns } from '../spotlight/spotlight-agent-turns-wiring'
 import { noteSpotlightAutostart } from '../spotlight/spotlight-server-start-notes'
 import { watchLateSpotlightTerminal } from '../spotlight/spotlight-server-turn-off'
 import { configureSpotlightTerminalShell } from '../spotlight/spotlight-terminal-shell'
@@ -90,6 +91,11 @@ export function registerSpotlightHandlers(
     )
   }
   const spotlight = service
+  installSpotlightAgentTurns({
+    store,
+    service: spotlight,
+    getWindow: () => (currentWindow && !currentWindow.isDestroyed() ? currentWindow : null)
+  })
   configureSpotlightTerminalShell(() => store.getSettings())
   configureSpotlightTerminalOutputSource(runtime ?? null)
 

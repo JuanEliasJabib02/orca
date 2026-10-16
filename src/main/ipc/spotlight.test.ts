@@ -65,6 +65,10 @@ vi.mock('../spotlight/spotlight-server-script-detection', () => ({
   detectSpotlightServerScripts: mocks.detectSpotlightServerScripts
 }))
 
+vi.mock('../spotlight/spotlight-agent-turns-wiring', () => ({
+  installSpotlightAgentTurns: vi.fn()
+}))
+
 import { registerSpotlightHandlers } from './spotlight'
 
 const LOCAL_REPO = { id: 'repo-local', path: '/repo-local' }

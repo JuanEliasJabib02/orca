@@ -493,6 +493,7 @@ import {
   DictationStart,
   SpeechModelAction
 } from './speech-params'
+import { SpotlightOffParams, SpotlightOnParams } from './spotlight-params'
 import { SshTarget } from './ssh-params'
 import { ContinueInterruptedParams } from './structured-agent-session-continue-params'
 import {
@@ -1207,6 +1208,9 @@ export const RPC_PARAMS_BY_METHOD = {
   'speech.models.delete': SpeechModelAction,
   'speech.models.download': SpeechModelAction,
   'speech.models.list': null,
+  'spotlight.off': SpotlightOffParams,
+  'spotlight.on': SpotlightOnParams,
+  'spotlight.status': null,
   'ssh.connect': SshTarget,
   'ssh.getState': SshTarget,
   'ssh.listRemovedTargetLabels': null,
