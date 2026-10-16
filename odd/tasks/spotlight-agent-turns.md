@@ -39,12 +39,12 @@ When two tasks want the same project, they wait in line.
 
 ## Tasks
 
-- [ ] **1. Main: the turn queue**
+- [x] **1. Main: the turn queue** — `2d25f39996`
   - `src/main/spotlight/spotlight-agent-turn-queue.ts`: `request`, `release`, `snapshot`,
     `findPane`; grants in FIFO order per project, all or nothing, same-task join.
   - Check: `spotlight-agent-turn-queue.test.ts` (no overlap → both granted; overlap → waits and is
     granted on release; no overtaking; same-task join; release of a waiter; position/blockers).
-- [ ] **2. Renderer: resolve and light a task for main**
+- [x] **2. Renderer: resolve and light a task for main** — `3d31e4844a`
   - Shared types `src/shared/spotlight-agent-turn.ts`.
   - Preload `spotlight.onAgentTaskRequest` / `replyAgentTaskRequest` (+ web stub); registered by
     `SpotlightAgentTaskGate` in `AppBackgroundServices`.
@@ -53,7 +53,7 @@ When two tasks want the same project, they wait in line.
     switch-away, only when not already lit; per-project results; one toast).
   - Main requester `src/main/spotlight/spotlight-agent-task-request.ts` (requestId, timeout).
   - Check: tests for member resolution.
-- [ ] **3. Main: turns service + RPC**
+- [x] **3. Main: turns service + RPC** — `f66025d90c`
   - `src/main/spotlight/spotlight-agent-turns.ts`: `on` (resolve → queue → light on grant →
     readiness), `off`, `status`; grants light right away even when no call is waiting;
     auto-release on `done` and pane teardown. Configured from `registerSpotlightHandlers`.
@@ -61,10 +61,10 @@ When two tasks want the same project, they wait in line.
     registered in `methods/index.ts`; regenerate the params catalog.
   - Check: service tests with fakes (grant on release lights the next task, done/teardown release,
     readiness by configured port and by root-owned port).
-- [ ] **4. CLI `orca spotlight on|off|status`**
+- [x] **4. CLI `orca spotlight on|off|status`** — `470aa8c471`
   - Spec, handler, manifest, root help, formatter; `on` exits 1 while still waiting.
   - Check: handler tests (params from env, client timeout, exit code, text output).
-- [ ] **5. Tell agents**
+- [x] **5. Tell agents** — `5ed7cfa7d4` (the CLAUDE.md part still waits for the rebuild)
   - `SPOTLIGHT_AGENT_GUIDANCE` mentions the commands (it also drops the pointer to
     `.orca/spotlight-state.json`, which goes stale, for `orca spotlight status`).
   - Dropped: a section in the bundled orca-cli skill (it's a generated bundle shared with upstream;
@@ -74,14 +74,14 @@ When two tasks want the same project, they wait in line.
 
 ## Status
 
-2026-10-15, paused by Juan ("para mañana seguimos"). All five written, still uncommitted.
-- Done: RPC params catalog regenerated; oxfmt + oxlint clean on changed files (fixed two useless
-  spreads, and moved the renderer listener to `SpotlightAgentTaskGate` in `AppBackgroundServices` so
-  the close-routing test harness stays under 300 lines); 8 test files / 122 tests pass (the 4 new
-  ones + ipc/spotlight, handler manifest, CLI index, caller scope).
-- Pending: full typecheck (was running at pause), then one commit per task. Tools run directly in
-  the worktree (pnpm 12 refuses `pnpm run` here): `node config/scripts/run-typecheck-projects-in-parallel.mjs`,
-  vitest via `node node_modules/vitest/vitest.mjs run --config config/vitest.config.ts`.
+Verified 2026-10-15: RPC params catalog regenerated; oxfmt + oxlint clean on changed files; 8 test
+files / 122 tests pass (the 4 new ones + ipc/spotlight, handler manifest, CLI index, caller scope);
+full typecheck passes. Tools run directly in the worktree (pnpm 12 refuses `pnpm run` here):
+`node config/scripts/run-typecheck-projects-in-parallel.mjs`, vitest via
+`node node_modules/vitest/vitest.mjs run --config config/vitest.config.ts`.
+
+Next (Juan's call): merge into `orca-pro-max`, rebuild, try it with two agents, then update the
+`~/.claude/CLAUDE.md` Spotlight/Playwright rules. Nothing pushed.
 
 ## Follow-ups (not in v1)
 
