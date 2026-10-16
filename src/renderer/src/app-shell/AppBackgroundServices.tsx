@@ -4,6 +4,7 @@ import { AgentHibernationGate } from '../components/AgentHibernationGate'
 import { AiVaultTabTitleSyncGate } from '../components/AiVaultTabTitleSyncGate'
 import RetainedAgentsSyncGate from '../components/dashboard/RetainedAgentsSyncGate'
 import SpotlightAutoSyncGate from '../components/sidebar/SpotlightAutoSyncGate'
+import SpotlightAgentTaskGate from '../components/sidebar/SpotlightAgentTaskGate'
 import { WorkspacePortScanner } from '../components/ports/WorkspacePortScanner'
 import { SavedHostScopeWidenGate } from '../components/sidebar/SavedHostScopeWidenGate'
 import { MacosTccPromptNoticeHost } from '../hooks/MacosTccPromptNoticeHost'
@@ -31,6 +32,7 @@ export function AppBackgroundServices(): React.JSX.Element {
       {/* Why: leaf-mounted retention sync keeps agent-status subscriptions out of the App render tree. */}
       <RetainedAgentsSyncGate />
       <SpotlightAutoSyncGate />
+      <SpotlightAgentTaskGate />
       <AiVaultTabTitleSyncGate />
       <SavedHostScopeWidenGate />
       {dashboardPopoutEnabled ? (

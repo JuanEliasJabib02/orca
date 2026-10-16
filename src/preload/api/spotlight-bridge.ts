@@ -1,5 +1,9 @@
 import { ipcRenderer } from 'electron'
 import type { SpotlightChangedEvent } from '../../shared/spotlight'
+import type {
+  SpotlightAgentTaskReply,
+  SpotlightAgentTaskRequest
+} from '../../shared/spotlight-agent-turn'
 import type { PreloadApi } from '../api-types'
 
 export const spotlightApi = {
@@ -33,5 +37,15 @@ export const spotlightApi = {
       callback(data)
     ipcRenderer.on('spotlight:changed', listener)
     return () => ipcRenderer.removeListener('spotlight:changed', listener)
-  }
+  },
+
+  onAgentTaskRequest: (callback: (request: SpotlightAgentTaskRequest) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: SpotlightAgentTaskRequest) =>
+      callback(data)
+    ipcRenderer.on('spotlight:agentTaskRequest', listener)
+    return () => ipcRenderer.removeListener('spotlight:agentTaskRequest', listener)
+  },
+
+  replyAgentTaskRequest: (reply: SpotlightAgentTaskReply) =>
+    ipcRenderer.send('spotlight:agentTaskReply', reply)
 } satisfies PreloadApi['spotlight']

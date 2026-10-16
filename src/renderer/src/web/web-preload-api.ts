@@ -105,7 +105,9 @@ function createWebPreloadApi(): Partial<PreloadApi> {
       serverState: async () => 'unknown',
       noteServerAutostart: async () => {},
       inferServerVariant: async () => ({ kind: 'ambiguous', candidates: [] }),
-      onChanged: () => () => {}
+      onChanged: () => () => {},
+      onAgentTaskRequest: () => () => {},
+      replyAgentTaskRequest: () => {}
     },
     worktrees: createWorktreesApi(),
     fs: createFileApi(),

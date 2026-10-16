@@ -5,6 +5,10 @@ import type {
   SpotlightServerState,
   SpotlightStateSnapshot
 } from '../../shared/spotlight'
+import type {
+  SpotlightAgentTaskReply,
+  SpotlightAgentTaskRequest
+} from '../../shared/spotlight-agent-turn'
 import type { SpotlightAutostartNote } from '../../shared/spotlight-autostart-note'
 import type { SpotlightVariantInference } from '../../shared/spotlight-server-variant'
 
@@ -54,4 +58,7 @@ export type SpotlightApi = {
     worktreeId: string
   }) => Promise<SpotlightVariantInference>
   onChanged: (callback: (event: SpotlightChangedEvent) => void) => () => void
+  /** Main asks for work only the renderer can do for an agent's Spotlight turn (`orca spotlight on`). */
+  onAgentTaskRequest: (callback: (request: SpotlightAgentTaskRequest) => void) => () => void
+  replyAgentTaskRequest: (reply: SpotlightAgentTaskReply) => void
 }
