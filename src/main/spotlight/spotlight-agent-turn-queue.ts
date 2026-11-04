@@ -1,8 +1,18 @@
+import {
+  pumpLine,
+  snapshotTurn,
+  waitingPlace,
+  type LineEntry,
+  type MutableTurn
+} from './spotlight-agent-turn-queue-pump'
+
 /** One agent pane asking for the Spotlight of every project its task needs. */
 export type SpotlightTurnRequest = {
   paneKey: string
   taskKey: string
   repoIds: readonly string[]
+  /** The space of the pane's project: one task holds a turn per lane. No lane, no lane limit. */
+  laneKey?: string
 }
 
 /** A task holding the Spotlight of its projects; every pane of the task shares it. */
@@ -11,6 +21,8 @@ export type SpotlightTurn = {
   repoIds: string[]
   paneKeys: string[]
   grantedAt: number
+  /** The lane of the pane that started the turn. */
+  laneKey?: string
 }
 
 export type SpotlightTurnWaiter = {
@@ -18,14 +30,37 @@ export type SpotlightTurnWaiter = {
   taskKey: string
   repoIds: string[]
   since: number
+  laneKey?: string
 }
 
-/** Who stands between a waiter and its projects: a task holding them, or one queued earlier. */
-export type SpotlightTurnBlocker = { taskKey: string; repoIds: string[]; holding: boolean }
+/** Why a pane's agent stopped mid-turn: it ran out of usage limit, or failed otherwise. */
+export type SpotlightTurnPauseReason = 'limit' | 'error'
+
+export type SpotlightTurnPause = { reason: SpotlightTurnPauseReason; pausedAt: number }
+
+/** A pane whose agent stopped mid-turn: it keeps its place and claims nothing until it asks. */
+export type SpotlightTurnPausedWaiter = SpotlightTurnWaiter & SpotlightTurnPause
+
+/**
+ * Who stands between a waiter and its turn: a task holding or queued earlier for its projects (no
+ * reason), for its lane (`lane`), or for a slot while every slot is taken (`cap`).
+ */
+export type SpotlightTurnBlocker = {
+  taskKey: string
+  repoIds: string[]
+  holding: boolean
+  reason?: 'lane' | 'cap'
+}
 
 export type SpotlightTurnPosition =
   | { kind: 'holding'; turn: SpotlightTurn }
-  | { kind: 'waiting'; position: number; blockers: SpotlightTurnBlocker[] }
+  | {
+      kind: 'waiting'
+      position: number
+      blockers: SpotlightTurnBlocker[]
+      /** Set while the pane is paused: it keeps this place but claims nothing. */
+      paused?: SpotlightTurnPause
+    }
 
 export type SpotlightTurnRequestOutcome = {
   position: SpotlightTurnPosition
@@ -42,33 +77,47 @@ export type SpotlightTurnReleaseOutcome = {
   granted: SpotlightTurn[]
 }
 
+export type SpotlightTurnPauseOutcome = {
+  /** The task the pane was paused in; null when it had no place or was already paused. */
+  pausedTaskKey: string | null
+  /** The pane left a turn it held. */
+  wasHolding: boolean
+  /** Turns granted because the pause freed their projects, lane or slot. */
+  granted: SpotlightTurn[]
+}
+
 export type SpotlightTurnQueueSnapshot = {
   turns: SpotlightTurn[]
   waiting: SpotlightTurnWaiter[]
+  paused: SpotlightTurnPausedWaiter[]
 }
 
-type MutableTurn = {
-  taskKey: string
-  repoIds: Set<string>
-  paneKeys: Set<string>
-  grantedAt: number
-}
-
-function overlaps(a: Iterable<string>, b: ReadonlySet<string>): string[] {
-  return [...a].filter((repoId) => b.has(repoId))
+export type SpotlightTurnQueueOptions = {
+  now?: () => number
+  /** Most tasks holding a turn at once, read on every grant; none = no limit. */
+  cap?: () => number
 }
 
 /**
  * Who may light which projects' Spotlight. A task gets all its projects or waits for them (so two
  * tasks never hold half of each other's), first come first served per project: a later request
  * never overtakes an earlier one wanting the same project, but requests with no project in common
- * never wait for each other.
+ * never wait for each other. On top of that, one task per lane holds a turn and at most `cap` tasks
+ * hold one at all.
  */
 export class SpotlightTurnQueue {
   private readonly turns = new Map<string, MutableTurn>()
-  private waiting: SpotlightTurnWaiter[] = []
+  /** The line in order; paused panes keep their place in it. */
+  private waiting: LineEntry[] = []
+  private readonly now: () => number
+  private readonly cap: () => number
 
-  constructor(private readonly now: () => number = Date.now) {}
+  constructor(options: (() => number) | SpotlightTurnQueueOptions = {}) {
+    const resolved: SpotlightTurnQueueOptions =
+      typeof options === 'function' ? { now: options } : options
+    this.now = resolved.now ?? Date.now
+    this.cap = resolved.cap ?? (() => Infinity)
+  }
 
   request(request: SpotlightTurnRequest): SpotlightTurnRequestOutcome {
     const repoIds = [...new Set(request.repoIds)]
@@ -80,15 +129,19 @@ export class SpotlightTurnQueue {
     }
     const queued = this.waiting.find((waiter) => waiter.paneKey === request.paneKey)
     if (queued) {
-      // Why in place: asking again keeps the place in line.
+      // Why in place: asking again keeps the place in line, and ends a pause.
       queued.taskKey = request.taskKey
       queued.repoIds = repoIds
+      queued.laneKey = request.laneKey
+      queued.pause = null
     } else {
       this.waiting.push({
         paneKey: request.paneKey,
         taskKey: request.taskKey,
         repoIds,
-        since: this.now()
+        laneKey: request.laneKey,
+        since: this.now(),
+        pause: null
       })
     }
     const granted = this.pump()
@@ -100,7 +153,7 @@ export class SpotlightTurnQueue {
     return { position, skippedRepoIds: [], granted }
   }
 
-  /** Gives the pane's turn back, or its place in line. */
+  /** Gives the pane's turn back, or its place in line (paused or not). */
   release(paneKey: string): SpotlightTurnReleaseOutcome {
     const before = this.waiting.length
     this.waiting = this.waiting.filter((waiter) => waiter.paneKey !== paneKey)
@@ -109,6 +162,38 @@ export class SpotlightTurnQueue {
     return { releasedTaskKey, wasWaiting, granted: this.pump() }
   }
 
+  /**
+   * The pane's agent stopped mid-turn: takes it out of its turn but keeps its place, a holder at
+   * the front of the line and a waiter where it stands. Its next `request` ends the pause.
+   */
+  pause(paneKey: string, info: { reason: SpotlightTurnPauseReason }): SpotlightTurnPauseOutcome {
+    const queued = this.waiting.find((waiter) => waiter.paneKey === paneKey)
+    if (queued) {
+      if (queued.pause) {
+        return { pausedTaskKey: null, wasHolding: false, granted: [] }
+      }
+      queued.pause = { reason: info.reason, pausedAt: this.now() }
+      return { pausedTaskKey: queued.taskKey, wasHolding: false, granted: this.pump() }
+    }
+    const turn = [...this.turns.values()].find((candidate) => candidate.paneKeys.has(paneKey))
+    if (!turn) {
+      return { pausedTaskKey: null, wasHolding: false, granted: [] }
+    }
+    const pausedAt = this.now()
+    this.leaveTurns(paneKey, null)
+    // Why the front: it lost its turn mid-run, so it goes first once it asks again.
+    this.waiting.unshift({
+      paneKey,
+      taskKey: turn.taskKey,
+      repoIds: [...turn.repoIds],
+      laneKey: turn.laneKey,
+      since: pausedAt,
+      pause: { reason: info.reason, pausedAt }
+    })
+    return { pausedTaskKey: turn.taskKey, wasHolding: true, granted: this.pump() }
+  }
+
+  /** Where the pane stands; a paused pane reports its place in line with `paused`. */
   positionOf(paneKey: string): SpotlightTurnPosition | null {
     for (const turn of this.turns.values()) {
       if (turn.paneKeys.has(paneKey)) {
@@ -119,35 +204,28 @@ export class SpotlightTurnQueue {
     if (index === -1) {
       return null
     }
-    const waiter = this.waiting[index]
-    const wanted = new Set(waiter.repoIds)
-    const blockers: SpotlightTurnBlocker[] = []
-    for (const turn of this.turns.values()) {
-      const held = overlaps(turn.repoIds, wanted)
-      if (turn.taskKey !== waiter.taskKey && held.length > 0) {
-        blockers.push({ taskKey: turn.taskKey, repoIds: held, holding: true })
-      }
-    }
-    let ahead = 0
-    for (const earlier of this.waiting.slice(0, index)) {
-      const contested = overlaps(earlier.repoIds, wanted)
-      // Why skip the own task: its panes are granted together, never one ahead of another.
-      if (earlier.taskKey !== waiter.taskKey && contested.length > 0) {
-        ahead += 1
-        blockers.push({ taskKey: earlier.taskKey, repoIds: contested, holding: false })
-      }
-    }
-    return { kind: 'waiting', position: ahead + 1, blockers }
+    const { position, blockers } = waitingPlace(this.turns, this.waiting, index, this.cap())
+    const { pause } = this.waiting[index]
+    return pause
+      ? { kind: 'waiting', position, blockers, paused: { ...pause } }
+      : { kind: 'waiting', position, blockers }
   }
 
   snapshot(): SpotlightTurnQueueSnapshot {
-    return {
-      turns: [...this.turns.values()].map(snapshotTurn),
-      waiting: this.waiting.map((waiter) => ({ ...waiter, repoIds: [...waiter.repoIds] }))
+    const waiting: SpotlightTurnWaiter[] = []
+    const paused: SpotlightTurnPausedWaiter[] = []
+    for (const { pause, ...waiter } of this.waiting) {
+      const copy = { ...waiter, repoIds: [...waiter.repoIds] }
+      if (pause) {
+        paused.push({ ...copy, ...pause })
+      } else {
+        waiting.push(copy)
+      }
     }
+    return { turns: [...this.turns.values()].map(snapshotTurn), waiting, paused }
   }
 
-  /** Every pane holding a turn or waiting for one. */
+  /** Every pane holding a turn or keeping a place in line. */
   paneKeys(): string[] {
     const keys = new Set(this.waiting.map((waiter) => waiter.paneKey))
     for (const turn of this.turns.values()) {
@@ -188,7 +266,7 @@ export class SpotlightTurnQueue {
     return leftTaskKey
   }
 
-  /** Projects another task holds or waits for. */
+  /** Projects another task holds or waits for; paused panes claim nothing. */
   private claimedRepoIds(taskKey: string): Set<string> {
     const claimed = new Set<string>()
     for (const turn of this.turns.values()) {
@@ -197,58 +275,17 @@ export class SpotlightTurnQueue {
       }
     }
     for (const waiter of this.waiting) {
-      if (waiter.taskKey !== taskKey) {
+      if (waiter.taskKey !== taskKey && !waiter.pause) {
         waiter.repoIds.forEach((repoId) => claimed.add(repoId))
       }
     }
     return claimed
   }
 
-  private holderOf(repoId: string): string | null {
-    for (const turn of this.turns.values()) {
-      if (turn.repoIds.has(repoId)) {
-        return turn.taskKey
-      }
-    }
-    return null
-  }
-
+  /** Grants whoever the line lets through; the cap is read once per pass. */
   private pump(): SpotlightTurn[] {
-    const granted = new Map<string, MutableTurn>()
-    // Projects an earlier waiter is still waiting for: nobody behind it may take them.
-    const claimed = new Set<string>()
-    const stillWaiting: SpotlightTurnWaiter[] = []
-    for (const waiter of this.waiting) {
-      const free = waiter.repoIds.every(
-        (repoId) =>
-          !claimed.has(repoId) && (this.holderOf(repoId) ?? waiter.taskKey) === waiter.taskKey
-      )
-      if (!free) {
-        waiter.repoIds.forEach((repoId) => claimed.add(repoId))
-        stillWaiting.push(waiter)
-        continue
-      }
-      const turn = this.turns.get(waiter.taskKey) ?? {
-        taskKey: waiter.taskKey,
-        repoIds: new Set<string>(),
-        paneKeys: new Set<string>(),
-        grantedAt: this.now()
-      }
-      waiter.repoIds.forEach((repoId) => turn.repoIds.add(repoId))
-      turn.paneKeys.add(waiter.paneKey)
-      this.turns.set(turn.taskKey, turn)
-      granted.set(turn.taskKey, turn)
-    }
-    this.waiting = stillWaiting
-    return [...granted.values()].map(snapshotTurn)
-  }
-}
-
-function snapshotTurn(turn: MutableTurn): SpotlightTurn {
-  return {
-    taskKey: turn.taskKey,
-    repoIds: [...turn.repoIds],
-    paneKeys: [...turn.paneKeys],
-    grantedAt: turn.grantedAt
+    const { line, granted } = pumpLine(this.turns, this.waiting, this.cap(), this.now)
+    this.waiting = line
+    return granted.map(snapshotTurn)
   }
 }
