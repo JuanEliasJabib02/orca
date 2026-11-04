@@ -6,6 +6,7 @@ import type {
   SpotlightStateSnapshot
 } from '../../shared/spotlight'
 import type {
+  SpotlightAgentStatus,
   SpotlightAgentTaskReply,
   SpotlightAgentTaskRequest
 } from '../../shared/spotlight-agent-turn'
@@ -61,4 +62,14 @@ export type SpotlightApi = {
   /** Main asks for work only the renderer can do for an agent's Spotlight turn (`orca spotlight on`). */
   onAgentTaskRequest: (callback: (request: SpotlightAgentTaskRequest) => void) => () => void
   replyAgentTaskRequest: (reply: SpotlightAgentTaskReply) => void
+  /** The test queue (agents' `orca spotlight` turns); each change arrives on `onTurnsChanged`. */
+  getTurns: () => Promise<SpotlightAgentStatus>
+  onTurnsChanged: (callback: (board: SpotlightAgentStatus) => void) => () => void
+  /** Soltar turno: the pane gives its turn or place in line back, as `orca spotlight off` does. */
+  releaseTurn: (paneKey: string) => Promise<void>
+  /** Opens Continuar's window on a paused pane or a holder, where its restart's turn ends don't
+   *  count. False when main refuses: neither, already resuming, or out of automatic resumes. */
+  markResuming: (paneKey: string, options: { auto: boolean }) => Promise<boolean>
+  /** Closes Continuar's window; `delivered: false` leaves the pane paused in its place. */
+  resumeSettled: (paneKey: string, result: { delivered: boolean }) => Promise<void>
 }

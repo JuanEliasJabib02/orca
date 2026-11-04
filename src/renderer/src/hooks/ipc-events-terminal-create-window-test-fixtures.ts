@@ -25,6 +25,7 @@ export function buildTerminalCreateWindow(args: {
       repos: { onChanged: () => () => {} },
       spotlight: {
         onChanged: () => () => {},
+        onTurnsChanged: () => () => {},
         getState: () => Promise.resolve({ byRepo: {} })
       },
       automations: { onChanged: () => () => {} },

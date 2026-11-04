@@ -1,6 +1,7 @@
 import { ipcRenderer } from 'electron'
 import type { SpotlightChangedEvent } from '../../shared/spotlight'
 import type {
+  SpotlightAgentStatus,
   SpotlightAgentTaskReply,
   SpotlightAgentTaskRequest
 } from '../../shared/spotlight-agent-turn'
@@ -47,5 +48,22 @@ export const spotlightApi = {
   },
 
   replyAgentTaskRequest: (reply: SpotlightAgentTaskReply) =>
-    ipcRenderer.send('spotlight:agentTaskReply', reply)
+    ipcRenderer.send('spotlight:agentTaskReply', reply),
+
+  getTurns: () => ipcRenderer.invoke('spotlight:getTurns'),
+
+  onTurnsChanged: (callback: (board: SpotlightAgentStatus) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: SpotlightAgentStatus) =>
+      callback(data)
+    ipcRenderer.on('spotlight:turnsChanged', listener)
+    return () => ipcRenderer.removeListener('spotlight:turnsChanged', listener)
+  },
+
+  releaseTurn: (paneKey: string) => ipcRenderer.invoke('spotlight:releaseTurn', { paneKey }),
+
+  markResuming: (paneKey: string, options: { auto: boolean }) =>
+    ipcRenderer.invoke('spotlight:markResuming', { paneKey, auto: options.auto }),
+
+  resumeSettled: (paneKey: string, result: { delivered: boolean }) =>
+    ipcRenderer.invoke('spotlight:resumeSettled', { paneKey, delivered: result.delivered })
 } satisfies PreloadApi['spotlight']

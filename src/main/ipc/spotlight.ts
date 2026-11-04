@@ -1,6 +1,10 @@
 import { ipcMain } from 'electron'
 import type { BrowserWindow } from 'electron'
 import type { SpotlightServerStartResult, SpotlightServerState } from '../../shared/spotlight'
+import {
+  emptySpotlightAgentStatus,
+  type SpotlightAgentStatus
+} from '../../shared/spotlight-agent-turn'
 import { parseSpotlightAutostartNote } from '../../shared/spotlight-autostart-note'
 import type { Store } from '../persistence/loading-store/store'
 import type { RuntimeServiceCommandSurface } from '../runtime/runtime-service-command-surface'
@@ -16,6 +20,7 @@ import {
   startSpotlightServer,
   trackRegisteredSpotlightLaunch
 } from '../spotlight/spotlight-server-control'
+import { getSpotlightAgentTurns } from '../spotlight/spotlight-agent-turns'
 import { installSpotlightAgentTurns } from '../spotlight/spotlight-agent-turns-wiring'
 import { noteSpotlightAutostart } from '../spotlight/spotlight-server-start-notes'
 import { watchLateSpotlightTerminal } from '../spotlight/spotlight-server-turn-off'
@@ -122,6 +127,10 @@ export function registerSpotlightHandlers(
   ipcMain.removeHandler('spotlight:cancelPreparedServerLaunch')
   ipcMain.removeHandler('spotlight:serverState')
   ipcMain.removeHandler('spotlight:noteServerAutostart')
+  ipcMain.removeHandler('spotlight:getTurns')
+  ipcMain.removeHandler('spotlight:releaseTurn')
+  ipcMain.removeHandler('spotlight:markResuming')
+  ipcMain.removeHandler('spotlight:resumeSettled')
 
   // Only while Spotlight is actually active for a local repo — the
   // spotlightRepoRoot tab flag persists across sessions, so without this a
@@ -204,6 +213,24 @@ export function registerSpotlightHandlers(
       if (repo && !repo.connectionId?.trim() && note) {
         noteSpotlightAutostart(args.repoId, repo.path, note)
       }
+    }
+  )
+  // The test queue for the footer monitor; every later change arrives on `spotlight:turnsChanged`.
+  ipcMain.handle('spotlight:getTurns', (): SpotlightAgentStatus =>
+    getSpotlightAgentTurns()?.status() ?? emptySpotlightAgentStatus()
+  )
+  ipcMain.handle('spotlight:releaseTurn', (_event, args: { paneKey: string }) => {
+    getSpotlightAgentTurns()?.off(args.paneKey)
+  })
+  ipcMain.handle(
+    'spotlight:markResuming',
+    (_event, args: { paneKey: string; auto: boolean }): boolean =>
+      getSpotlightAgentTurns()?.markResuming(args.paneKey, { auto: args.auto === true }) ?? false
+  )
+  ipcMain.handle(
+    'spotlight:resumeSettled',
+    (_event, args: { paneKey: string; delivered: boolean }) => {
+      getSpotlightAgentTurns()?.resumeSettled(args.paneKey, { delivered: args.delivered === true })
     }
   )
   // Reads only the holder's own checkout, so the renderer can't point it at another worktree.

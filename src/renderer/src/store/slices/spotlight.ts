@@ -9,6 +9,7 @@ import type {
 } from '../../../../shared/spotlight'
 import { translate } from '@/i18n/i18n'
 import { toastSpotlightActivated } from './spotlight-activated-toast'
+import { createSpotlightTurnsSlice, type SpotlightTurnsSlice } from './spotlight-turns'
 
 const ERROR_TOAST_DURATION = 60_000
 
@@ -109,7 +110,7 @@ function reportSpotlightError(
   })
 }
 
-export type SpotlightSlice = {
+export type SpotlightSlice = SpotlightTurnsSlice & {
   /** Per-repo Spotlight state mirrored from main (the source of truth). */
   spotlightByRepo: Record<string, SpotlightRepoState>
   hydrateSpotlightState: () => Promise<void>
@@ -139,7 +140,11 @@ export type SpotlightSlice = {
   ) => Promise<SpotlightOpResult>
 }
 
-export const createSpotlightSlice: StateCreator<AppState, [], [], SpotlightSlice> = (set, get) => {
+export const createSpotlightSlice: StateCreator<AppState, [], [], SpotlightSlice> = (
+  set,
+  get,
+  api
+) => {
   const applyState = (repoId: string, state: SpotlightRepoState | null): void => {
     set((s) => {
       if (!state) {
@@ -159,6 +164,7 @@ export const createSpotlightSlice: StateCreator<AppState, [], [], SpotlightSlice
   }
 
   return {
+    ...createSpotlightTurnsSlice(set, get, api),
     spotlightByRepo: {},
 
     hydrateSpotlightState: async () => {

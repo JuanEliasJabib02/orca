@@ -3,6 +3,7 @@ import type { WorktreeChangeRefreshQueue } from '../worktree-change-refresh-queu
 import { useAppStore } from '../../store'
 import { adoptFromEndpoint } from '../../store/adopt-from-endpoint'
 import { selectWorktreesByRepo } from '@/store/workspace-record-selectors'
+import { subscribeSpotlightTurns } from '@/store/slices/spotlight-turns'
 
 export function registerProjectCatalogIpcBridge(
   unsubs: (() => void)[],
@@ -40,6 +41,7 @@ export function registerProjectCatalogIpcBridge(
   // Why: main owns spotlight state (it survives app restarts); hydrate once
   // so buttons/badges render the right holder before any push event arrives.
   void useAppStore.getState().hydrateSpotlightState()
+  unsubs.push(subscribeSpotlightTurns(useAppStore))
 
   unsubs.push(
     window.api.worktrees.onChanged(

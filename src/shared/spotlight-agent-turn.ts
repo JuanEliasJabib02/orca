@@ -153,3 +153,8 @@ export type SpotlightAgentStatus = {
   /** Only when the caller named its pane. */
   mine?: SpotlightAgentMine
 }
+
+/** The board where no queue runs (web, or before main installs it). */
+export function emptySpotlightAgentStatus(): SpotlightAgentStatus {
+  return { turns: [], waiting: [], paused: [], lit: [] }
+}

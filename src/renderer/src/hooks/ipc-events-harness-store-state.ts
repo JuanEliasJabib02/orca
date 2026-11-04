@@ -48,6 +48,7 @@ export function createHarnessStoreState(
     setRateLimitsFromPush: vi.fn(),
     applySpotlightChanged: vi.fn(),
     hydrateSpotlightState: vi.fn(() => Promise.resolve()),
+    hydrateSpotlightTurns: vi.fn(() => Promise.resolve()),
     setSshConnectionState: vi.fn(),
     setSshTargetLabels: vi.fn(),
     setSshTargetsMetadata: vi.fn(),

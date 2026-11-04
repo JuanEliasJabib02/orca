@@ -1,6 +1,7 @@
 import type { PreloadApi } from '../../../preload/api-types'
 import type { StatsSummary } from '../../../shared/process-stats-types'
 import type { SpotlightOpResult } from '../../../shared/spotlight'
+import { emptySpotlightAgentStatus } from '../../../shared/spotlight-agent-turn'
 import { createWebE2EApi } from './preload-api/web-e2e-api'
 import {
   createClaudeAccountsApi,
@@ -114,7 +115,13 @@ function createWebPreloadApi(): Omit<Partial<PreloadApi>, 'settings' | 'plugins'
       inferServerVariant: async () => ({ kind: 'ambiguous', candidates: [] }),
       onChanged: () => () => {},
       onAgentTaskRequest: () => () => {},
-      replyAgentTaskRequest: () => {}
+      replyAgentTaskRequest: () => {},
+      // Why empty: agents' test turns run in the desktop app; a web client has no queue to show.
+      getTurns: async () => emptySpotlightAgentStatus(),
+      onTurnsChanged: () => () => {},
+      releaseTurn: async () => {},
+      markResuming: async () => false,
+      resumeSettled: async () => {}
     },
     worktrees: createWorktreesApi(),
     fs: createFileApi(),

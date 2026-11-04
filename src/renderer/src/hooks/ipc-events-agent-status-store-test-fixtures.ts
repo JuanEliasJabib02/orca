@@ -167,6 +167,7 @@ export function buildStoreState(overrides: StoreLike): StoreLike {
     setRateLimitsFromPush: vi.fn(),
     applySpotlightChanged: vi.fn(),
     hydrateSpotlightState: vi.fn(() => Promise.resolve()),
+    hydrateSpotlightTurns: vi.fn(() => Promise.resolve()),
     updateWorktreeBaseStatus: vi.fn(),
     updateWorktreeRemoteBranchConflict: vi.fn(),
     setSshConnectionState: vi.fn(),
