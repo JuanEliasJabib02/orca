@@ -137,6 +137,8 @@ beforeEach(() => {
     },
     removedRuntimeEnvironmentIds: new Set(),
     sortBy: 'manual',
+    // Why: Group by → Project (the default) adds project headers to the lanes this suite reads.
+    groupBy: 'none',
     recordFeatureInteraction: vi.fn()
   })
 })
