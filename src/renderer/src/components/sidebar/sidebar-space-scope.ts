@@ -3,8 +3,12 @@ import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 import { getRepoExecutionHostId, type ExecutionHostId } from '../../../../shared/execution-host'
+import { findWorktreeSidebarSpaceId } from '../../../../shared/project-group-space'
 import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
 import type { AppState } from '@/store/types'
+
+// Why shared: main reads the same space rule to give each space its own test turn.
+export { findWorktreeSidebarSpaceId } from '../../../../shared/project-group-space'
 
 /** What belongs to the active space: its group's subtree and the projects filed under it. */
 export type SidebarSpaceScope = {
@@ -189,23 +193,6 @@ export function listSpacelessReposOnHost(
   )
 }
 
-function findTopLevelGroupId(
-  groupId: string,
-  projectGroups: readonly Pick<ProjectGroup, 'id' | 'parentGroupId'>[]
-): string | null {
-  const groupById = new Map(projectGroups.map((group) => [group.id, group]))
-  const visited = new Set<string>()
-  let current = groupById.get(groupId)
-  while (current && !visited.has(current.id)) {
-    if (current.parentGroupId === null) {
-      return current.id
-    }
-    visited.add(current.id)
-    current = groupById.get(current.parentGroupId)
-  }
-  return null
-}
-
 /**
  * The space to switch to so `worktree` can render, or null when the active space already shows it,
  * no space is active, or it belongs to no space.
@@ -228,22 +215,4 @@ export function findSidebarSpaceToReveal(
     return null
   }
   return findWorktreeSidebarSpaceId(worktree, sources)
-}
-
-/** The space (top-level group id) holding a worktree's project, or null when it belongs to none. */
-export function findWorktreeSidebarSpaceId(
-  worktree: Pick<Worktree, 'id' | 'repoId'>,
-  sources: {
-    projectGroups: readonly Pick<ProjectGroup, 'id' | 'parentGroupId'>[]
-    repos: readonly Pick<Repo, 'id' | 'projectGroupId'>[]
-    folderWorkspaces: readonly Pick<FolderWorkspace, 'id' | 'projectGroupId'>[]
-  }
-): string | null {
-  const workspaceScope = parseWorkspaceKey(worktree.id)
-  const groupId =
-    workspaceScope?.type === 'folder'
-      ? sources.folderWorkspaces.find((fw) => fw.id === workspaceScope.folderWorkspaceId)
-          ?.projectGroupId
-      : sources.repos.find((repo) => repo.id === worktree.repoId)?.projectGroupId
-  return groupId ? findTopLevelGroupId(groupId, sources.projectGroups) : null
 }

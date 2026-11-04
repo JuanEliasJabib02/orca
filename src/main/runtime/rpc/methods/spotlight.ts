@@ -1,6 +1,7 @@
 import {
   SpotlightOffParams,
-  SpotlightOnParams
+  SpotlightOnParams,
+  SpotlightStatusParams
 } from '../../../../shared/rpc-contract/spotlight-params'
 import {
   getSpotlightAgentTurns,
@@ -39,7 +40,7 @@ export const SPOTLIGHT_METHODS = [
   defineMethod({
     name: 'spotlight.status',
     permission: 'workspace',
-    params: null,
-    handler: async () => requireTurns().status()
+    params: SpotlightStatusParams,
+    handler: async (params) => requireTurns().status({ paneKey: params.paneKey })
   })
 ]

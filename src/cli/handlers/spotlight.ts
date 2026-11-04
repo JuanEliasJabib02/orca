@@ -51,7 +51,12 @@ export const SPOTLIGHT_HANDLERS: Record<string, CommandHandler> = {
     printResult(result, json, formatSpotlightOff)
   },
   'spotlight status': async ({ client, json }) => {
-    const result = await client.call<SpotlightAgentStatus>('spotlight.status')
+    // Why optional: outside an Orca terminal the status still reads, just without `mine`.
+    const paneKey = process.env.ORCA_PANE_KEY?.trim()
+    const result = await client.call<SpotlightAgentStatus>(
+      'spotlight.status',
+      paneKey ? { paneKey } : {}
+    )
     printResult(result, json, formatSpotlightStatus)
   }
 }

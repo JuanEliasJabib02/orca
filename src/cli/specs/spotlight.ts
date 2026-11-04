@@ -9,7 +9,8 @@ export const SPOTLIGHT_COMMAND_SPECS: CommandSpec[] = [
     allowedFlags: [...GLOBAL_FLAGS, 'timeout-ms'],
     notes: [
       "Run it inside the Orca terminal of the workspace you're testing: every project of its task gets the Spotlight (its code on the project root) and its dev server, like the task's Spotlight button.",
-      'Waits for your turn when another task holds one of those projects, then for the servers to listen, up to --timeout-ms (default 100000). Exits 1 while still waiting: run it again to keep waiting; your place in line is kept.',
+      'Waits for your turn when another task holds one of those projects, already tests in the same space, or the limit of tasks testing at once is reached (a setting, 2 by default); then waits for the servers to listen, up to --timeout-ms (default 100000). Exits 1 while still waiting: run it again to keep waiting; your place in line is kept.',
+      'A task with no project that can hold a Spotlight still takes a test slot: run it before any Playwright or Maestro run.',
       'Prints each server URL and its log file. Run `orca spotlight off` when you finish testing; finishing your agent turn or closing the terminal also gives the turn back.'
     ],
     examples: ['orca spotlight on', 'orca spotlight on --timeout-ms 300000']
@@ -26,7 +27,8 @@ export const SPOTLIGHT_COMMAND_SPECS: CommandSpec[] = [
   },
   {
     path: ['spotlight', 'status'],
-    summary: 'Show which tasks hold Spotlight turns, who is waiting, and what each root runs',
+    summary:
+      'Show who tests, waits or is paused, where this terminal stands, and what each root runs',
     usage: 'orca spotlight status [--json]',
     allowedFlags: [...GLOBAL_FLAGS],
     examples: ['orca spotlight status', 'orca spotlight status --json']

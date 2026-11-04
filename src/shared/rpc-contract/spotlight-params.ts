@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { OptionalPositiveInt, requiredString } from './rpc-param-primitives'
+import { OptionalPositiveInt, OptionalString, requiredString } from './rpc-param-primitives'
 
 export const SpotlightOnParams = z.object({
   /** The caller's worktree id (`ORCA_WORKTREE_ID`); its task decides the projects. */
@@ -11,4 +11,9 @@ export const SpotlightOnParams = z.object({
 
 export const SpotlightOffParams = z.object({
   paneKey: requiredString('Missing pane: run this inside an Orca terminal')
+})
+
+export const SpotlightStatusParams = z.object({
+  /** The caller's pane (`ORCA_PANE_KEY`), to report where it stands; absent outside Orca terminals. */
+  paneKey: OptionalString
 })

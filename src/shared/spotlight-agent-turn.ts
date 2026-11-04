@@ -45,7 +45,17 @@ export type SpotlightAgentServer = {
   logPath: string
 }
 
-export type SpotlightAgentBlocker = { taskKey: string; repoNames: string[]; holding: boolean }
+/**
+ * Who stands between a pane and its turn. Without `reason` it holds or waits for one of its
+ * projects; `lane` = same space, `cap` = every slot taken. Lane and cap blockers name the
+ * holder's projects.
+ */
+export type SpotlightAgentBlocker = {
+  taskKey: string
+  repoNames: string[]
+  holding: boolean
+  reason?: 'lane' | 'cap'
+}
 
 export type SpotlightAgentOnResult =
   | {
@@ -56,6 +66,8 @@ export type SpotlightAgentOnResult =
       skippedRepoNames: string[]
       /** True when every lit project's server listens. */
       ready: boolean
+      /** Set when the turn holds only a test slot: the task has no project with a Spotlight. */
+      note?: string
     }
   | {
       status: 'waiting'
@@ -73,9 +85,71 @@ export type SpotlightAgentOffResult = {
   nextTaskKeys: string[]
 }
 
+/** Why a pane's agent stopped mid-turn: it ran out of usage limit, or failed otherwise. */
+export type SpotlightAgentPauseReason = 'limit' | 'error'
+
+export type SpotlightAgentTurnRow = {
+  taskKey: string
+  repoNames: string[]
+  panes: number
+  grantedAt: number
+  /** The task's panes in the order they asked; the last one asked last. */
+  paneKeys?: string[]
+  /** The space the turn was taken in. */
+  laneKey?: string
+  /** The newest hook activity of any of its panes, or its newest request. */
+  lastActivityAt?: number
+  /** Continuar is resuming one of its panes. */
+  resuming?: true
+}
+
+export type SpotlightAgentWaitingRow = {
+  taskKey: string
+  repoNames: string[]
+  since: number
+  /** The task's first pane in line. */
+  paneKey?: string
+  laneKey?: string
+}
+
+/** A pane whose agent stopped mid-turn: it keeps its place in line but claims nothing. */
+export type SpotlightAgentPausedRow = {
+  paneKey: string
+  taskKey: string
+  repoNames: string[]
+  laneKey?: string
+  since: number
+  reason: SpotlightAgentPauseReason
+  pausedAt: number
+  /** Continuar is resuming it right now. */
+  resuming?: true
+  /** Automatic resumes in a row since its turn last ended normally. */
+  autoResumes?: number
+}
+
+/** Where the asking pane stands (`orca spotlight status` from an Orca terminal). */
+export type SpotlightAgentMine =
+  | { kind: 'holding'; taskKey: string }
+  | { kind: 'waiting'; taskKey: string; position: number; blockers: SpotlightAgentBlocker[] }
+  | {
+      kind: 'paused'
+      taskKey: string
+      position: number
+      reason: SpotlightAgentPauseReason
+      pausedAt: number
+    }
+  | { kind: 'none' }
+
+/** The queue as `orca spotlight status` prints it and the footer monitor draws it. */
 export type SpotlightAgentStatus = {
-  turns: { taskKey: string; repoNames: string[]; panes: number; grantedAt: number }[]
-  waiting: { taskKey: string; repoNames: string[]; since: number }[]
+  /** Most tasks testing at once on this machine; absent from older hosts. */
+  cap?: number
+  turns: SpotlightAgentTurnRow[]
+  waiting: SpotlightAgentWaitingRow[]
+  /** One row per paused pane, in line order; absent from older hosts. */
+  paused?: SpotlightAgentPausedRow[]
   /** Every project whose Spotlight is on, and the workspace holding it. */
   lit: { repoName: string; holder: string; turnTaskKey: string | null }[]
+  /** Only when the caller named its pane. */
+  mine?: SpotlightAgentMine
 }

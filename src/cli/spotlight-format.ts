@@ -1,7 +1,9 @@
 import type {
   SpotlightAgentBlocker,
+  SpotlightAgentMine,
   SpotlightAgentOffResult,
   SpotlightAgentOnResult,
+  SpotlightAgentPauseReason,
   SpotlightAgentServer,
   SpotlightAgentStatus
 } from '../shared/spotlight-agent-turn'
@@ -16,11 +18,16 @@ function serverState(server: SpotlightAgentServer): string {
   return server.server === 'running' ? 'starting (port not open yet)' : 'no server running'
 }
 
+// Why these words: the tester rules name them, so agents know why they wait.
+const BLOCKER_REASON_LABELS = { lane: ' (same space)', cap: ' (limit reached)' } as const
+
 function describeBlocker(blocker: SpotlightAgentBlocker): string {
   const repos = blocker.repoNames.join(', ')
-  return blocker.holding
-    ? `${blocker.taskKey} is testing ${repos}`
-    : `${blocker.taskKey} is ahead of you for ${repos}`
+  const label = blocker.reason ? BLOCKER_REASON_LABELS[blocker.reason] : ''
+  if (blocker.holding) {
+    return `${blocker.taskKey} is testing${repos ? ` ${repos}` : ''}${label}`
+  }
+  return `${blocker.taskKey} is ahead of you${repos ? ` for ${repos}` : ''}${label}`
 }
 
 export function formatSpotlightOn(result: SpotlightAgentOnResult): string {
@@ -31,7 +38,10 @@ export function formatSpotlightOn(result: SpotlightAgentOnResult): string {
     ].join('\n')
   }
   const width = Math.max(0, ...result.servers.map((server) => server.repoName.length))
-  const lines = [`Spotlight on for ${result.taskKey}.`]
+  // Why: a slot-only turn lights nothing, so it isn't a Spotlight being on.
+  const lines = result.note
+    ? [`Your test turn for ${result.taskKey} is on.`, result.note]
+    : [`Spotlight on for ${result.taskKey}.`]
   for (const server of result.servers) {
     lines.push(`  ${server.repoName.padEnd(width)}  ${server.url ?? '-'}  ${serverState(server)}`)
     lines.push(`  ${' '.repeat(width)}  log: ${server.logPath}`)
@@ -66,13 +76,37 @@ function minutesAgo(timestamp: number): string {
   return minutes === 0 ? 'just now' : `${minutes} min ago`
 }
 
+function pauseReason(reason: SpotlightAgentPauseReason): string {
+  return reason === 'limit' ? 'out of usage limit' : 'stopped on an error'
+}
+
+function describeMine(mine: SpotlightAgentMine): string {
+  switch (mine.kind) {
+    case 'holding':
+      return `This terminal: testing ${mine.taskKey}.`
+    case 'waiting': {
+      const behind = mine.blockers.map(describeBlocker).join('; ')
+      return `This terminal: #${mine.position} in line for ${mine.taskKey}${behind ? `: ${behind}` : ''}.`
+    }
+    case 'paused':
+      return `This terminal: paused (${pauseReason(mine.reason)}), #${mine.position} in line for ${mine.taskKey}. Run \`orca spotlight on\` to take your place back.`
+    case 'none':
+      return 'This terminal: no turn. Run `orca spotlight on` before testing.'
+  }
+}
+
 export function formatSpotlightStatus(status: SpotlightAgentStatus): string {
   const lines: string[] = []
+  if (status.cap !== undefined) {
+    lines.push(`Limit: ${status.cap} ${status.cap === 1 ? 'task' : 'tasks'} at a time`)
+  }
   lines.push(status.turns.length > 0 ? 'Testing:' : 'Testing: nobody')
   for (const turn of status.turns) {
     const agents = turn.panes === 1 ? '1 agent' : `${turn.panes} agents`
+    const active =
+      turn.lastActivityAt === undefined ? '' : `, last active ${minutesAgo(turn.lastActivityAt)}`
     lines.push(
-      `  ${turn.taskKey}  ${turn.repoNames.join(', ')}  (${agents}, since ${minutesAgo(turn.grantedAt)})`
+      `  ${turn.taskKey}  ${turn.repoNames.join(', ')}  (${agents}, since ${minutesAgo(turn.grantedAt)}${active})`
     )
   }
   if (status.waiting.length > 0) {
@@ -82,6 +116,18 @@ export function formatSpotlightStatus(status: SpotlightAgentStatus): string {
         `  ${waiter.taskKey}  ${waiter.repoNames.join(', ')}  (since ${minutesAgo(waiter.since)})`
       )
     }
+  }
+  if (status.paused && status.paused.length > 0) {
+    lines.push('Paused:')
+    for (const row of status.paused) {
+      const resuming = row.resuming ? ', resuming' : ''
+      lines.push(
+        `  ${row.taskKey}  ${row.repoNames.join(', ') || '-'}  (${pauseReason(row.reason)}, paused ${minutesAgo(row.pausedAt)}${resuming})`
+      )
+    }
+  }
+  if (status.mine) {
+    lines.push(describeMine(status.mine))
   }
   lines.push(status.lit.length > 0 ? 'Spotlight on:' : 'Spotlight on: no project')
   for (const entry of status.lit) {

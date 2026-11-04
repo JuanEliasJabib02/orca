@@ -596,7 +596,7 @@ import {
   OpenAiSpeechKeySet,
   SpeechModelAction
 } from './speech-params'
-import { SpotlightOffParams, SpotlightOnParams } from './spotlight-params'
+import { SpotlightOffParams, SpotlightOnParams, SpotlightStatusParams } from './spotlight-params'
 import {
   RepoAddRemote,
   SshBrowseDir,
@@ -1476,7 +1476,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'speech.openAiKey.status': null,
   'spotlight.off': SpotlightOffParams,
   'spotlight.on': SpotlightOnParams,
-  'spotlight.status': null,
+  'spotlight.status': SpotlightStatusParams,
   'ssh.addTarget': SshTargetAdd,
   'ssh.browseDir': SshBrowseDir,
   'ssh.connect': SshConnect,

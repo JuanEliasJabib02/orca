@@ -87,3 +87,46 @@ export async function describeTurnServers(args: {
   )
   return servers.filter((server): server is SpotlightAgentServer => server !== null)
 }
+
+const PORT_POLL_MS = 2_500
+// Why: a lit project whose terminal runs nothing this long after lighting has no server to wait for.
+const NO_SERVER_GRACE_MS = 15_000
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const done = (): void => {
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', done)
+      resolve()
+    }
+    const timer = setTimeout(done, Math.max(0, ms))
+    signal?.addEventListener('abort', done, { once: true })
+  })
+}
+
+/** Polls until every lit project listens, or has no server, or the call runs out of time. */
+export async function waitForTurnServers(args: {
+  repoIds: string[]
+  members: readonly SpotlightAgentTaskMember[]
+  lightResults: ReadonlyMap<string, SpotlightAgentLightResult>
+  deadline: number
+  now: () => number
+  signal?: AbortSignal
+  probe: SpotlightServerProbe
+}): Promise<{ servers: SpotlightAgentServer[]; ready: boolean }> {
+  const litAt = args.now()
+  for (;;) {
+    const servers = await describeTurnServers(args)
+    const lit = servers.filter((server) => server.lit)
+    const ready = lit.length > 0 && lit.every((server) => server.listening)
+    const settled = lit.every(
+      (server) =>
+        server.listening ||
+        (server.server !== 'running' && args.now() - litAt >= NO_SERVER_GRACE_MS)
+    )
+    if (ready || settled || args.now() >= args.deadline || args.signal?.aborted) {
+      return { servers, ready }
+    }
+    await sleep(Math.min(PORT_POLL_MS, args.deadline - args.now()), args.signal)
+  }
+}

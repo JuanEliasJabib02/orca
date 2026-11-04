@@ -1,24 +1,30 @@
-import path from 'node:path'
+import { errorMessage } from '../../shared/error-message'
 import type { Repo } from '../../shared/repo-types'
 import type { SpotlightRepoState, SpotlightServerState } from '../../shared/spotlight'
 import type {
   SpotlightAgentLightResult,
   SpotlightAgentOffResult,
   SpotlightAgentOnResult,
-  SpotlightAgentServer,
   SpotlightAgentStatus,
-  SpotlightAgentTaskMember,
   SpotlightAgentTaskResolution
 } from '../../shared/spotlight-agent-turn'
 import type { WorkspacePortScanResult } from '../../shared/workspace-ports'
-import { describeTurnServers } from './spotlight-agent-servers'
+import { waitForTurnServers } from './spotlight-agent-servers'
+import {
+  SpotlightTurnPauses,
+  type SpotlightAgentStatusEntry,
+  type SpotlightTurnEnd
+} from './spotlight-agent-turn-pause'
 import { SpotlightTurnQueue, type SpotlightTurn } from './spotlight-agent-turn-queue'
+import {
+  buildSpotlightBoard,
+  describeMine,
+  toAgentBlockers,
+  type SpotlightBoardSources
+} from './spotlight-agent-turns-status'
 
 export const DEFAULT_SPOTLIGHT_ON_TIMEOUT_MS = 100_000
 const MAX_SPOTLIGHT_ON_TIMEOUT_MS = 10 * 60_000
-const PORT_POLL_MS = 2_500
-// Why: a lit project whose terminal runs nothing this long after lighting has no server to wait for.
-const NO_SERVER_GRACE_MS = 15_000
 
 export type SpotlightAgentTurnsDeps = {
   getRepo: (repoId: string) => Repo | undefined
@@ -28,32 +34,22 @@ export type SpotlightAgentTurnsDeps = {
   lightTask: (worktreeId: string, repoIds: string[]) => Promise<SpotlightAgentLightResult[]>
   readServer: (repoId: string) => Promise<SpotlightServerState>
   now?: () => number
-}
-
-/** Agent statuses as the hook server publishes them. */
-export type SpotlightAgentStatusEntry = {
-  paneKey: string
-  state: string
-  receivedAt: number
-  observedInCurrentRuntime: boolean
+  /** Most tasks testing at once, read on every grant; none = no limit. */
+  getCap?: () => number
+  /** The space a worktree's turn belongs to: one task tests per lane. None = no lane limit. */
+  getLane?: (worktreeId: string) => string | undefined
+  /** How the pane's agent last ended a turn, from its hook rows; none = always a normal end. */
+  readTurnEnd?: (paneKey: string) => SpotlightTurnEnd
+  /** Whether the pane's Claude account is out of usage, after a forced usage read. */
+  paneAccountAtLimit?: (paneKey: string) => Promise<boolean>
+  /** Receives the board after every queue change. */
+  notify?: (board: SpotlightAgentStatus) => void
 }
 
 type LightResults = Map<string, SpotlightAgentLightResult>
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    const done = (): void => {
-      clearTimeout(timer)
-      signal?.removeEventListener('abort', done)
-      resolve()
-    }
-    const timer = setTimeout(done, Math.max(0, ms))
-    signal?.addEventListener('abort', done, { once: true })
-  })
+function slotOnlyNote(taskKey: string): string {
+  return `No project of ${taskKey} can hold a Spotlight here, so this turn only holds a test slot: start what you test yourself, then run your tests.`
 }
 
 /**
@@ -64,14 +60,27 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 export class SpotlightAgentTurns {
   private readonly queue: SpotlightTurnQueue
   private readonly now: () => number
-  /** Panes holding or waiting for a turn: the worktree they asked from and when they last asked. */
+  /** Panes holding, waiting for or paused in a turn: the worktree they asked from and when. */
   private readonly panes = new Map<string, { worktreeId: string; requestedAt: number }>()
+  /** The newest hook activity of each pane above, for `status` only. */
+  private readonly activity = new Map<string, number>()
+  private readonly pauses: SpotlightTurnPauses
   private readonly lighting = new Map<string, Promise<LightResults>>()
   private readonly wakeups = new Map<string, Set<() => void>>()
 
   constructor(private readonly deps: SpotlightAgentTurnsDeps) {
     this.now = deps.now ?? Date.now
-    this.queue = new SpotlightTurnQueue(this.now)
+    this.queue = new SpotlightTurnQueue({ now: this.now, cap: () => this.cap() })
+    this.pauses = new SpotlightTurnPauses({
+      queue: this.queue,
+      now: this.now,
+      requestedAt: (paneKey) => this.panes.get(paneKey)?.requestedAt,
+      release: (paneKey) => this.off(paneKey),
+      granted: (turns) => this.onGranted(turns),
+      publish: () => this.publish(),
+      readTurnEnd: deps.readTurnEnd,
+      paneAccountAtLimit: deps.paneAccountAtLimit
+    })
   }
 
   async on(args: {
@@ -88,20 +97,18 @@ export class SpotlightAgentTurns {
     )
     const deadline = this.now() + timeoutMs
     const task = await this.deps.resolveTask(worktreeId)
-    if (task.members.length === 0) {
-      const off =
-        task.skippedRepoNames.length > 0
-          ? ` Spotlight is off for: ${task.skippedRepoNames.join(', ')}.`
-          : ''
-      throw new Error(`No project of ${task.taskKey} can hold a Spotlight on this machine.${off}`)
-    }
     this.panes.set(paneKey, { worktreeId, requestedAt: this.now() })
+    // Why: asking for the turn is what a resumed agent does; Continuar's window has done its job.
+    this.pauses.closeWindow(paneKey)
     const outcome = this.queue.request({
       paneKey,
       taskKey: task.taskKey,
-      repoIds: task.members.map((member) => member.repoId)
+      // Why none is fine: a task with no Spotlight project still takes a test slot.
+      repoIds: task.members.map((member) => member.repoId),
+      laneKey: this.deps.getLane?.(worktreeId)
     })
     this.onGranted(outcome.granted)
+    this.publish()
     let position = outcome.position
     if (position.kind === 'waiting') {
       await this.waitForTurn(paneKey, deadline, signal)
@@ -112,38 +119,43 @@ export class SpotlightAgentTurns {
         status: 'waiting',
         taskKey: task.taskKey,
         position: position.position,
-        blockers: position.blockers.map((blocker) => ({
-          taskKey: blocker.taskKey,
-          repoNames: this.repoNames(blocker.repoIds),
-          holding: blocker.holding
-        }))
+        blockers: toAgentBlockers(position.blockers, (repoIds) => this.repoNames(repoIds))
       }
     }
     const { turn } = position
+    const skippedRepoNames = [...task.skippedRepoNames, ...this.repoNames(outcome.skippedRepoIds)]
+    if (turn.repoIds.length === 0) {
+      return {
+        status: 'on',
+        taskKey: task.taskKey,
+        servers: [],
+        skippedRepoNames,
+        ready: true,
+        note: slotOnlyNote(task.taskKey)
+      }
+    }
     const lightResults = await this.light(turn.taskKey, worktreeId, turn.repoIds)
-    const { servers, ready } = await this.waitForServers({
+    const { servers, ready } = await waitForTurnServers({
       repoIds: turn.repoIds,
       members: task.members,
       lightResults,
       deadline,
+      now: this.now,
       signal,
-      scanPorts: args.scanPorts
+      probe: { ...this.deps, scanPorts: args.scanPorts }
     })
-    return {
-      status: 'on',
-      taskKey: task.taskKey,
-      servers,
-      skippedRepoNames: [...task.skippedRepoNames, ...this.repoNames(outcome.skippedRepoIds)],
-      ready
-    }
+    return { status: 'on', taskKey: task.taskKey, servers, skippedRepoNames, ready }
   }
 
   /** Gives the pane's turn (or place in line) back; the Spotlight stays as it is. */
   off(paneKey: string): SpotlightAgentOffResult {
     this.panes.delete(paneKey)
+    this.activity.delete(paneKey)
+    this.pauses.forget(paneKey)
     const outcome = this.queue.release(paneKey)
     this.onGranted(outcome.granted)
     this.wake(paneKey)
+    this.publish()
     return {
       releasedTaskKey: outcome.releasedTaskKey,
       wasWaiting: outcome.wasWaiting,
@@ -151,56 +163,77 @@ export class SpotlightAgentTurns {
     }
   }
 
-  status(): SpotlightAgentStatus {
-    const snapshot = this.queue.snapshot()
-    const waitingTasks = new Set<string>()
-    return {
-      turns: snapshot.turns.map((turn) => ({
-        taskKey: turn.taskKey,
-        repoNames: this.repoNames(turn.repoIds),
-        panes: turn.paneKeys.length,
-        grantedAt: turn.grantedAt
-      })),
-      waiting: snapshot.waiting.flatMap((waiter) => {
-        if (waitingTasks.has(waiter.taskKey)) {
-          return []
-        }
-        waitingTasks.add(waiter.taskKey)
-        return [
-          {
-            taskKey: waiter.taskKey,
-            repoNames: this.repoNames(waiter.repoIds),
-            since: waiter.since
-          }
-        ]
-      }),
-      lit: this.deps.listSpotlightStates().map((state) => ({
-        repoName: this.repoNames([state.repoId])[0],
-        holder: worktreeFolderName(state.holderWorktreeId),
-        turnTaskKey:
-          snapshot.turns.find((turn) => turn.repoIds.includes(state.repoId))?.taskKey ?? null
-      }))
+  /** The board; with `paneKey`, also where that pane stands (`mine`). */
+  status(args: { paneKey?: string } = {}): SpotlightAgentStatus {
+    const sources = this.boardSources()
+    const board = buildSpotlightBoard(sources)
+    if (args.paneKey === undefined) {
+      return board
     }
+    const position = this.queue.positionOf(args.paneKey)
+    return { ...board, mine: describeMine(args.paneKey, position, sources) }
   }
 
-  /** A turn ends when its agent finishes: `done` newer than the pane's last request. */
-  handleAgentStatuses(entries: readonly SpotlightAgentStatusEntry[]): void {
+  /** Hook statuses: activity for `status`, and turn ends that release or pause a pane. */
+  handleAgentStatuses(entries: readonly SpotlightAgentStatusEntry[]): Promise<void> {
     for (const entry of entries) {
-      const pane = this.panes.get(entry.paneKey)
-      if (
-        pane &&
-        entry.state === 'done' &&
-        entry.observedInCurrentRuntime &&
-        entry.receivedAt > pane.requestedAt
-      ) {
-        this.off(entry.paneKey)
-      }
+      this.noteAgentActivity(entry.paneKey, entry.receivedAt)
+    }
+    return this.pauses.handleStatuses(entries)
+  }
+
+  /** Hook activity that changes no status (tool and prompt pings), for `status`'s idle time. */
+  noteAgentActivity(paneKey: string, at: number): void {
+    if (this.panes.has(paneKey) && at > (this.activity.get(paneKey) ?? 0)) {
+      this.activity.set(paneKey, at)
     }
   }
 
   handlePaneGone(paneKey: string): void {
+    // Why: Continuar's restart stops the old process first; the pane comes back in its place.
+    if (this.pauses.isResuming(paneKey)) {
+      return
+    }
     if (this.panes.has(paneKey) || this.queue.positionOf(paneKey)) {
       this.off(paneKey)
+    }
+  }
+
+  /** Continuar starts on a paused pane or a holder; see `SpotlightTurnPauses.markResuming`. */
+  markResuming(paneKey: string, options: { auto: boolean }): boolean {
+    return this.pauses.markResuming(paneKey, options)
+  }
+
+  resumeSettled(paneKey: string, result: { delivered: boolean }): void {
+    this.pauses.resumeSettled(paneKey, result)
+  }
+
+  private cap(): number {
+    return this.deps.getCap?.() ?? Infinity
+  }
+
+  private boardSources(): SpotlightBoardSources {
+    return {
+      snapshot: this.queue.snapshot(),
+      cap: this.cap(),
+      lit: this.deps.listSpotlightStates(),
+      repoNames: (repoIds) => this.repoNames(repoIds),
+      requestedAt: (paneKey) => this.panes.get(paneKey)?.requestedAt,
+      activityAt: (paneKey) => this.activity.get(paneKey),
+      isResuming: (paneKey) => this.pauses.isResuming(paneKey),
+      autoResumes: (paneKey) => this.pauses.autoResumes(paneKey)
+    }
+  }
+
+  /** Never throws: a closed window must not break the queue change that pushes the board. */
+  private publish(): void {
+    if (!this.deps.notify) {
+      return
+    }
+    try {
+      this.deps.notify(this.status())
+    } catch (error) {
+      console.warn('[spotlight] Could not push the test queue:', errorMessage(error))
     }
   }
 
@@ -209,7 +242,8 @@ export class SpotlightAgentTurns {
       const worktreeId = turn.paneKeys
         .map((paneKey) => this.panes.get(paneKey)?.worktreeId)
         .find((id) => id !== undefined)
-      if (worktreeId !== undefined) {
+      // Why the projects: a slot-only turn has nothing to light.
+      if (worktreeId !== undefined && turn.repoIds.length > 0) {
         void this.light(turn.taskKey, worktreeId, turn.repoIds)
       }
       turn.paneKeys.forEach((paneKey) => this.wake(paneKey))
@@ -265,47 +299,9 @@ export class SpotlightAgentTurns {
     }
   }
 
-  /** Polls until every lit project listens, or has no server, or the call runs out of time. */
-  private async waitForServers(args: {
-    repoIds: string[]
-    members: readonly SpotlightAgentTaskMember[]
-    lightResults: LightResults
-    deadline: number
-    signal?: AbortSignal
-    scanPorts: () => Promise<WorkspacePortScanResult | null>
-  }): Promise<{ servers: SpotlightAgentServer[]; ready: boolean }> {
-    const litAt = this.now()
-    const probe = { ...this.deps, scanPorts: args.scanPorts }
-    for (;;) {
-      const servers = await describeTurnServers({
-        repoIds: args.repoIds,
-        members: args.members,
-        lightResults: args.lightResults,
-        probe
-      })
-      const lit = servers.filter((server) => server.lit)
-      const ready = lit.length > 0 && lit.every((server) => server.listening)
-      const settled = lit.every(
-        (server) =>
-          server.listening ||
-          (server.server !== 'running' && this.now() - litAt >= NO_SERVER_GRACE_MS)
-      )
-      if (ready || settled || this.now() >= args.deadline || args.signal?.aborted) {
-        return { servers, ready }
-      }
-      await sleep(Math.min(PORT_POLL_MS, args.deadline - this.now()), args.signal)
-    }
-  }
-
   private repoNames(repoIds: readonly string[]): string[] {
     return repoIds.map((repoId) => this.deps.getRepo(repoId)?.displayName ?? repoId)
   }
-}
-
-/** `repoId::/path/to/worktree` → `worktree`. */
-function worktreeFolderName(worktreeId: string): string {
-  const separator = worktreeId.indexOf('::')
-  return path.basename(separator === -1 ? worktreeId : worktreeId.slice(separator + 2))
 }
 
 let instance: SpotlightAgentTurns | null = null

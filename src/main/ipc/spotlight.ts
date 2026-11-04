@@ -3,6 +3,7 @@ import type { BrowserWindow } from 'electron'
 import type { SpotlightServerStartResult, SpotlightServerState } from '../../shared/spotlight'
 import { parseSpotlightAutostartNote } from '../../shared/spotlight-autostart-note'
 import type { Store } from '../persistence/loading-store/store'
+import type { RuntimeServiceCommandSurface } from '../runtime/runtime-service-command-surface'
 import { SpotlightService } from '../spotlight/spotlight-service'
 import {
   getSpotlightTerminal,
@@ -79,10 +80,14 @@ export async function deactivateSpotlightIfHolder(
   stopSpotlightLogCapture({ repoId })
 }
 
+/** What Spotlight reads from the runtime: terminal output, and account usage for paused turns. */
+type SpotlightRuntime = SpotlightTerminalOutputSource &
+  Pick<RuntimeServiceCommandSurface, 'getUsageRateLimits' | 'getAccountsSnapshot'>
+
 export function registerSpotlightHandlers(
   mainWindow: BrowserWindow,
   store: Store,
-  runtime?: SpotlightTerminalOutputSource
+  runtime?: SpotlightRuntime
 ): void {
   currentWindow = mainWindow
   if (!service) {
@@ -94,7 +99,14 @@ export function registerSpotlightHandlers(
   installSpotlightAgentTurns({
     store,
     service: spotlight,
-    getWindow: () => (currentWindow && !currentWindow.isDestroyed() ? currentWindow : null)
+    getWindow: () => (currentWindow && !currentWindow.isDestroyed() ? currentWindow : null),
+    // Why the adapter: the runtime keeps its account controller private behind these two calls.
+    accounts: runtime
+      ? {
+          usageRateLimits: () => runtime.getUsageRateLimits(),
+          getSnapshot: () => runtime.getAccountsSnapshot()
+        }
+      : null
   })
   configureSpotlightTerminalShell(() => store.getSettings())
   configureSpotlightTerminalOutputSource(runtime ?? null)
