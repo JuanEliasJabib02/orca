@@ -6,6 +6,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { ScrollToCurrentWorkspaceToolbarButton } from './ScrollToCurrentWorkspaceToolbarButton'
 import { SidebarSettingsHelpMenu } from './SidebarSettingsHelpMenu'
 import { SidebarSpaceSwitcher } from './SidebarSpaceSwitcher'
+import { TestQueueButton } from './test-queue/TestQueueButton'
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
 import { hasFeatureInteraction } from '../../../../shared/feature-interactions'
@@ -73,6 +74,7 @@ const SidebarToolbar = React.memo(function SidebarToolbar({
         </div>
         <SidebarSpaceSwitcher />
         <div className="flex items-center gap-1">
+          <TestQueueButton />
           <ScrollToCurrentWorkspaceToolbarButton />
           <Tooltip open={workspaceBoardMovedHintOpen ? true : undefined}>
             <TooltipTrigger asChild>

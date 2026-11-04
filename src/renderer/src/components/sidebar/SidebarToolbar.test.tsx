@@ -42,6 +42,10 @@ vi.mock('./SidebarSpaceSwitcher', () => ({
   SidebarSpaceSwitcher: () => <div data-testid="space-switcher" />
 }))
 
+vi.mock('./test-queue/TestQueueButton', () => ({
+  TestQueueButton: () => <button type="button">Test queue</button>
+}))
+
 const roots: Root[] = []
 
 async function renderToolbar(onWorkspaceBoardToggle = vi.fn()): Promise<{
@@ -153,6 +157,12 @@ describe('SidebarToolbar moved workspace board hint', () => {
       container.querySelectorAll('button[type="button"], [data-testid="space-switcher"]')
     ).map((element) => element.getAttribute('data-testid') ?? element.textContent)
 
-    expect(order.slice(0, 3)).toEqual(['Settings', 'space-switcher', 'Current workspace'])
+    // Why the test queue here: its flask sits right before the crosshair.
+    expect(order.slice(0, 4)).toEqual([
+      'Settings',
+      'space-switcher',
+      'Test queue',
+      'Current workspace'
+    ])
   })
 })

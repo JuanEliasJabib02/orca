@@ -916,6 +916,14 @@
           "optionsFilterCount_one": "Workspace options ({{count}} filter)",
           "optionsFilterCount_other": "Workspace options ({{count}} filters)"
         },
+        "TestQueue": {
+          "idleFor_one": "no activity for {{count}} min",
+          "idleFor_other": "no activity for {{count}} min",
+          "limit_one": "Limit: {{count}} task at a time",
+          "limit_other": "Limit: {{count}} tasks at a time",
+          "waitingFor_one": "waiting {{count}} min",
+          "waitingFor_other": "waiting {{count}} min"
+        },
         "WorkspaceKanbanDrawerHeader": {
           "selectedCount_one": "{{count}} selected",
           "selectedCount_other": "{{count}} selected"

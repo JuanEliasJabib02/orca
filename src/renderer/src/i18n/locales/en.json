@@ -7384,6 +7384,28 @@
           "waiting": "Queued #{{position}}",
           "paused": "Paused"
         },
+        "TestQueue": {
+          "title": "Test queue",
+          "nobodyTesting": "Nobody is testing",
+          "limit_one": "Limit: {{count}} task at a time",
+          "limit_other": "Limit: {{count}} tasks at a time",
+          "testing": "Testing",
+          "waiting": "Queued",
+          "paused": "Paused",
+          "idleFor_one": "no activity for {{count}} min",
+          "idleFor_other": "no activity for {{count}} min",
+          "waitingFor_one": "waiting {{count}} min",
+          "waitingFor_other": "waiting {{count}} min",
+          "outOfLimit": "ran out of limit",
+          "stoppedOnError": "stopped on an error",
+          "continue": "Continue",
+          "continueWith": "Continue with {{account}}",
+          "resuming": "Resuming…",
+          "releaseTurn": "Release turn",
+          "backAt": "Back at {{time}}",
+          "continueHint": "Continue opens its session with the account that has limit left and tells it to pick up where it left off.",
+          "noAccountHint": "No account has limit left right now. The button turns on when the first one comes back."
+        },
         "SpotlightEnv": {
           "local": "Local",
           "dev": "Dev",
