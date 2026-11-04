@@ -1,4 +1,4 @@
-import type { IPtyProvider } from './types'
+import type { IPtyProvider } from './pty-provider-contract'
 import type { PtyIncarnationId } from '../../shared/pty-incarnation'
 import {
   classifyTerminalProcessInspectionFailure,
@@ -15,19 +15,27 @@ type CompletionSensitivePtyProvider = IPtyProvider & {
   ) => Promise<PtyProcessInspection>
 }
 
-/**
- * `scanChildProcesses` marks a read whose answer decides something once, rather than a poll that
- * self-corrects on its next tick. Only hosts where the child answer costs a process-table read
- * act on it; everywhere else the answer was already captured.
- */
+/** scanChildProcesses requests decision-time evidence; steady polls may rely on the next tick to correct stale reads. */
 export type PtyProcessInspectionOptions = {
+  foregroundOnly?: boolean
   expectedIncarnationId?: PtyIncarnationId
   scanChildProcesses?: boolean
-  /** A self-correcting cadence poll that reads only the process name: licenses a host to answer
-   *  from a cheap capture and OMIT evidence. Never set by a caller that consumes evidence. */
+  /** Adoption only: ignore members outside both shell ancestry and console; close still reaches the whole job. */
+  ignoreDetached?: boolean
+  /** Name-only cadence polls may use cheap captures and omit evidence; evidence consumers must never set this. */
   steadyState?: boolean
   /** Ask for `foregroundGroup` where it costs a process-table read; the daemon sets it on every full read. */
   observeForegroundGroup?: boolean
+  /** Also reach a session the daemon still runs that no window has reattached since a relaunch.
+   *  WSL move gate only: other callers keep reading such a session as gone. */
+  includeUnattached?: boolean
+}
+
+/** Only the `observeForegroundGroup` request, for routes that forward no other option. */
+export function foregroundGroupOnly(
+  options: PtyProcessInspectionOptions | undefined
+): PtyProcessInspectionOptions | undefined {
+  return options?.observeForegroundGroup === true ? { observeForegroundGroup: true } : undefined
 }
 
 export async function inspectPtyProviderProcess(
@@ -35,7 +43,8 @@ export async function inspectPtyProviderProcess(
   ptyId: string,
   options?: PtyProcessInspectionOptions
 ): Promise<PtyProcessInspection> {
-  if (provider.hasPty?.(ptyId) === false) {
+  // The daemon's own inspect still refuses a session it no longer runs.
+  if (options?.includeUnattached !== true && provider.hasPty?.(ptyId) === false) {
     throw new Error('terminal_gone')
   }
   const inspectProcess = (provider as CompletionSensitivePtyProvider).inspectProcess

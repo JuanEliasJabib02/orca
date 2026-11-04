@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   loadPythonTextMateGrammar,
   PYTHON_LANGUAGE_ID,
-  PYTHON_TEXTMATE_SCOPE,
   registerPythonLanguage
 } from './register-python'
 
@@ -22,6 +21,8 @@ describe('registerPythonLanguage', () => {
     registerPythonLanguage(monaco as never)
 
     expect(monaco.languages.register).not.toHaveBeenCalled()
+    // Why: Monaco's own python configuration is richer than ours, so it must survive.
+    expect(monaco.languages.setLanguageConfiguration).not.toHaveBeenCalled()
     expect(monaco.languages.registerTokensProviderFactory).toHaveBeenCalledWith(
       PYTHON_LANGUAGE_ID,
       expect.objectContaining({ create: expect.any(Function) })
@@ -30,13 +31,9 @@ describe('registerPythonLanguage', () => {
 })
 
 describe('loadPythonTextMateGrammar', () => {
-  it('loads the MagicPython grammar for its scope', async () => {
-    const grammar = await loadPythonTextMateGrammar(PYTHON_TEXTMATE_SCOPE)
-    expect(grammar).not.toBeNull()
-    expect((grammar as { scopeName?: string } | null)?.scopeName).toBe(PYTHON_TEXTMATE_SCOPE)
-  })
-
-  it('returns null for any other scope', async () => {
-    expect(await loadPythonTextMateGrammar('source.nim')).toBeNull()
+  it('names the MagicPython grammar after the Monaco language id', async () => {
+    const grammar = await loadPythonTextMateGrammar()
+    expect(grammar.scopeName).toBe('source.python')
+    expect(grammar.name).toBe('python')
   })
 })

@@ -1,11 +1,12 @@
 import type { Repo } from '../../../shared/repo-types'
-import { normalizeGitRemoteUrl } from '../../../shared/git-remote-identity'
+import { normalizeGitRemoteUrl } from '../../../shared/git/remotes/git-remote-identity'
 import { getWorkspaceAttachmentUrlScope } from '../../../shared/workspace-attachment-normalization'
 import { parseGitHubIssueOrPRLink } from '../../../shared/github/links'
 import { githubRepoIdentityKey } from '../../../shared/github/repository-identity-key'
 import type { GitHubWorkItem } from '../../../shared/github/work-item-types'
 import { getWorkspaceAttachments } from '../../../shared/workspace-attachments'
 import type { Worktree } from '../../../shared/worktree/types'
+import { parseWorkspaceKey } from '../../../shared/workspace-scope'
 
 type GitHubWorkItemType = GitHubWorkItem['type']
 
@@ -70,6 +71,10 @@ export function worktreeMatchesGitHubNumber(
   return getWorkspaceAttachments(worktree).some((item) => {
     if (item.provider !== 'github' || item.number !== number) {
       return false
+    }
+    // A folder has no checkout repository; its attachments define the source.
+    if (parseWorkspaceKey(worktree.id)?.type === 'folder') {
+      return true
     }
     if (item.repoId && item.repoId !== worktree.repoId) {
       return false

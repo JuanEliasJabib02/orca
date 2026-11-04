@@ -2,7 +2,7 @@
 
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { HostedReviewInfo } from '../../../../shared/hosted-review'
+import type { HostedReviewInfo } from '../../../../shared/source-control/hosted-review/hosted-review-contracts'
 import { useHostedReviewStackParent } from './useHostedReviewStackParent'
 
 function makeReview(overrides: Partial<HostedReviewInfo> = {}): HostedReviewInfo {
@@ -61,8 +61,7 @@ describe('useHostedReviewStackParent', () => {
     const { result } = renderHook(() =>
       useHostedReviewStackParent({
         ...baseOptions,
-        // The worktree was created off feature/parent, so eligibility reports it as
-        // the default base; the repo default is still main and stacking still applies.
+        // The worktree base is feature/parent; the separate repo default main must not suppress stacking.
         base: 'feature/parent',
         repoDefaultBase: 'main',
         fetchHostedReviewForBranch

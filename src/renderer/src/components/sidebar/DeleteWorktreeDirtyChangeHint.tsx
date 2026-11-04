@@ -2,7 +2,8 @@ import type { JSX } from 'react'
 import { AlertTriangle, ChevronRight } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { translate } from '@/i18n/i18n'
-import { STATUS_COLORS, STATUS_LABELS } from '../right-sidebar/status-display'
+import { STATUS_COLORS } from '../right-sidebar/status-display'
+import { STATUS_LABELS } from '../../../../shared/git/status/git-status-labels'
 import type {
   DeleteWorktreeChangeCheckState,
   DeleteWorktreeDirtyChangePreview
@@ -42,8 +43,15 @@ export function DeleteWorktreeDirtyChangeHint({
 
   const label =
     changeCount > 0
-      ? `${changeCount} uncommitted or untracked ${changeCount === 1 ? 'change' : 'changes'}`
-      : 'Uncommitted or untracked changes'
+      ? translate(
+          'auto.components.sidebar.DeleteWorktreeDirtyChangeHint.changeCount',
+          '{{count}} uncommitted or untracked changes',
+          { count: changeCount, defaultValue_one: '{{count}} uncommitted or untracked change' }
+        )
+      : translate(
+          'auto.components.sidebar.DeleteWorktreeDirtyChangeHint.changes',
+          'Uncommitted or untracked changes'
+        )
 
   const warningLabel = (
     <>
@@ -146,8 +154,11 @@ export function DeleteWorktreeDirtyChangeHint({
               <p className="mt-1 text-muted-foreground">
                 {translate(
                   'auto.components.sidebar.DeleteWorktreeDirtyChangeHint.moreLoadedPaths',
-                  'and {{value0}} more loaded paths',
-                  { value0: preview.remainingPathCount }
+                  'and {{count}} more loaded paths',
+                  {
+                    count: preview.remainingPathCount,
+                    defaultValue_one: 'and {{count}} more loaded path'
+                  }
                 )}
               </p>
             ) : null}

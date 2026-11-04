@@ -1,9 +1,9 @@
 import path from 'node:path'
 import { parseDocument } from 'yaml'
 import type { TerminalColorOverrides } from '../../shared/terminal-color-overrides'
-import { hexColorLuminance } from '../../shared/color-validation'
 import {
   hasUsableTerminalThemeColors,
+  inferTerminalThemeMode,
   makeCustomTerminalThemeSelection,
   normalizeTerminalHexColor,
   normalizeTerminalThemeId,
@@ -101,7 +101,7 @@ function addWarpPalette(
 
 function inferMode(background: string | undefined, details: unknown): TerminalCustomThemeMode {
   if (background) {
-    return hexColorLuminance(background) >= 0.55 ? 'light' : 'dark'
+    return inferTerminalThemeMode(background)
   }
   if (details === 'lighter') {
     return 'light'
@@ -150,7 +150,7 @@ export function parseWarpThemeYaml(
     if (document.errors.length > 0) {
       return { ok: false, reason: document.errors[0]?.message ?? 'Invalid YAML' }
     }
-    // Why: cap alias expansion so a malicious YAML alias bomb can't blow up memory.
+    // Bound YAML alias expansion to prevent memory-exhaustion bombs.
     value = document.toJS({ maxAliasCount: 20 })
     if (parseTimedOut()) {
       return { ok: false, reason: 'Theme file took too long to parse.' }

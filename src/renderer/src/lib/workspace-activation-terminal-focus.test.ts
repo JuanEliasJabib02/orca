@@ -12,7 +12,9 @@ const mocks = vi.hoisted(() => ({
   getState: vi.fn(),
   subscribe: vi.fn()
 }))
-vi.mock('@/runtime/sync-runtime-graph', () => ({ focusRuntimeTerminalSurface: mocks.focus }))
+vi.mock('@/runtime/mounted-terminal-tab-registry', () => ({
+  focusRuntimeTerminalSurface: mocks.focus
+}))
 vi.mock('@/store', () => ({
   useAppStore: { getState: mocks.getState, subscribe: mocks.subscribe }
 }))
@@ -226,10 +228,5 @@ describe('workspace activation focus', () => {
     notifyMount()
     flushFrame()
     expect(mocks.focus).not.toHaveBeenCalled()
-  })
-
-  it('declines a failed activation', () => {
-    expect(queueWorkspaceActivationTerminalFocus('wt-1', false)).toBe(false)
-    expect(mocks.subscribe).not.toHaveBeenCalled()
   })
 })

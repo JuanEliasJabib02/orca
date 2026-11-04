@@ -1,4 +1,7 @@
-import { comparePorts, getWorkspacePortsByWorktreeId } from '@/lib/workspace-port-groups'
+import {
+  comparePorts,
+  getWorkspacePortsByWorktreeId
+} from '@/lib/workspace-ports/workspace-port-groups'
 import type { AppState } from '@/store/types'
 import type { WorkspacePort } from '../../../../shared/workspace-ports'
 import type { Worktree } from '../../../../shared/worktree/types'

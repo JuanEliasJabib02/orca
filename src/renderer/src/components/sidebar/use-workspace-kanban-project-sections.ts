@@ -3,8 +3,8 @@ import { useAppStore } from '@/store'
 import { useProjectHostSetupProjection } from '@/store/selectors'
 import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { Repo } from '../../../../shared/repo-types'
-import { getLogicalRepoOrderRankById } from './project-header-drop'
-import { buildProjectGroupingIndex } from './worktree-list/grouping/project-grouping'
+import { getLogicalRepoOrderRankById } from '../../../../shared/project-section-order'
+import { buildProjectGroupingIndex } from '../../../../shared/project-section-grouping'
 import type { WorkspaceKanbanProjectSections } from './workspace-kanban-project-sections'
 
 const EMPTY_PROJECT_GROUPS: readonly ProjectGroup[] = []

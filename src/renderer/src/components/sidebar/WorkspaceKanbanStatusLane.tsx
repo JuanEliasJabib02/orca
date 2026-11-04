@@ -17,11 +17,13 @@ import WorkspaceKanbanLaneCardList from './WorkspaceKanbanLaneCardList'
 import { serializeWorkspaceLaneFullIds } from './workspace-kanban-filtered-drop-index'
 import {
   countLaneCards,
-  getLaneItemWorktreeIds,
+  flattenLaneItemWorktrees,
   type WorkspaceKanbanLaneItem
 } from './workspace-kanban-lane-items'
+import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
 import { getWorkspaceStatusVisualMeta } from './workspace-status'
 import { translate } from '@/i18n/i18n'
+import { useUiLanguageRevision } from '@/i18n/use-ui-language-revision'
 
 type WorkspaceKanbanStatusLaneProps = {
   status: WorkspaceStatusDefinition
@@ -81,25 +83,30 @@ function WorkspaceKanbanStatusLane({
   onColumnResizeStart,
   onColumnResizeKeyDown
 }: WorkspaceKanbanStatusLaneProps): React.JSX.Element {
+  useUiLanguageRevision()
   const laneScrollRef = useRef<HTMLDivElement | null>(null)
   const meta = getWorkspaceStatusVisualMeta(status)
-  // Why: project sub-headers are not cards, so the badge leaves them out.
+  // Project sub-headers are not cards, so the badge leaves them out.
   const cardCount = countLaneCards(items)
-  // Why: a lane that is empty on its own merits is still "Empty" under a query —
-  // only a lane whose cards were filtered away has anything to say about matches.
+  // Only filtered-away cards justify No matches; intrinsically empty lanes remain Empty.
   const laneTotalCount = totalCount ?? cardCount
   const isFiltered = hasQuery && laneTotalCount > 0
-  // Why: this joins every id in the lane, so it must not rerun on unrelated
-  // board re-renders — at a few hundred cards it is ~25KB of string per pass.
+  // Memoize full-lane ID serialization to avoid rebuilding large strings on unrelated board renders.
   const laneFullIdsAttribute = useMemo(() => {
     if (!hasQuery) {
       return undefined
     }
     return (
-      serializeWorkspaceLaneFullIds(fullWorktreeIds ?? getLaneItemWorktreeIds(items)) ?? undefined
+      serializeWorkspaceLaneFullIds(
+        fullWorktreeIds ?? flattenLaneItemWorktrees(items).map(getWorktreeHostIdentity)
+      ) ?? undefined
     )
   }, [fullWorktreeIds, hasQuery, items])
-  const createTooltip = `New workspace in ${status.label}`
+  const createTooltip = translate(
+    'auto.components.sidebar.WorkspaceKanbanStatusLane.newWorkspaceIn',
+    'New workspace in {{status}}',
+    { status: status.label }
+  )
   const createButton = (
     <Button
       type="button"
@@ -117,10 +124,7 @@ function WorkspaceKanbanStatusLane({
     <section
       data-workspace-status-drop-target=""
       data-workspace-status={status.id}
-      // Why: sidebar→board drops read lane membership straight out of the DOM,
-      // where a search query would otherwise leave them only the rendered cards.
-      // Unfiltered lanes stay off this channel — the rendered scan already is the
-      // full lane, and every board id in an attribute is real DOM weight.
+      // Filtered drag/drop needs full membership beyond rendered cards; omit the extra DOM payload when unfiltered.
       data-workspace-lane-full-ids={laneFullIdsAttribute}
       data-contextual-tour-target={
         status.id === 'completed' ? 'workspace-board-done-lane' : undefined

@@ -37,7 +37,9 @@ const state = vi.hoisted(() => {
   }
 })
 vi.mock('@/store', () => ({
-  useAppStore: (selector: (value: typeof state) => unknown) => selector(state)
+  useAppStore: Object.assign((selector: (value: typeof state) => unknown) => selector(state), {
+    getState: () => state
+  })
 }))
 
 type Args = Parameters<typeof useSidebarRevealRequests>[0]

@@ -5,7 +5,7 @@ import type { TaskSourceContext } from '../../../../../shared/task-source-contex
 import React, { useState, useMemo, useRef, useCallback } from 'react'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
-import { getGitHubRepoRoutingSettings } from '@/lib/github-source-runtime-context'
+import { getGitHubRepoRoutingTarget } from '@/lib/github-source-runtime-context'
 import { useRepoAssigneesBySlug } from '@/hooks/useGitHubSlugMetadata'
 import {
   getGitHubPRReviewerQueryState,
@@ -16,17 +16,17 @@ import {
   getGitHubPRPrimaryReviewer,
   getGitHubPRReviewerRows,
   getGitHubPRReviewLabel
-} from '@/components/github-pr-reviewer-display'
+} from '../../../../../shared/github/pr-reviewer-display'
 import { cn } from '@/lib/utils'
 import { ChevronDown } from 'lucide-react'
 import { Popover, PopoverTrigger } from '@/components/ui/popover'
-import type { TaskPageGitHubWorkItemMutationRunner } from '../../task-page-linear-jira-list-model'
+import type { TaskPageGitHubWorkItemMutationRunner } from '../linear/task-page-linear-jira-list-model'
 import {
   mergeReviewerSuggestions,
   resolveTaskPullRequestRepo
-} from '../../task-page-github-review-model'
+} from './task-page-github-review-model'
 import { ReviewChipAvatar } from './Avatars'
-import { createTaskPageGitHubReviewerActions } from '../../task-page-github-reviewer-actions'
+import { createTaskPageGitHubReviewerActions } from './task-page-github-reviewer-actions'
 import { TaskPageGitHubReviewerPicker } from './ReviewerPicker'
 export function PRReviewCell({
   item,
@@ -56,8 +56,8 @@ export function PRReviewCell({
     index: 0
   })
   const [submitting, setSubmitting] = useState(false)
-  const sourceSettings = useAppStore(
-    useShallow((s) => getGitHubRepoRoutingSettings(s, repo?.id ?? null, sourceContext))
+  const ownerTarget = useAppStore(
+    useShallow((s) => getGitHubRepoRoutingTarget(s, repo?.id ?? null, sourceContext))
   )
   const reviewerInputRef = useRef<HTMLInputElement | null>(null)
   const reviewerTriggerRef = useRef<HTMLButtonElement | null>(null)
@@ -125,7 +125,7 @@ export function PRReviewCell({
     open && reviewRepo ? reviewRepo.owner : null,
     open && reviewRepo ? reviewRepo.repo : null,
     reviewerSeedUsers.map((user) => user.login),
-    sourceSettings,
+    ownerTarget,
     reviewRepo?.host
   )
   const authorLogin = item.author?.toLowerCase() ?? null
@@ -241,7 +241,7 @@ export function PRReviewCell({
     setReviewerInput,
     setSubmitting,
     sourceContext,
-    sourceSettings,
+    ownerTarget,
     submitting,
     workItemMutation
   })

@@ -1,39 +1,58 @@
+import type * as RepoDetectionModule from '../git/repo-detection'
+import type * as GitExecFileModule from '../git/command-runner/git-exec-file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as GitRunner from '../git/runner'
 import type * as RepoModule from '../git/repo'
 
-const { reposMocks, moduleMocks } = await vi.hoisted(async () => {
+const { reposMocks, moduleMocks, gitRepoProbeMocks } = await vi.hoisted(async () => {
   const moduleMocks = await import('./repos-remote-test-harness')
-  return { reposMocks: moduleMocks.createReposIpcMocks(), moduleMocks }
+  return {
+    reposMocks: moduleMocks.createReposIpcMocks(),
+    moduleMocks,
+    gitRepoProbeMocks: moduleMocks.createGitRepoProbeMocks()
+  }
+})
+
+vi.mock('../git/repo-detection', async (importOriginal) => {
+  return {
+    ...(await importOriginal<typeof RepoDetectionModule>()),
+    isGitRepoAsync: gitRepoProbeMocks.isGitRepo,
+    getGitRepoRootAsync: gitRepoProbeMocks.getGitRepoRoot
+  }
+})
+
+vi.mock('../git/command-runner/git-exec-file', async (importOriginal) => {
+  return {
+    ...(await importOriginal<typeof GitExecFileModule>()),
+    gitExecFileAsync: reposMocks.gitExecFileAsyncMock
+  }
 })
 
 vi.mock('electron', () => moduleMocks.electronModuleMock(reposMocks))
 vi.mock('../git/repo', async (importOriginal) =>
-  moduleMocks.gitRepoModuleMock(await importOriginal<typeof RepoModule>())
+  moduleMocks.gitRepoModuleMock(await importOriginal<typeof RepoModule>(), gitRepoProbeMocks)
 )
 vi.mock('../git/runner', async (importOriginal) =>
   moduleMocks.gitRunnerModuleMock(reposMocks, await importOriginal<typeof GitRunner>())
 )
-vi.mock('../git/worktree', () => moduleMocks.gitWorktreeModuleMock(reposMocks))
-vi.mock('./registered-worktree-roots-cache', () =>
+vi.mock('../git/worktrees/catalog/worktree-scan-cache', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  listWorktreeGraph: reposMocks.listWorktreeGraphMock
+}))
+vi.mock('./worktrees/removal/registered-worktree-roots-cache', () =>
   moduleMocks.registeredWorktreeRootsCacheModuleMock(reposMocks)
 )
-vi.mock('../worktree-root-preparation', () =>
+vi.mock('../workspaces/creation/worktree-root-preparation', () =>
   moduleMocks.worktreeRootPreparationModuleMock(reposMocks)
 )
-vi.mock('../providers/ssh-git-dispatch', () => moduleMocks.sshGitDispatchModuleMock(reposMocks))
-vi.mock('../providers/ssh-filesystem-dispatch', () =>
-  moduleMocks.sshFilesystemDispatchModuleMock(reposMocks)
-)
-vi.mock('./ssh', () => moduleMocks.sshModuleMock(reposMocks))
-vi.mock('../ssh/ssh-target-registry', () => moduleMocks.sshModuleMock(reposMocks))
 
 import { registerRepoHandlers } from './repos'
-import { clearGitCapabilityStateForTests } from '../git/git-capability-state'
+import { clearGitCapabilityStateForTests } from '../git/command-runner/git-capability-state'
 import { resetSshProviderAuthorities } from '../ssh/ssh-provider-authority'
 import { getGitRepoRoot } from '../git/repo'
 import { DEFAULT_REPO_BADGE_COLOR } from '../../shared/constants'
 import { createRepoHandlerHarness, resetLocalRepoMocks } from './repos-remote-test-harness'
+import { repoTarget } from '../persistence/repo-host-target-matcher.test-fixture'
 
 const {
   handleMock,
@@ -268,7 +287,7 @@ describe('repos:add + repos:clone', () => {
       setupMethod: 'imported-existing-folder'
     })
 
-    expect(mockStore.updateRepo).toHaveBeenNthCalledWith(1, existing.id, {
+    expect(mockStore.updateRepo).toHaveBeenNthCalledWith(1, repoTarget(existing.id), {
       upstream: {
         owner: 'acme',
         repo: 'orca',
@@ -281,7 +300,7 @@ describe('repos:add + repos:clone', () => {
     const added: Record<string, unknown>[] = []
     mockStore.getRepos.mockImplementation(() => added)
     mockStore.addRepo.mockImplementation((repo: Record<string, unknown>) => added.push(repo))
-    mockStore.updateRepo.mockImplementation((id, updates) => {
+    mockStore.updateRepo.mockImplementation(({ id }: { id: string }, updates) => {
       const repo = added.find((entry) => entry.id === id)
       if (!repo) {
         return null
@@ -343,11 +362,94 @@ describe('repos:add + repos:clone', () => {
       })
     ).rejects.toThrow('Imported folder does not match the selected project identity.')
 
-    expect(mockStore.removeProjectForHost).toHaveBeenCalledWith(added[0]?.id, 'local')
+    expect(mockStore.removeProjectForHost).toHaveBeenCalledWith(
+      expect.objectContaining({ id: added[0]?.id })
+    )
     expect(invalidateAuthorizedRootsCacheMock).toHaveBeenCalled()
   })
 
-  it('prepares and invalidates roots when repos:update changes worktree base path', () => {
+  it('refuses to relabel a folder whose own GitHub remote names another repository (#30663)', async () => {
+    const added: Record<string, unknown>[] = []
+    mockStore.getRepos.mockImplementation(() => added)
+    mockStore.addRepo.mockImplementation((repo: Record<string, unknown>) => added.push(repo))
+    reposMocks.gitExecFileAsyncMock.mockImplementation(async (argv: string[]) =>
+      argv[0] === 'remote' && argv[1] === '-v'
+        ? {
+            stdout:
+              'origin\thttps://github.com/acme/repo-b.git (fetch)\norigin\thttps://github.com/acme/repo-b.git (push)\n'
+          }
+        : { stdout: '' }
+    )
+
+    try {
+      await expect(
+        handlers.get('projectHostSetups:setupExistingFolder')!(null, {
+          projectId: 'github:acme/repo-a',
+          projectProviderIdentity: { provider: 'github', owner: 'acme', repo: 'repo-a' },
+          hostId: 'local',
+          path: '/tmp/repo-b',
+          kind: 'git'
+        })
+      ).rejects.toThrow(/points at acme\/repo-b, not acme\/repo-a/)
+    } finally {
+      reposMocks.gitExecFileAsyncMock.mockReset()
+    }
+
+    expect(mockStore.updateRepo).not.toHaveBeenCalled()
+    expect(mockStore.removeProjectForHost).toHaveBeenCalledWith(
+      expect.objectContaining({ id: added[0]?.id })
+    )
+  })
+
+  it('re-reads an already-registered folder whose stored remote is still pending (#30663)', async () => {
+    const registered = {
+      id: 'repo-b',
+      path: '/tmp/repo-b',
+      displayName: 'repo-b',
+      badgeColor: DEFAULT_REPO_BADGE_COLOR,
+      addedAt: 1,
+      kind: 'git'
+    }
+    mockStore.getRepos.mockReturnValue([registered])
+    mockStore.removeProjectForHost.mockClear()
+    reposMocks.gitExecFileAsyncMock.mockImplementation(async (argv: string[]) =>
+      argv[0] === 'remote' && argv[1] === '-v'
+        ? { stdout: 'origin\tgit@github.com:acme/repo-b.git (fetch)\n' }
+        : { stdout: '' }
+    )
+
+    try {
+      await expect(
+        handlers.get('projectHostSetups:setupExistingFolder')!(null, {
+          projectId: 'github:acme/repo-a',
+          projectProviderIdentity: { provider: 'github', owner: 'acme', repo: 'repo-a' },
+          hostId: 'local',
+          path: '/tmp/repo-b',
+          kind: 'git'
+        })
+      ).rejects.toThrow(/points at acme\/repo-b, not acme\/repo-a/)
+    } finally {
+      reposMocks.gitExecFileAsyncMock.mockReset()
+    }
+
+    expect(mockStore.updateRepo).not.toHaveBeenCalled()
+    expect(mockStore.removeProjectForHost).not.toHaveBeenCalled()
+  })
+
+  it('refuses project setup on an SSH target with the not-connected text and adds no repo', async () => {
+    await expect(
+      handlers.get('projectHostSetups:setupExistingFolder')!(null, {
+        projectId: 'github:acme/orca',
+        hostId: 'ssh:conn-1',
+        path: '/srv/orca',
+        kind: 'git'
+      })
+    ).rejects.toThrow('SSH connection "conn-1" not found or not connected')
+
+    expect(mockStore.addRepo).not.toHaveBeenCalled()
+  })
+
+  it('prepares and invalidates roots when repos:update changes worktree base path', async () => {
     const updated = {
       id: 'repo-update-root',
       path: '/tmp/repo-update-root',
@@ -356,22 +458,24 @@ describe('repos:add + repos:clone', () => {
       badgeColor: '#22c55e',
       worktreeBasePath: '../worktrees'
     }
+    mockStore.getRepo.mockReturnValue(updated)
     mockStore.updateRepo.mockReturnValue(updated)
 
-    const result = handlers.get('repos:update')!(null, {
+    const result = await handlers.get('repos:update')!(null, {
       repoId: updated.id,
       updates: { worktreeBasePath: ' ../worktrees ' }
     })
 
     expect(result).toBe(updated)
-    expect(mockStore.updateRepo).toHaveBeenCalledWith(updated.id, {
+    expect(mockStore.updateRepo).toHaveBeenCalledWith(repoTarget(updated.id), {
       worktreeBasePath: '../worktrees'
     })
+    expect(mockStore.getRepos).not.toHaveBeenCalled()
     expect(prepareLocalWorktreeRootForRepoMock).toHaveBeenCalledWith(mockStore, updated)
     expect(invalidateAuthorizedRootsCacheMock).toHaveBeenCalled()
   })
 
-  it('persists agent worktree visibility through local repos:update', () => {
+  it('persists agent worktree visibility through local repos:update', async () => {
     const updated = {
       id: 'repo-agent-visibility',
       path: '/tmp/repo-agent-visibility',
@@ -380,47 +484,56 @@ describe('repos:add + repos:clone', () => {
       badgeColor: '#22c55e',
       agentWorktreeVisibility: 'show'
     }
+    mockStore.getRepo.mockReturnValue(updated)
     mockStore.updateRepo.mockReturnValue(updated)
 
-    const result = handlers.get('repos:update')!(null, {
+    const result = await handlers.get('repos:update')!(null, {
       repoId: updated.id,
       updates: { agentWorktreeVisibility: 'show' }
     })
 
     expect(result).toBe(updated)
-    expect(mockStore.updateRepo).toHaveBeenCalledWith(updated.id, {
+    expect(mockStore.updateRepo).toHaveBeenCalledWith(repoTarget(updated.id), {
       agentWorktreeVisibility: 'show'
     })
   })
 
-  it('sanitizes Spotlight server configs through local repos:update', () => {
-    mockStore.updateRepo.mockReturnValue({ id: 'repo-spotlight-server' })
+  it('sanitizes Spotlight server configs through local repos:update', async () => {
+    const repo = {
+      id: 'repo-spotlight-server',
+      path: '/tmp/repo-spotlight-server',
+      displayName: 'repo-spotlight-server',
+      kind: 'git',
+      badgeColor: '#22c55e'
+    }
+    mockStore.getRepo.mockReturnValue(repo)
+    mockStore.updateRepo.mockReturnValue(repo)
     const update = (spotlightServer: unknown) =>
       handlers.get('repos:update')!(null, {
-        repoId: 'repo-spotlight-server',
+        repoId: repo.id,
         updates: { spotlightServer }
       })
 
-    update({ local: ' pnpm local ', dev: 7, port: 3002, extra: true })
-    expect(mockStore.updateRepo).toHaveBeenLastCalledWith('repo-spotlight-server', {
+    await update({ local: ' pnpm local ', dev: 7, port: 3002, extra: true })
+    expect(mockStore.updateRepo).toHaveBeenLastCalledWith(repoTarget(repo.id), {
       spotlightServer: { local: 'pnpm local', port: 3002 }
     })
 
-    update({ dev: '   ', port: 70000 })
-    expect(mockStore.updateRepo).toHaveBeenLastCalledWith('repo-spotlight-server', {
+    await update({ dev: '   ', port: 70000 })
+    expect(mockStore.updateRepo).toHaveBeenLastCalledWith(repoTarget(repo.id), {
       spotlightServer: null
     })
 
-    update(null)
-    expect(mockStore.updateRepo).toHaveBeenLastCalledWith('repo-spotlight-server', {
+    await update(null)
+    expect(mockStore.updateRepo).toHaveBeenLastCalledWith(repoTarget(repo.id), {
       spotlightServer: null
     })
 
-    update('pnpm dev')
-    expect(mockStore.updateRepo).toHaveBeenLastCalledWith('repo-spotlight-server', {})
+    await update('pnpm dev')
+    expect(mockStore.updateRepo).toHaveBeenLastCalledWith(repoTarget(repo.id), {})
   })
 
-  it('validates source definitions and preferences through local repos:update', () => {
+  it('validates source definitions and preferences through local repos:update', async () => {
     const updated = {
       id: 'repo-source-visibility',
       path: '/tmp/repo-source-visibility',
@@ -428,9 +541,10 @@ describe('repos:add + repos:clone', () => {
       kind: 'git',
       badgeColor: '#22c55e'
     }
+    mockStore.getRepo.mockReturnValue(updated)
     mockStore.updateRepo.mockReturnValue(updated)
 
-    handlers.get('repos:update')!(null, {
+    await handlers.get('repos:update')!(null, {
       repoId: updated.id,
       updates: {
         customWorktreeVisibilitySources: [
@@ -444,7 +558,7 @@ describe('repos:add + repos:clone', () => {
       }
     })
 
-    expect(mockStore.updateRepo).toHaveBeenCalledWith(updated.id, {
+    expect(mockStore.updateRepo).toHaveBeenCalledWith(repoTarget(updated.id), {
       customWorktreeVisibilitySources: [{ id: 'team', rootPath: '/srv/team' }],
       worktreeVisibilitySourcePreferences: {
         builtIn: { claude: 'show' },
@@ -453,7 +567,7 @@ describe('repos:add + repos:clone', () => {
     })
   })
 
-  it('prepares and invalidates roots when project host setup update changes worktree base path', () => {
+  it('prepares and invalidates roots when project host setup update changes worktree base path', async () => {
     const repo = {
       id: 'repo-setup-update-root',
       path: '/tmp/repo-setup-update-root',
@@ -469,12 +583,12 @@ describe('repos:add + repos:clone', () => {
     }
     mockStore.updateProjectHostSetup.mockReturnValue(result)
 
-    expect(
+    await expect(
       handlers.get('projectHostSetups:update')!(null, {
         setupId: 'setup-1',
         updates: { worktreeBasePath: '../worktrees' }
       })
-    ).toBe(result)
+    ).resolves.toBe(result)
 
     expect(prepareLocalWorktreeRootForRepoMock).toHaveBeenCalledWith(mockStore, repo)
     expect(invalidateAuthorizedRootsCacheMock).toHaveBeenCalled()

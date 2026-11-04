@@ -8,10 +8,10 @@ import {
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { resolvePrimaryAction, type PrimaryActionInputs } from './source-control-primary-action'
 import { resolveDropdownItems } from './source-control-dropdown-items'
-import type { DropdownActionKind } from './source-control-dropdown-item-types'
+import type { DropdownActionKind } from '../../../../shared/source-control/dropdown/source-control-dropdown-item-types'
 import { getDefaultSettings } from '../../../../shared/constants'
-import { CUSTOM_AGENT_ID } from '../../../../shared/commit-message-agent-spec'
-import { resolveSourceControlAiForOperation } from '../../../../shared/source-control-ai'
+import { CUSTOM_AGENT_ID } from '../../../../shared/source-control/ai/generation/commit-message-agent-spec'
+import { resolveSourceControlAiForOperation } from '../../../../shared/source-control/ai/source-control-ai-operation-resolution'
 
 function buildInputs(overrides: Partial<PrimaryActionInputs> = {}): PrimaryActionInputs {
   return {
@@ -105,7 +105,6 @@ describe('CommitArea AI generation', () => {
 
     const button = buttonByLabel(markup, 'Generate commit message with AI')
     expect(hasDisabledAttribute(button)).toBe(false)
-    // Why: single Radix tooltip only — native title removed to avoid duplicate tooltips.
     expect(button).not.toContain('title=')
   })
 

@@ -34,6 +34,7 @@ vi.mock('./daemon-endpoint-adoption', () => ({
   reconcileDaemonPidOwnership: vi.fn()
 }))
 vi.mock('./daemon-launched-child', () => ({
+  DAEMON_CHILD_STARTUP_TIMEOUT_MS: 10_000,
   DaemonEndpointUnavailableError: class extends Error {},
   launchDaemonChild: harness.launchDaemonChild,
   terminateLaunchedDaemonChild: vi.fn()
@@ -81,7 +82,7 @@ function materializedBuild(): string {
   return dirname(host.execPath)
 }
 
-// What the real launch sees at fork time, before the child publishes its live record.
+// Observe the fork before the replacement publishes its PID record.
 function recordLaunch(oldBuild: string): { oldBuildPresent?: boolean; forkEntryPath?: string } {
   const seen: { oldBuildPresent?: boolean; forkEntryPath?: string } = {}
   harness.launchDaemonChild.mockImplementation(async (options: { forkEntryPath: string }) => {
@@ -157,7 +158,7 @@ afterEach(() => {
 })
 
 describe('out-of-process launcher: published daemon-host retention', () => {
-  // A changed fingerprint selects a new mirror without deleting a previous daemon's code.
+  // Change the fingerprint within one version to exercise superseded-build retention.
   function seedSupersededLaunch(): string {
     const oldBuild = materializedBuild()
     writePidRecord(STALE_DAEMON_PID)
@@ -239,7 +240,7 @@ describe('out-of-process launcher: published daemon-host retention', () => {
 
   it('leaves an exited superseded version to the post-launch prune so it never delays the fork', async () => {
     const oldBuild = seedSupersededLaunch()
-    // No pid record names 1.0.0, so its mirror is exited and reclaimable at any point.
+    // No PID record pins the superseded version, so post-launch pruning can reclaim it.
     const supersededVersion = join(dirname(dirname(oldBuild)), '1.0.0')
     mkdirSync(supersededVersion, { recursive: true })
     writeFileSync(join(supersededVersion, 'Orca.exe'), 'superseded')

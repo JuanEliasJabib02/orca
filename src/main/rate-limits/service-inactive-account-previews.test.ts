@@ -136,6 +136,8 @@ describe('RateLimitService', () => {
 
   it('passes WSL Codex managed homes into inactive account rate-limit fetches', async () => {
     const service = new RateLimitService()
+    const networkProxySettings = { httpProxyUrl: 'http://proxy.fixture.invalid:8080' }
+    service.setNetworkProxySettingsResolver(() => networkProxySettings)
     const wslCodexHome =
       '\\\\wsl.localhost\\Ubuntu\\home\\jin\\.local\\share\\orca\\codex-accounts\\a\\home'
     service.setInactiveCodexAccountsResolver(() => [
@@ -148,6 +150,7 @@ describe('RateLimitService', () => {
     expect(fetchCodexRateLimits).toHaveBeenCalledWith(
       expect.objectContaining({
         codexHomePath: wslCodexHome,
+        networkProxySettings,
         signal: expect.any(AbortSignal)
       })
     )
@@ -333,12 +336,10 @@ describe('RateLimitService', () => {
     await service.fetchInactiveCodexAccountsOnOpen()
     expect(fetchCodexRateLimits).toHaveBeenCalledTimes(1)
 
-    // The switch triggers exactly one fetch: the newly active account's.
     await service.refreshForCodexAccountChange('account-a')
     expect(fetchCodexRateLimits).toHaveBeenCalledTimes(2)
 
-    // Why: re-opening the switcher inside the debounce window must not spawn
-    // codex in every inactive credential home again.
+    // Reopening inside debounce must not spawn Codex again in each live credential home.
     await service.fetchInactiveCodexAccountsOnOpen()
     expect(fetchCodexRateLimits).toHaveBeenCalledTimes(2)
   })

@@ -2,7 +2,7 @@ import { ipcMain } from 'electron'
 import type { BrowserWindow } from 'electron'
 import type { SpotlightServerStartResult, SpotlightServerState } from '../../shared/spotlight'
 import { parseSpotlightAutostartNote } from '../../shared/spotlight-autostart-note'
-import type { Store } from '../persistence'
+import type { Store } from '../persistence/loading-store/store'
 import { SpotlightService } from '../spotlight/spotlight-service'
 import {
   getSpotlightTerminal,

@@ -21,6 +21,7 @@ import {
   githubWorkItemDetailsSchema,
   hostedReviewForBranchSchema
 } from './github-pr-read-reply-schema'
+import { getProviderChecksOutcome } from '../../../src/shared/source-control/checks/provider-check-summary'
 import { prChecksSchema } from './github-pr-entity-reply-schema'
 import {
   reviewCreatedTerminalSchema,
@@ -42,11 +43,6 @@ import {
   workspaceFilePathsSchema
 } from './session-read-reply-schema'
 import { sessionCreatedTerminalTabSchema } from './session-write-reply-schema'
-
-// One suite per claim the session schemas make. The three kinds of case here are the three kinds of
-// decision the schemas encode: a member a consumer reads unguarded is required, an arm set a reader
-// compares against degrades rather than refusing, and a reply whose arms need different members is
-// declared as variants.
 
 function reads<T>(schema: z.ZodType<T, unknown>, value: unknown): T {
   const parsed = schema.safeParse(value)
@@ -95,7 +91,6 @@ describe('required members', () => {
     expect(created.terminal).toBe('terminal-9')
     expect(refuses(sessionCreatedTerminalTabSchema, {})).toBe(true)
     expect(refuses(sessionCreatedTerminalTabSchema, { tab: { ...tab, id: '' } })).toBe(true)
-    // A create that answered some other tab kind would be spread into the strip as a terminal.
     expect(refuses(sessionCreatedTerminalTabSchema, { tab: { ...tab, type: 'markdown' } })).toBe(
       true
     )
@@ -107,7 +102,6 @@ describe('required members', () => {
     expect(created.terminal).toBeNull()
     expect(created.title).toBeUndefined()
     expect(created.status).toBe('pending-handle')
-    // Main guarded each of these, so an unreadable one drops to the guard rather than refusing.
     const salvaged = reads(sessionCreatedTerminalTabSchema, {
       tab: { ...tab, title: 7, terminal: 3 }
     })
@@ -126,6 +120,25 @@ describe('required members', () => {
     expect(tabs).toEqual([{ id: 'tab-1', terminal: 'terminal-1', title: 'Terminal' }])
     expect(refuses(reviewTerminalTabsSchema, {})).toBe(true)
     expect(refuses(reviewTerminalTabsSchema, { tabs: 'none' })).toBe(true)
+  })
+
+  it('keeps which agent a terminal runs, so a note can go straight to the only one', () => {
+    const tabs = reads(reviewTerminalTabsSchema, {
+      tabs: [
+        { id: 'tab-1', type: 'terminal', terminal: 't-1', launchAgent: 'claude' },
+        { id: 'tab-2', type: 'terminal', terminal: 't-2', agentStatus: { agentType: 'codex' } },
+        { id: 'tab-3', type: 'terminal', terminal: 't-3', agentStatus: null },
+        {
+          id: 'tab-4',
+          type: 'terminal',
+          terminal: 't-4',
+          title: 'zsh',
+          launchAgent: 'claude',
+          agentStatus: { agentType: 'claude', state: 'done' }
+        }
+      ]
+    })
+    expect(tabs?.map((tab) => tab.agent)).toEqual(['claude', 'codex', undefined, undefined])
   })
 
   it('requires the three compare members every summary line reads', () => {
@@ -153,7 +166,7 @@ describe('required members', () => {
         { path: 'c.ts' }
       ]
     })
-    expect(compare.entries.map((entry) => entry.path)).toEqual(['a.ts'])
+    expect(compare.entries?.map((entry) => entry.path)).toEqual(['a.ts'])
   })
 
   it('requires the three members a markdown tab publishes into its ready state', () => {
@@ -281,9 +294,7 @@ describe('degrading arm sets', () => {
     expect(reads(hostedReviewForBranchSchema, null)).toBeNull()
   })
 
-  // Why these three degrade on a NON-STRING too: `openEnum` is `z.enum(...).or(z.string()...)`,
-  // so it refuses a number where main mapped it to the conservative arm. Swapping these to
-  // `openEnum(..., fallback).optional()` keeps every other test green and flips exactly these.
+  // Non-string enum values must also degrade; plain openEnum would reject them instead of selecting the conservative arm.
   it('degrades a non-string check status to pending rather than refusing the review', () => {
     const review = { provider: 'github', number: 7 }
     expect(reads(hostedReviewForBranchSchema, { ...review, status: 3 })?.status).toBe('pending')
@@ -318,9 +329,7 @@ describe('degrading arm sets', () => {
   })
 })
 
-// The other half of the same decision: where main DROPPED the row or block rather than mapping it
-// to an arm, the arm set stays closed and required. Defaulting these would invent a status the host
-// never sent, so the row leaving is the honest answer.
+// Keep arms closed where unreadable rows were historically dropped; fallback would invent host state.
 describe('closed arm sets drop rather than default', () => {
   it('drops a check row whose status is an arm the icon cannot draw', () => {
     const rows = reads(prChecksSchema, [
@@ -339,7 +348,7 @@ describe('closed arm sets drop rather than default', () => {
         { path: 'b.ts', status: 'teleported' }
       ]
     })
-    expect(projection.entries.map((entry) => entry.path)).toEqual(['a.ts'])
+    expect(projection.entries?.map((entry) => entry.path)).toEqual(['a.ts'])
   })
 
   it('refuses a diff whose kind names no arm the screen can render', () => {
@@ -374,11 +383,43 @@ describe('closed arm sets drop rather than default', () => {
     })
     expect(details?.comments[0]?.reactions).toEqual([{ content: '+1', count: 2 }])
   })
+
+  it('keeps the PR files the diff screen reads viewed state and commentable lines from', () => {
+    const details = reads(githubWorkItemDetailsSchema, {
+      item: { id: 'i-1', number: 7, type: 'pr', state: 'open' },
+      files: [
+        {
+          path: 'src/a.ts',
+          status: 'modified',
+          additions: 2,
+          deletions: 1,
+          isBinary: false,
+          reviewCommentLineNumbers: [3, 4],
+          viewerViewedState: 'DISMISSED'
+        },
+        { path: 'src/b.ts', status: 'moved', viewerViewedState: 'SOMETIMES' },
+        { status: 'added' }
+      ]
+    })
+    expect(details?.files).toEqual([
+      {
+        path: 'src/a.ts',
+        status: 'modified',
+        additions: 2,
+        deletions: 1,
+        isBinary: false,
+        reviewCommentLineNumbers: [3, 4],
+        viewerViewedState: 'DISMISSED'
+      },
+      { path: 'src/b.ts', status: 'modified', additions: 0, deletions: 0, isBinary: false }
+    ])
+    expect(
+      reads(githubWorkItemDetailsSchema, { item: { id: 'i-1', number: 7, type: 'pr' } })?.files
+    ).toBeUndefined()
+  })
 })
 
-// A third answer, distinct from both: `null` on these two flags is GitHub saying it knows the
-// answer and the answer is no, where `undefined` is the host not carrying the member. Coalescing
-// the null away would read a well-formed reply differently from main, which preserved it.
+// Preserve null as explicit no; undefined means the host omitted the flag.
 describe('tri-state flags keep an explicit null', () => {
   const review = { provider: 'github', number: 7 }
   const pr = { number: 7, state: 'open' }
@@ -399,7 +440,7 @@ describe('tri-state flags keep an explicit null', () => {
   it('keeps a null autoMergeAllowed and mergeQueueRequired on the PR and drops a non-boolean', () => {
     const readsPr = (value: unknown) => {
       const found = reads(githubPrForBranchSchema, { kind: 'found', pr: value })
-      return found.kind === 'found' ? found.pr : null
+      return found?.kind === 'found' ? found.pr : null
     }
     const nulled = readsPr({ ...pr, autoMergeAllowed: null, mergeQueueRequired: null })
     expect(nulled?.autoMergeAllowed).toBeNull()
@@ -486,8 +527,6 @@ describe('declared variants', () => {
     expect(refuses(githubPrRepoSlugSchema, { owner: 'o' })).toBe(true)
   })
 
-  // The plain terminal-send envelope is pinned once, in terminal-reply-schema.test.ts; this is the
-  // review variant only, whose absent arm reads the other way.
   it('reads a review terminal send as delivered unless the runtime said otherwise', () => {
     expect(reads(reviewTerminalSendAcceptedSchema, { send: { accepted: false } })).toBe(false)
     expect(reads(reviewTerminalSendAcceptedSchema, {})).toBe(true)
@@ -513,4 +552,45 @@ describe('a newer host is not refused', () => {
     })
     expect(inventory.layoutVersion).toBe(3)
   })
+})
+
+it('keeps additive cancellation summaries through explicit PR and hosted-review parsers', () => {
+  const summary = {
+    state: 'failure',
+    total: 1,
+    passed: 0,
+    failed: 1,
+    pending: 0,
+    neutral: 0,
+    cancelled: 1
+  }
+  const pr = reads(githubPrForBranchSchema, {
+    number: 4,
+    state: 'open',
+    checksStatus: 'failure',
+    checksSummary: summary
+  })
+  expect(pr?.kind === 'found' && pr.pr.checksSummary).toEqual(summary)
+  const readReview = (checksSummary: unknown) =>
+    reads(hostedReviewForBranchSchema, {
+      provider: 'github',
+      number: 4,
+      status: 'failure',
+      checksSummary
+    })
+  expect(readReview(summary)?.checksSummary).toEqual(summary)
+  expect(readReview({ ...summary, scope: 'pipeline' })?.checksSummary?.scope).toBe('pipeline')
+  for (const invalid of [
+    undefined,
+    { ...summary, cancelled: -1 },
+    { ...summary, cancelled: 2 },
+    { ...summary, cancelled: '1' },
+    { ...summary, scope: 'future_scope' },
+    { ...summary, passed: undefined },
+    { ...summary, failed: 0, pending: 1, cancelled: 0 }
+  ]) {
+    const review = readReview(invalid)
+    expect(review?.number).toBe(4)
+    expect(getProviderChecksOutcome(review?.checksSummary, 'failure')).toBe('failure')
+  }
 })

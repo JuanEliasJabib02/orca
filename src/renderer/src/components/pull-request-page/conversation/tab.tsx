@@ -3,18 +3,18 @@ import { useShallow } from 'zustand/react/shallow'
 import { toast } from 'sonner'
 
 import { useAppStore } from '@/store'
-import { useRepoAssignees } from '@/hooks/useIssueMetadata'
+import { useRepoAssignees } from '@/hooks/useGitHubRepoMetadata'
 import {
   canUseGitHubRepoContext,
-  getGitHubRepoRoutingSettings
+  getGitHubRepoRoutingTarget
 } from '@/lib/github-source-runtime-context'
 import { usePRBotAuthorOverrides } from '@/lib/pr-bot-author-overrides'
 import {
   filterPRCommentsByAudience,
   getPRCommentAudienceCounts,
   type PRCommentAudienceFilter
-} from '../../../../../shared/pr-comment-audience'
-import { groupPRComments } from '../../../../../shared/pr-comment-groups'
+} from '../../../../../shared/source-control/review-comments/pr-comment-audience'
+import { groupPRComments } from '../../../../../shared/source-control/review-comments/pr-comment-groups'
 import { resolveCommentReplyTarget } from '@/components/comment-reply-target-state'
 import { runWorkItemBodyUpdate } from '@/components/github/github-work-item-edit-mutations'
 import {
@@ -94,7 +94,8 @@ export function ConversationTab({
   onCommentAdded: (comment: PRComment) => void
   onReviewersRequested: (reviewRequests: GitHubAssignableUser[]) => void
 }): React.JSX.Element {
-  const authorLabel = item.author ?? 'unknown'
+  const authorLabel =
+    item.author ?? translate('auto.components.PullRequestPage.77d9388fb0', 'unknown')
   const [replyingTo, setReplyingTo] = useState<number | null>(null)
   const [commentFilter, setCommentFilter] = useState<PRCommentAudienceFilter>('all')
   const [bodyDraft, setBodyDraft] = useState(body)
@@ -103,10 +104,10 @@ export function ConversationTab({
   const bodyTextareaRef = useRef<HTMLTextAreaElement>(null)
   const bodyTextareaFocusFrameRef = useRef<number | null>(null)
   const canUseRepoMutationContext = canUseGitHubRepoContext(repoPath, sourceContext)
-  const sourceSettings = useAppStore(
-    useShallow((s) => getGitHubRepoRoutingSettings(s, item.repoId ?? repoId ?? null, sourceContext))
+  const ownerTarget = useAppStore(
+    useShallow((s) => getGitHubRepoRoutingTarget(s, item.repoId ?? repoId ?? null, sourceContext))
   )
-  const repoAssignees = useRepoAssignees(repoPath, item.repoId, sourceSettings)
+  const repoAssignees = useRepoAssignees(repoPath, item.repoId, { target: ownerTarget })
   const botAuthorOverrides = usePRBotAuthorOverrides()
   const commentCounts = useMemo(
     () => getPRCommentAudienceCounts(comments, botAuthorOverrides),
@@ -257,6 +258,7 @@ export function ConversationTab({
           sourceContext={sourceContext}
           projectOrigin={projectOrigin}
           onReviewersRequested={onReviewersRequested}
+          onMutated={onMutated}
         />
         <aside className="overflow-hidden rounded-lg border border-border/50 bg-card shadow-xs">
           <ChecksTab
@@ -347,6 +349,7 @@ export function ConversationTab({
             itemType={item.type}
             prRepo={prRepo}
             mentionOptions={mentionOptions}
+            mentionError={repoAssignees.error}
             onCommentAdded={onCommentAdded}
           />
         )}

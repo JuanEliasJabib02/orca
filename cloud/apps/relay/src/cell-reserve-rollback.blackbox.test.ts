@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import WebSocket from 'ws'
+import { CELL_ADMIT_EFFECTIVE_REFRESH_MS } from './cell-admit-effective-writer.js'
 import { RESERVE_DEAD_MAN_MS, reserveDeadManWindowMs } from './cell-reserve-dead-man.js'
 import { openRelayDatabase } from './database.js'
 import {
@@ -34,7 +35,7 @@ describe('flipping a reserve-mode cell back to the database', () => {
     vi.restoreAllMocks()
   })
 
-  async function cell(now?: () => number) {
+  async function cell(now?: () => number, options: { flagsUnread?: boolean } = {}) {
     vi.spyOn(console, 'log').mockImplementation(() => undefined)
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -42,7 +43,7 @@ describe('flipping a reserve-mode cell back to the database', () => {
     cleanup.push(() => rmSync(dataDir, { recursive: true, force: true }))
     const database = await openRelayDatabase({ dataDir })
     cleanup.push(() => database.close())
-    return await startReserveModeCell({ database, dataDir, cleanup, ...(now ? { now } : {}) })
+    return await startReserveModeCell({ database, dataDir, cleanup, ...options, ...(now ? { now } : {}) })
   }
 
   it('registers every memory-admitted control without disconnecting any, matching the seat report', async () => {
@@ -228,11 +229,32 @@ describe('flipping a reserve-mode cell back to the database', () => {
     expect(reply.socket.readyState).toBe(WebSocket.OPEN)
   }, 30_000)
 
+  // Step 5 off adds no writes before/after flag reads; leaving reserve owes exactly one db write.
+  it('writes an admit-effective row only while its switch says reserve, plus one db write on the way out', async () => {
+    let now = Date.now()
+    const booting = await cell(() => now, { flagsUnread: true })
+    await new Promise((resolve) => setTimeout(resolve, 2_500))
+    expect(await booting.admitEffectiveRow()).toBeUndefined()
+    booting.setAdmitMode('db')
+    now += 3 * CELL_ADMIT_EFFECTIVE_REFRESH_MS
+    await new Promise((resolve) => setTimeout(resolve, 2_500))
+    expect(await booting.admitEffectiveRow()).toBeUndefined()
+    booting.setAdmitMode('reserve')
+    await until(async () => (await booting.admitEffectiveRow())?.mode === 'reserve')
+    booting.setAdmitMode('db')
+    await until(async () => (await booting.admitEffectiveRow())?.mode === 'db')
+    const last = (await booting.admitEffectiveRow())!.updated_at
+    now += 3 * CELL_ADMIT_EFFECTIVE_REFRESH_MS
+    await new Promise((resolve) => setTimeout(resolve, 2_500))
+    expect((await booting.admitEffectiveRow())!.updated_at).toEqual(last)
+  }, 30_000)
+
   it('flips itself back to db when no placing director has been in touch for the dead-man window', async () => {
     let now = Date.now()
     const reserve = await cell(() => now)
     const seated = await reserve.bookedHost(3)
     expect(reserve.relay.sessions.inReserveMode()).toBe(true)
+    await until(async () => (await reserve.admitEffectiveRow())?.mode === 'reserve')
     const windowMs = reserveDeadManWindowMs(reserve.config.cellId)
     expect(windowMs).toBeGreaterThanOrEqual(RESERVE_DEAD_MAN_MS)
     expect(windowMs).toBeLessThanOrEqual(2 * RESERVE_DEAD_MAN_MS)
@@ -252,6 +274,9 @@ describe('flipping a reserve-mode cell back to the database', () => {
       .mock.calls.map(([line]) => String(line))
       .filter((line) => line.includes('orca_relay_cell_reserve_dead_man_tripped'))
     expect(tripped.map((line) => JSON.parse(line).cellId)).toEqual([reserve.config.cellId])
+    // Publish raw db mode immediately despite PG’s reserve stamp so placement can recover without a working feed poll.
+    await until(async () => (await reserve.admitEffectiveRow())?.mode === 'db')
+    expect((await reserve.admitEffectiveRow())?.cell_incarnation).toBe(reserve.relay.cellIncarnation)
     await until(async () => (await reserve.controlLeases()).length === 2)
     expect(seated.socket.readyState).toBe(WebSocket.OPEN)
     // Latched for this switch generation: contact again does not bring reserve back.

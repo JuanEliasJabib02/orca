@@ -4,9 +4,10 @@ import { promisify } from 'node:util'
 import path, { win32 } from 'node:path'
 import type { RelayDispatcher } from './dispatcher'
 import { buildRelayCommandEnv } from './relay-command-env'
-import { isPwshAvailableAsync } from '../main/pwsh'
-import { isWslAvailableAsync, listWslDistrosAsync } from '../main/wsl'
-import { isGitBashAvailable } from '../main/git-bash'
+import { isPwshAvailableAsync } from '../main/pty/shell-startup/pwsh'
+import { isWslAvailableAsync } from '../main/wsl/discovery/wsl-availability'
+import { listWslDistrosAsync } from '../main/wsl/discovery/distro-catalog'
+import { isGitBashAvailable } from '../main/pty/shell-startup/git-bash'
 import { buildPosixCommandPathLookupScript } from '../shared/posix-command-path-lookup'
 import { runProcess } from '@orca/process-host'
 
@@ -131,10 +132,8 @@ export class PreflightHandler {
     }
   }
 
-  // Why: SSH exec channels give the relay a minimal environment without shell
-  // startup files sourced. Ask the user's configured shell so agent dirs added
-  // by zsh/bash/fish startup hooks match the remote terminal experience.
-  // Windows has no POSIX shell on native OpenSSH hosts, so use where.exe there.
+  // SSH exec lacks shell startup env; probe the configured shell so agent lookup matches interactive terminals.
+  // Native Windows OpenSSH has no POSIX shell; use where.exe there.
 }
 
 async function probeCommandVersion(executablePath: string): Promise<string | null> {
@@ -268,7 +267,11 @@ function buildPosixCommandLookupSpec(command: string, shell: string): CommandLoo
 function buildShCommandLookupScript(command: string): string {
   // Why: login shells may define aliases or functions that mask the PATH executable.
   return [
-    buildPosixCommandPathLookupScript({ kind: 'literal', value: command }),
+    // Skip Windows-mount shims appended by WSL, matching host-side guest-agent detection.
+    buildPosixCommandPathLookupScript(
+      { kind: 'literal', value: command },
+      { skipWindowsMountDirs: true }
+    ),
     'if [ -n "$resolved" ]; then',
     `printf '${AGENT_PATH_PREFIX}%s\\n' "$resolved"`,
     'fi'
@@ -276,13 +279,8 @@ function buildShCommandLookupScript(command: string): string {
 }
 
 function buildFishCommandLookupScript(command: string): string {
-  const quotedCommand = shellQuote(command)
-  return [
-    `set -l resolved (command -v ${quotedCommand} 2>/dev/null)`,
-    'if test -n "$resolved"',
-    `printf '${AGENT_PATH_PREFIX}%s\\n' "$resolved"`,
-    'end'
-  ].join('\n')
+  // Why: fish only supplies its login PATH; the POSIX walk owns the Windows-mount skip.
+  return `exec /bin/sh -c ${fishQuote(buildShCommandLookupScript(command))}`
 }
 
 function resolveAccountLoginShell(
@@ -322,11 +320,11 @@ function pickTrustedPosixShell(
 
 function getShellCommandMode(shell: string): '-lc' | '-ilc' {
   const shellName = path.posix.basename(shell).toLowerCase()
-  // Why: bash/zsh/fish users commonly add package-manager bins from interactive
-  // startup files. POSIX sh/dash may not support interactive login flags.
+  // Use interactive login startup for bash/zsh/fish package-manager paths; sh/dash may support only login mode.
   return shellName === 'sh' || shellName === 'dash' ? '-lc' : '-ilc'
 }
 
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, "'\\''")}'`
+// Fish single quotes treat only `\\` and `\'` as escapes.
+function fishQuote(value: string): string {
+  return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
 }

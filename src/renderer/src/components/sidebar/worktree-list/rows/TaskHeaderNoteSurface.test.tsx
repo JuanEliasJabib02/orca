@@ -5,7 +5,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppStore } from '@/store'
-import type { TaskSectionInfo } from '../grouping/row-types'
+import type { TaskSectionInfo } from '../../../../../../shared/sidebar-list/row-types'
 import { TaskHeaderNoteSurface } from './TaskHeaderNoteSurface'
 
 // Why: the real tooltip opens on a pointer timer; render its content inline so the text is observable.

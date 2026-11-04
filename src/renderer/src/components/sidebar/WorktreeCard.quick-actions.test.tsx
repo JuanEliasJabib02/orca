@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { ReactNode } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GitConflictOperation } from '../../../../shared/git-status-types'
+import type { GitConflictOperation } from '../../../../shared/git/status/git-status-types'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { WorktreeCardProperty } from '../../../../shared/ui-chrome-types'
@@ -24,30 +24,35 @@ let workspaceDeleteModifierPressed = false
 let gitConflictOperationByWorktree: Record<string, GitConflictOperation> = {}
 let WorktreeCard: typeof WorktreeCardComponent
 
-vi.mock('@/store', () => ({
-  useAppStore: (selector: (state: unknown) => unknown) =>
-    selector({
-      deleteStateByWorktreeId: {},
-      fetchHostedReviewForBranch,
-      fetchIssue,
-      gitConflictOperationByWorktree,
-      hostedReviewCache: {},
-      issueCache: {},
-      openModal,
-      projectGroups,
-      remoteBranchConflictByWorktreeId: {},
-      settings,
-      sshConnectionStates: new Map(),
-      sshTargetLabels: new Map(),
-      spotlightByRepo: {},
-      worktreesByRepo: {},
-      browserTabsByWorktree,
-      ptyIdsByTabId,
-      tabsByWorktree,
-      updateWorktreeMeta,
-      worktreeCardProperties
+vi.mock('@/store', () => {
+  const getState = () => ({
+    deleteStateByWorktreeId: {},
+    fetchHostedReviewForBranch,
+    fetchIssue,
+    gitConflictOperationByWorktree,
+    hostedReviewCache: {},
+    issueCache: {},
+    openModal,
+    projectGroups,
+    remoteBranchConflictByWorktreeId: {},
+    settings,
+    sshConnectionStates: new Map(),
+    sshTargetLabels: new Map(),
+    spotlightByRepo: {},
+    worktreesByRepo: {},
+    browserTabsByWorktree,
+    ptyIdsByTabId,
+    tabsByWorktree,
+    updateWorktreeMeta,
+    worktreeCardProperties
+  })
+  return {
+    useAppStore: Object.assign((selector: (state: unknown) => unknown) => selector(getState()), {
+      getState,
+      subscribe: () => () => {}
     })
-}))
+  }
+})
 
 vi.mock('@/lib/worktree-activation', () => ({
   activateAndRevealWorktree: vi.fn()
@@ -399,7 +404,8 @@ describe('WorktreeCard quick actions', () => {
         worktree={makeWorktree({
           displayName: 'main',
           branch: 'main',
-          isMainWorktree: true
+          isMainWorktree: true,
+          isSparse: true
         })}
         repo={makeRepo()}
         isActive={false}
@@ -408,7 +414,9 @@ describe('WorktreeCard quick actions', () => {
     )
 
     expect(markup).toContain('primary')
+    expect(markup).toContain('>sparse<')
     expect(markup).not.toContain('aria-label="Primary worktree"')
+    expect(markup).not.toContain('aria-label="Sparse checkout"')
     expect(markup).toContain('data-worktree-card-meta-row=""')
   })
 
@@ -432,6 +440,50 @@ describe('WorktreeCard quick actions', () => {
     expect(markup).toContain('aria-label="Primary worktree"')
     expect(markup).not.toContain('>primary<')
     expect(markup).not.toContain('data-worktree-card-meta-row=""')
+  })
+
+  it.each([
+    [true, true],
+    [true, false],
+    [false, true],
+    [false, false]
+  ])('shows applicable new-style identity icons (primary: %s, sparse: %s)', (primary, sparse) => {
+    settings = { experimentalNewWorktreeCardStyle: true }
+    const markup = renderToStaticMarkup(
+      <WorktreeCard
+        worktree={makeWorktree({
+          isMainWorktree: primary,
+          isSparse: sparse,
+          sparseDirectories: ['src/renderer']
+        })}
+        repo={makeRepo()}
+        isActive={false}
+        hideRepoBadge
+      />
+    )
+
+    expect(markup.includes('aria-label="Primary worktree"')).toBe(primary)
+    expect(markup.includes('aria-label="Sparse checkout"')).toBe(sparse)
+    expect(markup.includes('lucide-house')).toBe(primary)
+    expect(markup.includes('lucide-folder-minus')).toBe(sparse)
+    expect(markup).not.toContain('>primary<')
+    expect(markup).not.toContain('>sparse<')
+    if (sparse) {
+      expect(markup).toContain('src/renderer')
+    }
+  })
+
+  it('does not show the primary icon for a folder workspace', () => {
+    settings = { experimentalNewWorktreeCardStyle: true }
+    const markup = renderToStaticMarkup(
+      <WorktreeCard
+        worktree={makeWorktree({ isMainWorktree: true })}
+        repo={{ ...makeRepo(), kind: 'folder' }}
+        isActive={false}
+      />
+    )
+
+    expect(markup).not.toContain('aria-label="Primary worktree"')
   })
 
   it('hides delete by default for an inactive workspace', () => {

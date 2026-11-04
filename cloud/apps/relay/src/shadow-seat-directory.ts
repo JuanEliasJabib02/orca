@@ -1,20 +1,35 @@
 import type { RelayRegion } from '@orca-cloud/relay-contract'
 import { z } from 'zod'
+import {
+  CellPollReachability,
+  type DeadCellVerdict,
+  isNoBackendStatus
+} from './cell-poll-reachability.js'
 import type { RelayConfig } from './config.js'
 import { googleMetadataIdentityToken, reusedIdentityToken } from './google-metadata-identity-token.js'
 
-// Step 3: each director polls every cell's seat feed and keeps who is seated
-// where in memory. It decides nothing; readers only compare and report.
+// Each director mirrors cell seat feeds; callbacks reconcile booked joins and superseded seats.
 
 export const SHADOW_SEAT_POLL_MS = 1_000
 export const SHADOW_SEAT_POLL_TIMEOUT_MS = 2_000
 export const SHADOW_SEAT_CELL_LIST_REFRESH_MS = 30_000
 export const SHADOW_SEAT_RECENTLY_LEFT_TTL_MS = 24 * 60 * 60 * 1_000
 export const SHADOW_SEAT_RECENTLY_LEFT_MAX_HOSTS = 100_000
+// Cells stamp joinedAt by their own clocks: a later join must clear this to outrank across cells.
+export const SHADOW_SEAT_OUTRANK_SKEW_MS = 1_000
+const SHADOW_SEAT_OUTRANKED_REPORTS_MAX = 100_000
+
+export function seatOutranks(
+  newer: { epoch: number; joinedAt: number },
+  seat: { epoch: number; joinedAt: number }
+): boolean {
+  return newer.epoch > seat.epoch && newer.joinedAt > seat.joinedAt + SHADOW_SEAT_OUTRANK_SKEW_MS
+}
 const RECENTLY_LEFT_PER_HOST = 4
 // Google identity tokens live an hour; one per poll would be 26 metadata reads a second.
 const IDENTITY_TOKEN_REUSE_MS = 10 * 60_000
 const SUMMARY_INTERVAL_MS = 60_000
+const WITHHELD_LOG_INTERVAL_MS = 60_000
 const CELL_LIST_RETRY_BASE_MS = 1_000
 const CELL_LIST_RETRY_MAX_MS = SHADOW_SEAT_CELL_LIST_REFRESH_MS
 // A drain backlog drains over a few polls rather than holding one slot indefinitely.
@@ -73,11 +88,12 @@ const SeatFeedSchema = z.object({
     .object({ perSec: z.number().nonnegative(), burst: z.number(), tokens: z.number() })
     .optional(),
   flagsApplied: z
-    .object({ generation: z.union([z.string(), z.number()]), flags: z.record(z.unknown()) })
+    .object({ generation: z.union([z.string(), z.number()]), flags: z.record(z.string(), z.unknown()) })
     .optional(),
-  // What the cell acts on: reserve also while a flip back is still leasing its controls, or
-  // db once its dead-man has flipped it back. Absent from older images.
+  // Effective reserve persists while flip-back leases controls; raw mode reports dead-man db immediately. Older images omit both.
   admitModeEffective: z.enum(['db', 'reserve']).optional(),
+  // Switch file and dead-man only, without the flip back: db the moment the cell trips.
+  admitModeRaw: z.enum(['db', 'reserve']).optional(),
   changes: z.array(SeatChangeSchema).optional(),
   // The cell cut the page (2,000 changes); poll again at once.
   more: z.boolean().optional(),
@@ -95,8 +111,12 @@ export type SeatFeedCell = {
   heartbeatExpiresAt: number | null
   // Live, with capacity, and not roll-isolated: completeness waits only on these.
   requiredForComplete: boolean
+  // relay_cell_runtime's: a new one means the process that reported its switches is gone.
+  incarnation?: string
   // Admission state general and not roll-isolated: step 5 places only on these.
   general?: boolean
+  // Zero for a row that can hold no host; absent from callers that do not read it.
+  capacityRequests?: number
 }
 
 export type ShadowSeat = {
@@ -137,7 +157,10 @@ export type SeatFeedCellState = {
   reportedSeats?: number
   reportedControls?: number
   flagsApplied?: SeatFeedResponse['flagsApplied']
+  // The incarnation whose feed reported `flagsApplied`.
+  flagsIncarnation?: string
   admitModeEffective?: 'db' | 'reserve'
+  admitModeRaw?: 'db' | 'reserve'
   // Step 5: when the answered poll was sent, and the cell's own reserve numbers.
   polledAt?: number
   bookings?: number
@@ -157,12 +180,27 @@ export type BookedJoin = {
   reservedBy: string
 }
 
+// A reserve seat behind a later, newer-epoch join of its host elsewhere that placement supersede missed.
+export type OutrankedSeat = {
+  cellId: string
+  userId: string
+  relayHostId: string
+  epoch: number
+  joinedAt: number
+  byCellId: string
+}
+
 type CellCursor = SeatFeedCellState & { seats: Map<string, ShadowSeat> }
 
 export type HeartbeatSnapshot = { readAt: number; expiresAt: ReadonlyMap<string, number> }
 
 function hostKey(userId: string, relayHostId: string): string {
   return `${userId}\u0000${relayHostId}`
+}
+
+function parseHostKey(key: string): { userId: string; relayHostId: string } {
+  const separator = key.indexOf('\u0000')
+  return { userId: key.slice(0, separator), relayHostId: key.slice(separator + 1) }
 }
 
 export class ShadowSeatDirectory {
@@ -178,6 +216,10 @@ export class ShadowSeatDirectory {
   // Per host, the newest booking any cell reported (step 5 epoch mint). Age-ordered.
   private readonly bookings = new Map<string, { cellId: string; epoch: number; at: number }>()
   onBookedJoin?: (join: BookedJoin) => void
+  onOutranked?: (seat: OutrankedSeat) => void
+  private readonly joinedSinceApply = new Set<string>()
+  // Seats already reported, insertion-ordered: a full resync re-judges a host without a second demote.
+  private readonly reportedOutranked = new Set<string>()
 
   // Cells no longer listed are forgotten with their seats; new ones start pending.
   // `required` defaults to every listed cell.
@@ -210,6 +252,11 @@ export class ShadowSeatDirectory {
 
   // `polledAt` is when the request left; the reply holds every change before it.
   apply(cellId: string, response: SeatFeedResponse, now: number, polledAt = now): void {
+    this.applyResponse(cellId, response, now, polledAt)
+    this.reportOutranked()
+  }
+
+  private applyResponse(cellId: string, response: SeatFeedResponse, now: number, polledAt: number): void {
     const cursor = this.cells.get(cellId)
     if (!cursor) return
     if (response.cellId !== cellId) {
@@ -255,7 +302,9 @@ export class ShadowSeatDirectory {
     cursor.reportedSeats = response.counts?.seats
     cursor.reportedControls = response.counts?.controls
     cursor.flagsApplied = response.flagsApplied
+    cursor.flagsIncarnation = response.incarnation
     cursor.admitModeEffective = response.admitModeEffective
+    cursor.admitModeRaw = response.admitModeRaw
     cursor.polledAt = polledAt
     cursor.bookings = response.counts?.bookings
     cursor.units = response.counts?.units
@@ -275,25 +324,46 @@ export class ShadowSeatDirectory {
     return cursor?.flagsApplied?.flags.admitMode === 'reserve' ? 'reserve' : 'db'
   }
 
+  // Raw db stops bookings/pacing immediately during re-registration; older images fall back to effective mode.
+  placementModeOf(cellId: string): 'db' | 'reserve' {
+    const raw = this.cells.get(cellId)?.admitModeRaw
+    return raw ?? this.admitModeOf(cellId)
+  }
+
   cellIds(): string[] {
     return [...this.cells.keys()]
   }
 
+  seatsOnCell(cellId: string): Array<{ userId: string; relayHostId: string; seat: ShadowSeat }> {
+    const cursor = this.cells.get(cellId)
+    if (!cursor) return []
+    return [...cursor.seats].map(([key, seat]) => ({ ...parseHostKey(key), seat }))
+  }
 
   // An old cell (404) has no feed; its last known seats stay, marked by status.
-  markNoFeed(cellId: string, now: number): void {
+  markNoFeed(cellId: string, now: number, runtimeIncarnation?: string): void {
     const cursor = this.cells.get(cellId)
     if (!cursor) return
     cursor.status = 'no-feed'
     cursor.lastAnsweredAt = now
     cursor.incarnation = undefined
     cursor.seq = undefined
-    // An image without the feed takes no booking. Its reserve switch is #27058's to keep.
+    // An image without the feed takes no booking.
     cursor.polledAt = undefined
     cursor.bookings = undefined
     cursor.units = undefined
     cursor.ceiling = undefined
     cursor.intake = undefined
+    // Keep reserve stamp until feed says db or process changes; one 404 must not misclassify seated reserve hosts as idle.
+    const reserve = cursor.flagsApplied?.flags.admitMode === 'reserve'
+    const replaced =
+      runtimeIncarnation !== undefined && runtimeIncarnation !== cursor.flagsIncarnation
+    if (!reserve || replaced) {
+      cursor.flagsApplied = undefined
+      cursor.flagsIncarnation = undefined
+      cursor.admitModeEffective = undefined
+      cursor.admitModeRaw = undefined
+    }
   }
 
   fail(cellId: string, reason: string): void {
@@ -303,8 +373,7 @@ export class ShadowSeatDirectory {
     cursor.lastFailure = reason
   }
 
-  // Every live cell has answered (a feed or a 404) since this director started;
-  // a dead, empty or isolated cell must not hold the measurement back.
+  // Completeness waits only for required live cells’ feed/404 answers, not dead/empty/isolated cells.
   isComplete(): boolean {
     if (this.required.size === 0) return false
     for (const cellId of this.required) {
@@ -313,8 +382,7 @@ export class ShadowSeatDirectory {
     return true
   }
 
-  // What the database's resolve would call this cell now, from a cell-list read up to
-  // 30 s old. `unknown`: its heartbeat ran out after that read, and the next read decides.
+  // Database liveness from <=30s-old cell list; expired-since-read heartbeat is unknown pending refresh.
   cellLiveness(cellId: string, now: number): 'live' | 'unlive' | 'unknown' {
     if (!this.heartbeats) return this.cells.has(cellId) ? 'live' : 'unlive'
     const expiresAt = this.heartbeats.expiresAt.get(cellId)
@@ -327,6 +395,15 @@ export class ShadowSeatDirectory {
   databaseEpochFirstSeen(userId: string, relayHostId: string, epoch: number): number | undefined {
     const known = this.databaseEpochs.get(hostKey(userId, relayHostId))
     return known && known.epoch >= epoch ? known.firstSeenAt : undefined
+  }
+
+  // The newest epoch this director has seen the database name for the host, if still kept.
+  databaseEpochOf(
+    userId: string,
+    relayHostId: string
+  ): { epoch: number; firstSeenAt: number } | undefined {
+    const known = this.databaseEpochs.get(hostKey(userId, relayHostId))
+    return known ? { ...known } : undefined
   }
 
   // Records a sighting; returns when this director first saw the host at this epoch.
@@ -514,6 +591,32 @@ export class ShadowSeatDirectory {
       this.hosts.set(key, seats)
     }
     seats.set(cursor.cellId, seat)
+    if (this.onOutranked && seats.size > 1) this.joinedSinceApply.add(key)
+  }
+
+  // Judge after full response applies mode, once per join. Later reserve flips/lost demotes/later lower epochs rely on silence close or reconcile.
+  private reportOutranked(): void {
+    const report = this.onOutranked
+    const keys = [...this.joinedSinceApply]
+    this.joinedSinceApply.clear()
+    if (!report) return
+    for (const key of keys) {
+      const seats = [...(this.hosts.get(key)?.values() ?? [])]
+      for (const seat of seats) {
+        if (seat.state !== 'active' || this.admitModeOf(seat.cellId) !== 'reserve') continue
+        const by = seats.find((other) => seatOutranks(other, seat))
+        if (!by) continue
+        const { cellId, epoch, joinedAt } = seat
+        const reported = `${key}\u0000${cellId}\u0000${epoch}\u0000${joinedAt}`
+        if (this.reportedOutranked.has(reported)) continue
+        this.reportedOutranked.add(reported)
+        if (this.reportedOutranked.size > SHADOW_SEAT_OUTRANKED_REPORTS_MAX) {
+          const oldest = this.reportedOutranked.values().next().value
+          if (oldest !== undefined) this.reportedOutranked.delete(oldest)
+        }
+        report({ ...parseHostKey(key), cellId, epoch, joinedAt, byCellId: by.cellId })
+      }
+    }
   }
 
   private unseat(cursor: CellCursor, key: string): void {
@@ -576,6 +679,9 @@ export type ShadowSeatPoller = {
   startedAt: number
   // One round: refreshes the cell list when due, then polls every idle cell.
   tick: () => Promise<void>
+  // This director's polls to the cell have gone unanswered long enough to count as death evidence;
+  // null while they are answered.
+  deadCellVerdict: (cellId: string, now: number) => DeadCellVerdict | null
   stop: () => void
 }
 
@@ -601,6 +707,8 @@ export function startShadowSeatPoller(
     options.identityToken ??
     ((tokenAudience: string) => googleMetadataIdentityToken(tokenAudience, fetchImpl))
   const directory = new ShadowSeatDirectory()
+  const reachability = new CellPollReachability()
+  const withheldLoggedAt = new Map<string, number>()
   const startedAt = now()
   const inFlight = new Set<string>()
   let cells: SeatFeedCell[] = []
@@ -635,11 +743,11 @@ export function startShadowSeatPoller(
           )
         }
       )
+      reachability.forget(new Set(cells.map((cell) => cell.cellId)))
       cellsReadAt = now()
       cellListFailures = 0
     } catch (error) {
-      // Keep polling the last list; the database being down is not the cells being down.
-      // Back off so a stalled database is not asked once a second on a 3-connection pool.
+      // Keep polling last list through DB outages; back off refreshes to protect the three-connection pool.
       cellListFailures += 1
       const backoffMs = CELL_LIST_RETRY_BASE_MS * 2 ** (cellListFailures - 1)
       cellListRetryAt = now() + Math.min(CELL_LIST_RETRY_MAX_MS, backoffMs)
@@ -663,14 +771,21 @@ export function startShadowSeatPoller(
     if (since !== undefined) url.searchParams.set('since', since)
     // Placing on reserve cells: keeps each cell's dead-man from flipping it back to db.
     if (options.reserver?.()) url.searchParams.set('reserver', '1')
+    // Outside the request: a token this director cannot mint says nothing about the cell.
+    const token = await identity()
     const response = await fetchImpl(url, {
-      headers: { authorization: `Bearer ${await identity()}` },
+      headers: { authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(SHADOW_SEAT_POLL_TIMEOUT_MS)
+    }).catch((error: unknown) => {
+      reachability.unanswered(cell.cellId, now())
+      throw error
     })
     if (stopped) return false
+    if (isNoBackendStatus(response.status)) reachability.unanswered(cell.cellId, now())
+    else reachability.answered(cell.cellId)
     if (response.status === 404) {
       await response.body?.cancel().catch(() => undefined)
-      directory.markNoFeed(cell.cellId, now())
+      directory.markNoFeed(cell.cellId, now(), cell.incarnation)
       return false
     }
     if (!response.ok) {
@@ -705,10 +820,12 @@ export function startShadowSeatPoller(
 
   const round = async (awaitPolls: boolean): Promise<void> => {
     if (stopped) return
-    await refreshCells()
+    const refresh = refreshCells()
+    // Await only the first cell list; later slow refreshes must not skip a poll round.
+    if (cellsReadAt === undefined) await refresh
     // A slow cell holds only its own slot; the timer never waits on it.
     const polls = cells.map((cell) => poll(cell))
-    if (awaitPolls) await Promise.all(polls)
+    if (awaitPolls) await Promise.all([refresh, ...polls])
     if (now() - lastSummaryAt >= SUMMARY_INTERVAL_MS) {
       lastSummaryAt = now()
       log(JSON.stringify({ event: 'orca_relay_shadow_seat_summary', ...directory.summary(now()) }))
@@ -731,6 +848,22 @@ export function startShadowSeatPoller(
     cells: () => cells,
     startedAt,
     tick: () => round(true),
+    deadCellVerdict: (cellId, at) => {
+      // Count peers with feed evidence, plus the candidate: PostgreSQL reserve implies a feed image, even if director restarted after it died.
+      const feedCells = cells.filter((cell) => {
+        if ((cell.capacityRequests ?? 1) <= 0) return false
+        if (cell.cellId === cellId) return true
+        const state = directory.cellState(cell.cellId)
+        return state?.status !== 'no-feed' && state?.lastLiveAt !== undefined
+      })
+      const verdict = reachability.verdict(cellId, feedCells, at)
+      // A withheld verdict strands that cell's hosts until an operator fences it, so it alerts.
+      if (verdict?.withheld && at - (withheldLoggedAt.get(cellId) ?? -Infinity) >= WITHHELD_LOG_INTERVAL_MS) {
+        withheldLoggedAt.set(cellId, at)
+        log(JSON.stringify({ event: 'orca_relay_dead_cell_verdict_withheld', cellId, ...verdict }))
+      }
+      return verdict
+    },
     stop: () => {
       stopped = true
       clearInterval(timer)

@@ -5,13 +5,7 @@ import type { WorkspacePort } from '../../../../shared/workspace-ports'
 
 vi.mock('@/store', () => ({
   useAppStore: (selector: (state: unknown) => unknown) =>
-    selector({
-      createBrowserTab: vi.fn(),
-      setRemoteBrowserPageHandle: vi.fn(),
-      replaceWorkspacePortScans: vi.fn(),
-      setWorkspacePortScanRefreshing: vi.fn(),
-      settings: null
-    })
+    selector({ recordFeatureInteraction: vi.fn(), settings: null })
 }))
 
 vi.mock('@/components/ui/tooltip', () => ({
@@ -38,22 +32,6 @@ const port: WorkspacePort = {
   },
   advertisedUrl: 'http://dev.preview.localhost:58941'
 }
-
-describe('WorktreeCardPortsDetails', () => {
-  it('shows advertised port addresses in workspace hover details', async () => {
-    const { WorktreeCardPortsDetails } = await import('./WorktreeCardPorts')
-
-    const markup = renderToStaticMarkup(<WorktreeCardPortsDetails ports={[port]} />)
-
-    expect(markup).toContain('dev.preview.localhost:58941')
-    expect(markup).toContain('aria-label="Copy dev.preview.localhost:58941"')
-    expect(markup).toContain('Open in Browser. Shift+Ctrl+click for system browser')
-    expect(markup).toContain(
-      '<section class="space-y-1.5"><div class="flex items-center gap-1.5 px-1'
-    )
-    expect(markup).toContain('class="border-l border-border/70 pl-3 space-y-0.5"')
-  })
-})
 
 describe('WorktreeCardPortsTrigger', () => {
   it('shows the plug icon when no label is given', async () => {

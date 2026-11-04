@@ -1,11 +1,10 @@
 import type * as Monaco from 'monaco-editor'
-import type { IRawGrammar } from 'vscode-textmate'
+import type { LanguageRegistration } from 'shiki/core'
 import { registerTextMateLanguage } from './textmate-language-registration'
 
 type MonacoModule = typeof Monaco
 
 export const PYTHON_LANGUAGE_ID = 'python'
-export const PYTHON_TEXTMATE_SCOPE = 'source.python'
 
 export const pythonLanguageConfiguration: Monaco.languages.LanguageConfiguration = {
   comments: {
@@ -32,15 +31,13 @@ export const pythonLanguageConfiguration: Monaco.languages.LanguageConfiguration
   ]
 }
 
-export async function loadPythonTextMateGrammar(scopeName: string): Promise<IRawGrammar | null> {
-  if (scopeName !== PYTHON_TEXTMATE_SCOPE) {
-    return null
-  }
-
+export async function loadPythonTextMateGrammar(): Promise<LanguageRegistration> {
   // Why: MagicPython, the same TextMate grammar VS Code / Cursor use, so Python
   // highlights identically for reading (see textmate-grammars/python-LICENSE.txt).
   const grammarModule = await import('./textmate-grammars/python.tmLanguage.json')
-  return grammarModule.default as unknown as IRawGrammar
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: TextMate injects the $self/$base repository entries a registration's type requires; real tokenization tests validate this vendored JSON.
+  const grammar = grammarModule.default as unknown as LanguageRegistration
+  return { ...grammar, name: PYTHON_LANGUAGE_ID }
 }
 
 export function registerPythonLanguage(monaco: MonacoModule): void {
@@ -51,7 +48,6 @@ export function registerPythonLanguage(monaco: MonacoModule): void {
       aliases: ['Python', 'py']
     },
     configuration: pythonLanguageConfiguration,
-    scopeName: PYTHON_TEXTMATE_SCOPE,
     loadGrammar: loadPythonTextMateGrammar
   })
 }

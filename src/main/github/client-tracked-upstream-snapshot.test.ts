@@ -1,3 +1,5 @@
+import type * as GitExecFileModule from '../git/command-runner/git-exec-file'
+import type * as GhExecFileModule from '../git/command-runner/gh-exec-file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as GithubApiRepositoryModule from './github-api-repository'
 import type * as GitHubEnterpriseRepositoryModule from './github-enterprise-repository'
@@ -9,7 +11,16 @@ const { clientMocks, moduleMocks } = await vi.hoisted(async () => {
 
 vi.mock('./gh-utils', () => moduleMocks.ghUtilsModuleMock(clientMocks))
 vi.mock('../git/runner', () => moduleMocks.gitRunnerModuleMock(clientMocks))
-vi.mock('../providers/ssh-git-dispatch', () => moduleMocks.sshGitDispatchModuleMock(clientMocks))
+
+vi.mock('../git/command-runner/git-exec-file', async (importOriginal) => ({
+  ...(await importOriginal<typeof GitExecFileModule>()),
+  gitExecFileAsync: clientMocks.gitExecFileAsyncMock
+}))
+
+vi.mock('../git/command-runner/gh-exec-file', async (importOriginal) => ({
+  ...(await importOriginal<typeof GhExecFileModule>()),
+  ghExecFileAsync: clientMocks.ghExecFileAsyncMock
+}))
 vi.mock('./local-git-config-signature', () =>
   moduleMocks.localGitConfigSignatureModuleMock(clientMocks)
 )
@@ -39,7 +50,6 @@ const {
   getOwnerRepoForRemoteMock,
   resolvePRRepositoryCandidatesMock,
   gitExecFileAsyncMock,
-  getSshGitProviderMock,
   readLocalGitConfigSignatureMock
 } = clientMocks
 
@@ -96,12 +106,20 @@ describe('getPRForBranch', () => {
     )
     expect(ghExecFileAsyncMock).toHaveBeenNthCalledWith(
       1,
-      ['api', 'repos/acme/widgets/pulls?head=acme%3Alocal-created-from-pr&state=all&per_page=1'],
+      [
+        'api',
+        'repos/acme/widgets/pulls?head=acme%3Alocal-created-from-pr&state=all&per_page=10',
+        '--include'
+      ],
       { cwd: '/repo-root' }
     )
     expect(ghExecFileAsyncMock).toHaveBeenNthCalledWith(
       2,
-      ['api', 'repos/acme/widgets/pulls?head=acme%3Acontributor%2Foriginal&state=all&per_page=1'],
+      [
+        'api',
+        'repos/acme/widgets/pulls?head=acme%3Acontributor%2Foriginal&state=all&per_page=10',
+        '--include'
+      ],
       { cwd: '/repo-root' }
     )
     expect(ghExecFileAsyncMock).toHaveBeenNthCalledWith(
@@ -113,7 +131,7 @@ describe('getPRForBranch', () => {
         '--repo',
         'acme/widgets',
         '--json',
-        'number,title,state,url,statusCheckRollup,updatedAt,isDraft,mergeable,reviewDecision,mergeStateStatus,autoMergeRequest,baseRefName,headRefName,baseRefOid,headRefOid'
+        'number,title,state,url,statusCheckRollup,updatedAt,isDraft,mergeable,reviewDecision,mergeStateStatus,autoMergeRequest,baseRefName,headRefName,baseRefOid,headRefOid,headRepositoryOwner,headRepository,isCrossRepository'
       ],
       { cwd: '/repo-root' }
     )
@@ -143,10 +161,6 @@ describe('getPRForBranch', () => {
   })
 
   it('releases tracked-upstream probe generations across runtime identities', async () => {
-    const sshGitProvider = {
-      exec: vi.fn().mockResolvedValue({ stdout: 'feature\0\n', stderr: '' })
-    }
-    getSshGitProviderMock.mockReturnValue(sshGitProvider)
     getOwnerRepoMock.mockResolvedValue({ owner: 'acme', repo: 'widgets' })
     ghExecFileAsyncMock.mockResolvedValue({ stdout: JSON.stringify([]) })
     gitExecFileAsyncMock.mockResolvedValue({ stdout: 'feature\0\n', stderr: '' })
@@ -155,15 +169,13 @@ describe('getPRForBranch', () => {
     await getPRForBranch('/repo-root', 'feature', null, null, null, {
       localGitExecOptions: { wslDistro: 'Ubuntu' }
     })
-    await getPRForBranch('/repo-root', 'feature', null, 'ssh-1')
 
     expect(_getTrackedUpstreamBranchCacheSizesForTests()).toEqual({
-      snapshots: 3,
+      snapshots: 2,
       inFlight: 0,
       generations: 0
     })
     expect(gitExecFileAsyncMock).toHaveBeenCalledTimes(2)
-    expect(sshGitProvider.exec).toHaveBeenCalledTimes(1)
   })
 
   it('bounds unique tracked-upstream snapshots and sweeps expired identities', async () => {

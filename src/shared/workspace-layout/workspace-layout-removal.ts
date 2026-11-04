@@ -23,7 +23,7 @@ export function findTerminalTab(
   return null
 }
 
-/** An emptied group closes, even the last one: an empty group is never saved, so it never stays. */
+/** Close emptied groups, including the last, to match persisted layout. */
 export function removeTabFromWorkspace(workspace: WorkspaceLayout, tabId: string): WorkspaceLayout {
   let groupLayout = workspace.groupLayout
   const groups = workspace.groups.flatMap((group) => {
@@ -96,18 +96,14 @@ export type ExitedSurface = {
   incarnationId?: string
 }
 
-/**
- * Today's exit retirement: null when the pane now shows another terminal or incarnation (left
- * alone); else the model without the pane, unchanged when its tab no longer holds it.
- */
-export function retireExitedSurface(
+/** Find the exited terminal’s pane; gone means removed, replaced means a different terminal/incarnation now owns it. */
+export function locateExitedSurface(
   model: WorkspaceLayoutModel,
   surface: ExitedSurface
-): WorkspaceLayoutModel | null {
+): TerminalTabLocation | 'gone' | 'replaced' {
   const location = findTerminalTab(model, surface.terminalTabId)
-  const inTree = Boolean(location && layoutContainsLeafId(location.tab.panes.root, surface.leafId))
-  if (!location || !inTree) {
-    return model
+  if (!location || !layoutContainsLeafId(location.tab.panes.root, surface.leafId)) {
+    return 'gone'
   }
   const leaf = model.workspaces[location.workspaceKey]!.leaves?.[surface.leafId]
   if (
@@ -115,10 +111,19 @@ export function retireExitedSurface(
     leaf?.incarnationId &&
     leaf.incarnationId !== surface.incarnationId
   ) {
-    return null
+    return 'replaced'
   }
-  if (leaf?.ptyId && leaf.ptyId !== surface.ptyId) {
-    return null
+  return leaf?.ptyId && leaf.ptyId !== surface.ptyId ? 'replaced' : location
+}
+
+/** Retire the pane unless its terminal/incarnation was replaced; an already-removed pane is a no-op. */
+export function retireExitedSurface(
+  model: WorkspaceLayoutModel,
+  surface: ExitedSurface
+): WorkspaceLayoutModel | null {
+  const location = locateExitedSurface(model, surface)
+  if (location === 'gone') {
+    return model
   }
-  return retireTerminalPane(model, location, surface.leafId)
+  return location === 'replaced' ? null : retireTerminalPane(model, location, surface.leafId)
 }

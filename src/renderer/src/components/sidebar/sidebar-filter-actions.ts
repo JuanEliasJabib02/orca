@@ -1,84 +1,130 @@
-import { ALL_EXECUTION_HOSTS_SCOPE } from '../../../../shared/execution-host'
-import { DEFAULT_SHOW_SLEEPING_WORKSPACES } from '../../../../shared/constants'
-import { getSpaceRepoFilterIds } from './sidebar-space-scope'
-import type { SidebarFilterState } from './visible-worktree-kinds'
+import {
+  activeWorkspaceRowFilterKeys,
+  NO_WORKSPACE_ROW_FILTERS,
+  type WorkspaceRowFilters
+} from '../../../../shared/workspace-view/workspace-row-filters'
+import { resolveVisibleWorkspaceHostIds } from '../../../../shared/workspace-view/workspace-host-visibility'
+import type { AppState } from '../../store/types'
+import type { ExecutionHostId, ExecutionHostScope } from '../../../../shared/execution-host'
+import {
+  getSpaceRepoFilterIds,
+  replaceSpaceRepoFilterIds,
+  type SidebarSpaceScope
+} from './sidebar-space-scope'
 
-/**
- * Whether the sidebar is currently filtered, and what "clear filters" should undo.
- *
- * Split out of visible-worktrees to keep that file under the line cap; this is
- * about the filter CHROME, not about which rows survive filtering.
- */
-
-// Why: a project filter picked in another space does not narrow this one, so it is not active here.
-function hasProjectFilter(state: SidebarFilterState): boolean {
-  return getSpaceRepoFilterIds(state.filterRepoIds, state.spaceScope).length > 0
+export type SidebarFilterState = {
+  showSleepingWorkspaces: boolean
+  /** The raw store list, picks from every space; `spaceScope` narrows it here. */
+  filterRepoIds: readonly string[]
+  /** Active space; only its projects' ids in `filterRepoIds` count. Absent or null = All. */
+  spaceScope?: SidebarSpaceScope | null
+  hideDefaultBranchWorkspace: boolean
+  hideAutomationGeneratedWorkspaces: boolean
+  hideCliCreatedWorkspaces: boolean
+  hideDetachedHeadWorkspaces: boolean
+  hideWorkspacesFromOtherDevices: boolean
+  /** Keeps each project's main workspace out of the "Hide sleeping" sweep; absent means on. */
+  alwaysShowDefaultBranchWorkspace?: boolean
+  visibleWorkspaceHostIds?: readonly ExecutionHostId[] | null
+  workspaceHostScope?: ExecutionHostScope
 }
 
-export function sidebarHasActiveFilters(state: SidebarFilterState): boolean {
-  return (
-    state.showSleepingWorkspaces !== DEFAULT_SHOW_SLEEPING_WORKSPACES ||
-    hasProjectFilter(state) ||
-    state.hideDefaultBranchWorkspace ||
-    state.hideAutomationGeneratedWorkspaces ||
-    state.hideCliCreatedWorkspaces ||
-    state.hideDetachedHeadWorkspaces ||
-    state.hideWorkspacesFromOtherDevices ||
-    // Why: turning this off is the only way to narrow the list below the
-    // default, so Clear Filters must be able to undo it like any other filter.
-    state.alwaysShowDefaultBranchWorkspace === false ||
-    state.visibleWorkspaceHostIds != null ||
-    (state.workspaceHostScope != null && state.workspaceHostScope !== ALL_EXECUTION_HOSTS_SCOPE)
-  )
-}
-
-/** Describes which mutators the Clear Filters button must invoke, separated
- *  from the mutators themselves so the decision logic is testable. */
-export type ClearFilterActions = {
-  resetShowSleepingWorkspaces: boolean
-  resetFilterRepoIds: boolean
-  resetHideDefaultBranchWorkspace: boolean
-  resetHideAutomationGeneratedWorkspaces: boolean
-  resetHideCliCreatedWorkspaces: boolean
-  resetHideDetachedHeadWorkspaces: boolean
-  resetHideWorkspacesFromOtherDevices: boolean
-  resetAlwaysShowDefaultBranchWorkspace: boolean
-  resetVisibleWorkspaceHostIds: boolean
-}
-
-/**
- * Determines which sidebar filters the Clear Filters button needs to reset.
- * Returning an explicit action plan (rather than just calling the setters)
- * keeps the pure decision separate from the impure mutations, so tests can
- * verify the logic without mounting the component.
- *
- * Why reset only the ones that are set: keeps Clear Filters from churning
- * UI state (and the debounced ui.set write-back) on every click when the
- * flag was already off.
- */
-export function computeClearFilterActions(state: SidebarFilterState): ClearFilterActions {
+export function sidebarWorkspaceRowFilters(state: SidebarFilterState): WorkspaceRowFilters {
   return {
-    resetShowSleepingWorkspaces: state.showSleepingWorkspaces !== DEFAULT_SHOW_SLEEPING_WORKSPACES,
-    resetFilterRepoIds: hasProjectFilter(state),
-    resetHideDefaultBranchWorkspace: state.hideDefaultBranchWorkspace,
-    resetHideAutomationGeneratedWorkspaces: state.hideAutomationGeneratedWorkspaces,
-    resetHideCliCreatedWorkspaces: state.hideCliCreatedWorkspaces,
-    resetHideDetachedHeadWorkspaces: state.hideDetachedHeadWorkspaces,
-    resetHideWorkspacesFromOtherDevices: state.hideWorkspacesFromOtherDevices,
-    resetAlwaysShowDefaultBranchWorkspace: state.alwaysShowDefaultBranchWorkspace === false,
-    resetVisibleWorkspaceHostIds:
-      state.visibleWorkspaceHostIds != null ||
-      (state.workspaceHostScope != null && state.workspaceHostScope !== ALL_EXECUTION_HOSTS_SCOPE)
+    hideSleepingWorkspaces: !state.showSleepingWorkspaces,
+    alwaysShowDefaultBranchWorkspace: state.alwaysShowDefaultBranchWorkspace,
+    hideDefaultBranchWorkspace: state.hideDefaultBranchWorkspace,
+    hideAutomationGeneratedWorkspaces: state.hideAutomationGeneratedWorkspaces,
+    hideCliCreatedWorkspaces: state.hideCliCreatedWorkspaces,
+    hideDetachedHeadWorkspaces: state.hideDetachedHeadWorkspaces,
+    hideWorkspacesFromOtherDevices: state.hideWorkspacesFromOtherDevices,
+    // Why scoped: a project filter picked in another space does not narrow this one, so it is not active here.
+    filterRepoIds: getSpaceRepoFilterIds(state.filterRepoIds, state.spaceScope),
+    visibleHostIds: resolveVisibleWorkspaceHostIds(
+      state.visibleWorkspaceHostIds,
+      state.workspaceHostScope
+    )
   }
 }
 
 /**
- * Shared pure utility that computes the ordered list of visible (non-archived,
- * non-filtered) worktree IDs. Both the App-level Cmd+1–9 handler and
- * WorktreeList's render pipeline consume this function so the numbering and
- * card order can never diverge.
- *
- * Why a shared function: if the filter/sort pipeline lived in two places, a
- * new filter added in one but not the other would silently break the mapping
- * between badge numbers and the Cmd+N shortcut target.
+ * The store fields behind the sidebar filters, for a shallow-compared subscription.
+ * Leaves out spaceScope: callers add the derived scope, since a fresh object here would defeat useShallow.
  */
+export function selectSidebarFilterState(
+  state: AppState
+): Pick<AppState, Exclude<keyof SidebarFilterState, 'spaceScope'>> {
+  return {
+    showSleepingWorkspaces: state.showSleepingWorkspaces,
+    filterRepoIds: state.filterRepoIds,
+    hideDefaultBranchWorkspace: state.hideDefaultBranchWorkspace,
+    hideAutomationGeneratedWorkspaces: state.hideAutomationGeneratedWorkspaces,
+    hideCliCreatedWorkspaces: state.hideCliCreatedWorkspaces,
+    hideDetachedHeadWorkspaces: state.hideDetachedHeadWorkspaces,
+    hideWorkspacesFromOtherDevices: state.hideWorkspacesFromOtherDevices,
+    alwaysShowDefaultBranchWorkspace: state.alwaysShowDefaultBranchWorkspace,
+    visibleWorkspaceHostIds: state.visibleWorkspaceHostIds,
+    workspaceHostScope: state.workspaceHostScope
+  }
+}
+
+export function sidebarHasActiveFilters(state: SidebarFilterState): boolean {
+  return activeWorkspaceRowFilterKeys(sidebarWorkspaceRowFilters(state)).length > 0
+}
+
+export type SidebarFilterSetters = Pick<
+  AppState,
+  | 'setShowSleepingWorkspaces'
+  | 'setAlwaysShowDefaultBranchWorkspace'
+  | 'setHideDefaultBranchWorkspace'
+  | 'setHideAutomationGeneratedWorkspaces'
+  | 'setHideCliCreatedWorkspaces'
+  | 'setHideDetachedHeadWorkspaces'
+  | 'setHideWorkspacesFromOtherDevices'
+  | 'setFilterRepoIds'
+  | 'setVisibleWorkspaceHostIds'
+>
+
+/** How each shared filter returns to its default; a new filter fails to compile until listed. */
+const RESET_SIDEBAR_FILTER: Record<
+  keyof WorkspaceRowFilters,
+  (store: SidebarFilterSetters, state: SidebarFilterState) => void
+> = {
+  hideSleepingWorkspaces: (store) =>
+    store.setShowSleepingWorkspaces(!NO_WORKSPACE_ROW_FILTERS.hideSleepingWorkspaces),
+  alwaysShowDefaultBranchWorkspace: (store) =>
+    store.setAlwaysShowDefaultBranchWorkspace(
+      NO_WORKSPACE_ROW_FILTERS.alwaysShowDefaultBranchWorkspace !== false
+    ),
+  hideDefaultBranchWorkspace: (store) =>
+    store.setHideDefaultBranchWorkspace(NO_WORKSPACE_ROW_FILTERS.hideDefaultBranchWorkspace),
+  hideAutomationGeneratedWorkspaces: (store) =>
+    store.setHideAutomationGeneratedWorkspaces(
+      NO_WORKSPACE_ROW_FILTERS.hideAutomationGeneratedWorkspaces
+    ),
+  hideCliCreatedWorkspaces: (store) =>
+    store.setHideCliCreatedWorkspaces(NO_WORKSPACE_ROW_FILTERS.hideCliCreatedWorkspaces),
+  hideDetachedHeadWorkspaces: (store) =>
+    store.setHideDetachedHeadWorkspaces(NO_WORKSPACE_ROW_FILTERS.hideDetachedHeadWorkspaces),
+  hideWorkspacesFromOtherDevices: (store) =>
+    store.setHideWorkspacesFromOtherDevices(
+      NO_WORKSPACE_ROW_FILTERS.hideWorkspacesFromOtherDevices
+    ),
+  // Why only the space's share: picks made in other spaces survive a clear here.
+  filterRepoIds: (store, state) =>
+    store.setFilterRepoIds(
+      replaceSpaceRepoFilterIds(
+        state.filterRepoIds,
+        state.spaceScope,
+        NO_WORKSPACE_ROW_FILTERS.filterRepoIds
+      )
+    ),
+  visibleHostIds: (store) => store.setVisibleWorkspaceHostIds(null)
+}
+
+/** Reset only active filters so an unfiltered click performs no writes. */
+export function clearSidebarFilters(state: SidebarFilterState, store: SidebarFilterSetters): void {
+  for (const key of activeWorkspaceRowFilterKeys(sidebarWorkspaceRowFilters(state))) {
+    RESET_SIDEBAR_FILTER[key](store, state)
+  }
+}

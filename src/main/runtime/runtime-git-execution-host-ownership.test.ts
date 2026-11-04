@@ -1,27 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GlobalSettings } from '../../shared/global-settings-types'
 import type * as GitRemoteModule from '../git/remote'
-import type * as GitStatusModule from '../git/status'
-import type * as SshGitDispatchModule from '../providers/ssh-git-dispatch'
-import type { ResolvedRuntimeGitWorktree } from './orca-runtime-git'
+
+import type { ResolvedRuntimeGitWorktree } from './runtime-git-command-target'
 import { RuntimeGitCommands } from './orca-runtime-git'
-import { SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE } from '../providers/ssh-git-dispatch'
+import { SSH_HOST_NOT_SERVED_MESSAGE } from '../providers/ssh-host-not-served-error'
 
 const mocks = vi.hoisted(() => ({
-  getSshGitProvider: vi.fn(),
   getStatus: vi.fn(),
   gitFetch: vi.fn(),
   stageFile: vi.fn()
 }))
 
-vi.mock('../providers/ssh-git-dispatch', async () => ({
-  ...(await vi.importActual<typeof SshGitDispatchModule>('../providers/ssh-git-dispatch')),
-  getSshGitProvider: mocks.getSshGitProvider
+vi.mock('../git/source-control/status-read', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  getStatus: mocks.getStatus
 }))
 
-vi.mock('../git/status', async () => ({
-  ...(await vi.importActual<typeof GitStatusModule>('../git/status')),
-  getStatus: mocks.getStatus,
+vi.mock('../git/source-control/staging', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   stageFile: mocks.stageFile
 }))
 
@@ -45,23 +42,20 @@ function remoteCommands(): RuntimeGitCommands {
 
 describe('runtime Git execution-host ownership', () => {
   beforeEach(() => {
-    mocks.getSshGitProvider.mockReset().mockReturnValue(undefined)
     mocks.getStatus.mockReset()
     mocks.gitFetch.mockReset()
     mocks.stageFile.mockReset()
   })
 
-  it('never substitutes local reads, sync, or mutations when the SSH provider is absent', async () => {
+  it('never substitutes local reads, sync, or mutations for an SSH host', async () => {
     const commands = remoteCommands()
 
     await expect(commands.getRuntimeGitStatus('id:wt-1')).rejects.toThrow(
-      SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE
+      SSH_HOST_NOT_SERVED_MESSAGE
     )
-    await expect(commands.fetchRuntimeGit('id:wt-1')).rejects.toThrow(
-      SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE
-    )
+    await expect(commands.fetchRuntimeGit('id:wt-1')).rejects.toThrow(SSH_HOST_NOT_SERVED_MESSAGE)
     await expect(commands.stageRuntimeGitPath('id:wt-1', 'src/a.ts')).rejects.toThrow(
-      SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE
+      SSH_HOST_NOT_SERVED_MESSAGE
     )
     expect(mocks.getStatus).not.toHaveBeenCalled()
     expect(mocks.gitFetch).not.toHaveBeenCalled()

@@ -6,7 +6,6 @@ import { applyManualRepoOrder } from '../../../../shared/manual-repo-order'
 import { retainValidFilterRepoIds } from '../slices/repo-filter-selection'
 import { readRuntimeWorktreeVisibilitySnapshot } from '../slices/worktree-visibility-owner-settings'
 import { getRepoHostIdentity } from '../slices/repo-host-identity'
-import { getActiveRuntimeTarget } from '../../runtime/runtime-rpc-client'
 import { filterSetupScriptPromptDismissalsToValidRepos } from '@/lib/setup-script-prompt'
 import { getRepoExecutionHostId } from '../../../../shared/execution-host'
 import { isRemovedRuntimeHostId } from '../slices/stale-runtime-host-rows'
@@ -16,13 +15,17 @@ import {
   fetchRepoCatalogForTarget,
   filterSetupsForPrunedRepoRows,
   mergeFetchedRepoCatalog,
-  projectCompatibilityForReconciledRepos,
-  reconcileReadoptedSshWorktreeState,
+  reconcileFetchedCatalogWorktreeState,
   reconcileSupersededSshRepos
 } from './repo-catalog-merge'
-import { getRuntimeTargetHostId } from '../runtime-target-host'
-import { mergeFetchedProjectCompatibilityForHost } from '../projects/project-compatibility-host-merge'
+import { getRuntimeTargetHostId } from '../../runtime/runtime-client-target'
+import { mergeFetchedHostProjectCatalog } from '../../../../shared/project-compatibility-host-merge'
 import { scheduleSafeAutoForkSync } from './safe-auto-fork-sync'
+import { noteLiveRepoCatalogApplied } from './saved-host-catalog-rows'
+import {
+  withWslMovedRepoIds,
+  withWslMovedSetupScriptDismissals
+} from './wsl-moved-repo-ui-retention'
 
 export function createRuntimeRepoCatalogActions(
   set: Parameters<StateCreator<AppState>>[0],
@@ -36,7 +39,7 @@ export function createRuntimeRepoCatalogActions(
       const fence = claimHostCatalogFence(get, 'repos', target)
       try {
         const [catalog, visibilitySnapshot] = await Promise.all([
-          fetchRepoCatalogForTarget(target),
+          fetchRepoCatalogForTarget(target, get().repos),
           readRuntimeWorktreeVisibilitySnapshot(environmentId)
         ])
         const visibilityDefaults = visibilitySnapshot.defaults
@@ -57,11 +60,7 @@ export function createRuntimeRepoCatalogActions(
           const finalizedRepos = applyManualRepoOrder(reconciliation.repos, s.manualRepoOrder)
           const validRepoIds = new Set(finalizedRepos.map((repo) => repo.id))
           const validRepoHostIdentities = new Set(finalizedRepos.map(getRepoHostIdentity))
-          const projectCompatibility = projectCompatibilityForReconciledRepos(
-            finalizedRepos,
-            catalog.projectHostSetupCompatibility
-          )
-          const mergedProjectCompatibility = mergeFetchedProjectCompatibilityForHost({
+          const mergedProjectCompatibility = mergeFetchedHostProjectCatalog({
             previous: {
               projects: s.projects,
               projectHostSetups: filterSetupsForPrunedRepoRows(
@@ -70,7 +69,7 @@ export function createRuntimeRepoCatalogActions(
                 finalizedRepos
               )
             },
-            fetched: projectCompatibility,
+            fetched: catalog.projectHostSetupCompatibility,
             repos: finalizedRepos,
             hostId: result.hostId
           })
@@ -88,8 +87,7 @@ export function createRuntimeRepoCatalogActions(
                   }
                 }),
             ...(visibilityDefaults !== undefined && s.settings
-              ? getActiveRuntimeTarget(s.settings).kind === 'environment' &&
-                s.settings.activeRuntimeEnvironmentId === environmentId
+              ? s.settings.activeRuntimeEnvironmentId === environmentId
                 ? visibilityDefaults
                   ? {
                       settings: {
@@ -112,18 +110,31 @@ export function createRuntimeRepoCatalogActions(
                 : {}
               : {}),
             pendingSshRepoReadoptions: reconciliation.pendingReadoptions,
-            ...reconcileReadoptedSshWorktreeState(s, s.pendingSshRepoReadoptions),
+            ...reconcileFetchedCatalogWorktreeState(
+              s,
+              catalog,
+              finalizedRepos,
+              reconciliation.pendingReadoptions
+            ),
             ...mergedProjectCompatibility,
             activeRepoId:
               s.activeRepoId && validRepoIds.has(s.activeRepoId) ? s.activeRepoId : null,
-            filterRepoIds: retainValidFilterRepoIds(s.filterRepoIds, validRepoIds),
-            setupScriptPromptDismissedRepoIds: filterSetupScriptPromptDismissalsToValidRepos(
+            filterRepoIds: retainValidFilterRepoIds(
+              s.filterRepoIds,
+              withWslMovedRepoIds(validRepoIds, s.wslMovedProjects)
+            ),
+            setupScriptPromptDismissedRepoIds: withWslMovedSetupScriptDismissals(
               s.setupScriptPromptDismissedRepoIds,
-              validRepoHostIdentities
+              filterSetupScriptPromptDismissalsToValidRepos(
+                s.setupScriptPromptDismissedRepoIds,
+                validRepoHostIdentities
+              ),
+              s.wslMovedProjects
             )
           }
         })
-        scheduleSafeAutoForkSync(get, finalizedHostRepos)
+        noteLiveRepoCatalogApplied(get, targetHostId)
+        scheduleSafeAutoForkSync(finalizedHostRepos)
         return finalizedHostRepos
       } catch (err) {
         console.error(`Failed to fetch repos for runtime environment ${environmentId}:`, err)

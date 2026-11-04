@@ -4,8 +4,8 @@ import {
   buildAddDirAgentArgs,
   withLeadingAgentArgs
 } from './agent-add-dir-args'
-import { tokenizeStartupCommand } from './tui-agent-startup-shell'
-import { buildAgentStartupPlan } from './tui-agent-startup'
+import { tokenizeStartupCommand } from './agent-launch/startup/tui-agent-startup-shell'
+import { buildAgentStartupPlan } from './agent-launch/startup/tui-agent-startup'
 
 describe('agentSupportsAddDir', () => {
   it('covers Claude Code and Codex only', () => {

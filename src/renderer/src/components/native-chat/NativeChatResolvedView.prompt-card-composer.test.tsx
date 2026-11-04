@@ -1,17 +1,20 @@
+import { AGENT_TUI_CLEAR_INPUT_MAX } from '../../../../shared/agent-launch/startup/agent-tui-input-clear'
 // @vitest-environment happy-dom
 
 import '@testing-library/jest-dom/vitest'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import type { AgentStatusPayload } from '../../../../shared/agent-status-types'
-import type { NativeChatMessage } from '../../../../shared/native-chat-types'
+import type { AgentStatusPayload } from '../../../../shared/agent-status/contracts/agent-status-types'
+import type { NativeChatMessage } from '../../../../shared/native-chat/native-chat-types'
 import type { NativeChatLiveSession } from './use-native-chat-live-session'
 import type {
   NativeChatComposerHandle,
   NativeChatComposerProps
 } from './native-chat-composer-types'
 import type * as RuntimeTerminalInspectionModule from '@/runtime/runtime-terminal-inspection'
+import { mergeNativeChatLiveSession } from '../../../../shared/native-chat/native-chat-live-status'
+import { clearPendingSendCacheForTests } from './native-chat-pending'
 
 type RuntimeTerminalInspection = typeof RuntimeTerminalInspectionModule
 
@@ -19,8 +22,8 @@ const MESSAGE = 'please also run lint'
 const retained = vi.hoisted((): { session: NativeChatLiveSession | null } => ({ session: null }))
 const composer = vi.hoisted(() => ({ mounts: 0, typed: vi.fn<(text: string) => boolean>() }))
 const pty = vi.hoisted(() => ({
-  verified: vi.fn<(settings: unknown, id: string, data: string) => Promise<boolean>>(),
-  raw: vi.fn<(settings: unknown, id: string, data: string) => boolean>()
+  verified: vi.fn<(id: string, data: string) => Promise<boolean>>(),
+  raw: vi.fn<(id: string, data: string) => boolean>()
 }))
 vi.mock('./use-native-chat-retained-session', () => ({
   useNativeChatRetainedSession: () => retained.session
@@ -32,8 +35,7 @@ vi.mock('@/runtime/runtime-terminal-inspection', async (importOriginal) => ({
 vi.mock('@/runtime/runtime-terminal-verified-input', () => ({
   sendRuntimePtyInputVerified: pty.verified
 }))
-// Stand-in field over the production send lifecycle, queue and observed writes, wired as the
-// composer wires them.
+// Stub only the field; retain the production send lifecycle, queue and observed writes.
 vi.mock('./NativeChatComposer', async () => {
   const { forwardRef, useEffect, useImperativeHandle, useRef } = await import('react')
   const { useNativeChatSendLifecycle } = await import('./use-native-chat-send-lifecycle')
@@ -50,6 +52,7 @@ vi.mock('./NativeChatComposer', async () => {
             fieldRef.current?.focus()
             return true
           },
+          insertAgentReferences: () => false,
           insertTypedText: composer.typed,
           acceptsText: () => true,
           appendText: () => {},
@@ -68,7 +71,7 @@ vi.mock('./NativeChatComposer', async () => {
         )
         const send = (): void => {
           let pendingId: string | undefined
-          const handle = sendNativeChatMessage(null, props.targetPtyId ?? '', MESSAGE, {
+          const handle = sendNativeChatMessage(props.targetPtyId ?? '', MESSAGE, {
             onWriteRejected: () => {
               if (pendingId) {
                 props.optimisticSendOutcome?.reject(pendingId)
@@ -93,7 +96,7 @@ vi.mock('./NativeChatComposer', async () => {
 
 const { NativeChatResolvedView } = await import('./NativeChatResolvedView')
 const { TooltipProvider } = await import('@/components/ui/tooltip')
-const { useAppStore } = await import('../../store')
+const { useAppStore } = await import('../../store/index')
 const { installNativeChatMessageListTestViewport } =
   await import('./native-chat-message-list-test-viewport')
 const { resetNativeChatPtySendQueuesForTests } = await import('./native-chat-runtime-send')
@@ -177,6 +180,45 @@ afterEach(() => {
   }
 })
 
+describe('queued follow-ups through transcript recovery', () => {
+  it.each(['error', 'ready'] as const)(
+    'keeps a send after the current reply when a read error is presented as %s',
+    async (status) => {
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+      clearPendingSendCacheForTests()
+      setStatus({ state: 'working', lastAssistantMessage: 'Current reply' })
+      const input = {
+        messages: [userTurn],
+        sessionId: 'session-hidden',
+        agent: 'claude' as const,
+        hookState: 'working' as const,
+        stateStartedAt: Date.now()
+      }
+      retained.session = {
+        ...retained.session!,
+        ...mergeNativeChatLiveSession({ ...input, error: 'Read failed' }),
+        status,
+        readPhase: 'error'
+      }
+      renderPane()
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('composer-send'))
+      })
+      act(() => {
+        retained.session = {
+          ...retained.session!,
+          ...mergeNativeChatLiveSession(input),
+          readPhase: 'ready'
+        }
+        setStatus({ state: 'working', lastAssistantMessage: 'Current reply continues' })
+      })
+      const text = document.body.textContent!
+      expect(text).toContain('Current')
+      expect(text.indexOf(MESSAGE)).toBeGreaterThan(text.indexOf('Current'))
+    }
+  )
+})
+
 describe('a prompt card hides the composer without unmounting it', () => {
   it('keeps an in-flight message visible and never submits it into the approval', async () => {
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
@@ -185,7 +227,7 @@ describe('a prompt card hides the composer without unmounting it', () => {
     await act(async () => {
       fireEvent.click(screen.getByTestId('composer-send'))
     })
-    expect(pty.verified.mock.calls.map((call) => call[2]).join('')).toContain(MESSAGE)
+    expect(pty.verified.mock.calls.map((call) => call[1]).join('')).toContain(MESSAGE)
 
     // The approval arrives inside the body-to-Enter gap.
     await act(async () => {
@@ -197,9 +239,9 @@ describe('a prompt card hides the composer without unmounting it', () => {
     })
 
     expect(document.querySelector('[data-native-chat-approval-card="true"]')).not.toBeNull()
-    expect(pty.verified.mock.calls.map((call) => call[2])).not.toContain('\r')
+    expect(pty.verified.mock.calls.map((call) => call[1])).not.toContain('\r')
     // Only the pre-body clear: retiring the send types nothing under the card.
-    expect(pty.raw.mock.calls.map((call) => call[2])).toEqual(['\x15'])
+    expect(pty.raw.mock.calls.map((call) => call[1])).toEqual([AGENT_TUI_CLEAR_INPUT_MAX])
     expect(screen.getByTestId('composer-send').closest('[hidden]')).not.toBeNull()
     expect(screen.getAllByText(MESSAGE).length).toBeGreaterThan(0)
     expect(screen.getByText('Message not sent')).toBeInTheDocument()

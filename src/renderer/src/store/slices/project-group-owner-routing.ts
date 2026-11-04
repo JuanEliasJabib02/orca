@@ -7,6 +7,11 @@ import {
   type ExecutionHostId
 } from '../../../../shared/execution-host'
 import { findIndexedProjectGroupOwner } from '@/lib/worktree-runtime-owner-index'
+import {
+  getRuntimeTargetHostId,
+  ipcOrRuntimeTargetForHostId
+} from '@/runtime/runtime-client-target'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 
 type ProjectGroupHostParts = Pick<ProjectGroup, 'connectionId' | 'executionHostId'>
 type ProjectGroupOwnerRecord = Pick<ProjectGroup, 'id' | 'connectionId' | 'executionHostId'>
@@ -17,8 +22,7 @@ type ProjectGroupOwnerRoutingState = {
   settings: RoutingSettings
 }
 
-// Why: persisted rows predate host stamping and may carry padded/unparseable ids; normalize so
-// routing and catalog identity agree on the same owner host.
+// Normalize legacy padded/invalid host stamps so routing and catalog identity agree.
 export function getProjectGroupHostId(group: ProjectGroupHostParts): ExecutionHostId {
   return getRepoExecutionHostId(group)
 }
@@ -60,29 +64,29 @@ export function resolveProjectGroupOwnerHostId(
   return getProjectGroupHostId(owner)
 }
 
-// Why: the sidebar lists groups from every host, so mutations must route to the row's owner
-// instead of whichever host currently has focus. Mirrors settingsForRepoOwner.
-export function settingsForProjectGroupOwner(
-  state: ProjectGroupOwnerRoutingState,
+/** Route group mutations to owner; null without a row. Direct SSH groups use this app’s catalog/IPC. */
+export function runtimeTargetForProjectGroupOwner(
+  state: Pick<ProjectGroupOwnerRoutingState, 'projectGroups'>,
   groupId: string,
   hostId?: ExecutionHostId
-): RoutingSettings {
-  const ownerHostId = resolveProjectGroupOwnerHostId(state, groupId, hostId)
-  if (!ownerHostId) {
-    return state.settings
-  }
-  const parsed = parseExecutionHostId(ownerHostId)
-  if (parsed?.kind === 'runtime') {
-    return state.settings
-      ? { ...state.settings, activeRuntimeEnvironmentId: parsed.environmentId }
-      : { activeRuntimeEnvironmentId: parsed.environmentId }
-  }
-  // Why: direct-SSH groups live in the local main process catalog, so they route through window.api.
-  if (
-    (parsed?.kind === 'local' || parsed?.kind === 'ssh') &&
-    state.settings?.activeRuntimeEnvironmentId
-  ) {
-    return { ...state.settings, activeRuntimeEnvironmentId: null }
-  }
-  return state.settings
+): RuntimeClientTarget | null {
+  const owner = findIndexedProjectGroupOwner(state.projectGroups, groupId, hostId)
+  return owner ? ipcOrRuntimeTargetForHostId(hostId ?? getProjectGroupHostId(owner)) : null
+}
+
+/** Refuse known groups absent from the target catalog; host would silently clear unknown membership. */
+export function isProjectGroupJoinableFromCatalog(
+  projectGroups: readonly ProjectGroupOwnerRecord[],
+  groupId: string,
+  catalog: RuntimeClientTarget
+): boolean {
+  const catalogHostId = getRuntimeTargetHostId(catalog)
+  const copies = projectGroups.filter((group) => group.id === groupId)
+  return (
+    copies.length === 0 ||
+    copies.some((group) => {
+      const groupCatalog = ipcOrRuntimeTargetForHostId(getProjectGroupHostId(group))
+      return groupCatalog !== null && getRuntimeTargetHostId(groupCatalog) === catalogHostId
+    })
+  )
 }

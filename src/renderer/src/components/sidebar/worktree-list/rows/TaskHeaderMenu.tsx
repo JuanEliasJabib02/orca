@@ -15,7 +15,7 @@ import { getTaskNote } from '@/store/slices/ui/ui-slice-task-note-actions'
 import { runWorktreeBatchDelete } from '../../delete-worktree-flow'
 import { REPO_HEADER_ACTION_BUTTON_CLASS } from '../../repo-header-action-button-class'
 import { useActiveSidebarSpaceScope } from '../../use-active-sidebar-space'
-import type { TaskSectionInfo } from '../grouping/row-types'
+import type { TaskSectionInfo } from '../../../../../../shared/sidebar-list/row-types'
 import {
   handleRepoHeaderActionPointerDown,
   stopRepoHeaderKeyboardToggle,

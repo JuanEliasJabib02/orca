@@ -7,7 +7,7 @@ import {
 } from '@/lib/worktree-activity-state'
 import { folderWorkspaceKey } from '../../../../../../shared/workspace-scope'
 import { getVisibleWorktreeTerminalActivityTabs } from '../../visible-worktree-activity-inputs'
-import type { TaskSectionInfo } from '../grouping/row-types'
+import type { TaskSectionInfo } from '../../../../../../shared/sidebar-list/row-types'
 
 const STATUS_URGENCY: Record<LiveAgentWorktreeStatus, number> = {
   permission: 3,

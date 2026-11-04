@@ -6,15 +6,19 @@ import { reuseEqualCatalogRows } from '../../worktree-catalog-reconciliation'
 import { getRepoIdFromWorktreeId } from '../../worktree-helpers'
 import {
   getRepoExecutionHostId,
-  getSettingsFocusedExecutionHostId,
   LOCAL_EXECUTION_HOST_ID,
   parseExecutionHostId,
+  toRuntimeExecutionHostId,
   toSshExecutionHostId,
   type ExecutionHostId
 } from '../../../../../../shared/execution-host'
 import { toVisibleWorktree } from './worktree-catalog-visibility'
-import { noteUnstampedNonLocalRow } from '@/lib/unstamped-non-local-row-counter'
+import { getPairedWebClientEnvironmentId } from '@/lib/paired-web-client-host'
 import type { WorktreeHostMatchOptions, RepoHostSummary } from './worktree-slice-types'
+import {
+  selectDetectedWorktreesByRepo,
+  selectWorktreesByRepo
+} from '../../../workspace-record-selectors'
 
 export function withRepoHostOwnership<
   T extends {
@@ -54,7 +58,7 @@ export function withRepoHostOwnership<
 }
 
 export function repoHostId(
-  state: Pick<AppState, 'repos' | 'settings'>,
+  state: Pick<AppState, 'repos' | 'settings' | 'runtimeEnvironments'>,
   repoId: string,
   hostId?: ExecutionHostId | null
 ): ExecutionHostId {
@@ -62,9 +66,12 @@ export function repoHostId(
   if (repo) {
     return getRepoExecutionHostId(repo)
   }
-  return hostId && parseExecutionHostId(hostId)
-    ? hostId
-    : getSettingsFocusedExecutionHostId(state.settings)
+  if (hostId && parseExecutionHostId(hostId)) {
+    return hostId
+  }
+  // Why: no row (or twins) names a host, so this app (a web client's only server), never focus.
+  const webHost = getPairedWebClientEnvironmentId(state)
+  return webHost ? toRuntimeExecutionHostId(webHost) : LOCAL_EXECUTION_HOST_ID
 }
 
 export function repoHasExactlyOneExecutionHostOwner(
@@ -189,7 +196,7 @@ export function worktreeMatchesHost(
     if (worktree.hostId) {
       return worktree.hostId === hostId
     }
-    return unhostedRowMatchesNonLocalHost(options.unhostedWorktreesMatchHost ?? false)
+    return options.unhostedWorktreesMatchHost ?? false
   }
   if (worktree.runtimeOwnerEnvironmentId) {
     return false
@@ -200,14 +207,7 @@ export function worktreeMatchesHost(
   if (hostId === LOCAL_EXECUTION_HOST_ID) {
     return options.unhostedWorktreesMatchHost ?? true
   }
-  return unhostedRowMatchesNonLocalHost(options.unhostedWorktreesMatchHost ?? false)
-}
-
-function unhostedRowMatchesNonLocalHost(matches: boolean): boolean {
-  if (matches) {
-    noteUnstampedNonLocalRow()
-  }
-  return matches
+  return options.unhostedWorktreesMatchHost ?? false
 }
 
 export function mergeWorktreesForHost<
@@ -251,7 +251,7 @@ export function getKnownWorktreeIdsForPurge(
   repoId: string,
   hostId: ExecutionHostId
 ): string[] {
-  const detected = state.detectedWorktreesByRepo[repoId]
+  const detected = selectDetectedWorktreesByRepo(state)[repoId]
   const knownIds = new Set<string>()
   const matchOptions = worktreeHostMatchOptions(state, repoId, hostId)
   if (detected?.authoritative === true) {
@@ -261,7 +261,7 @@ export function getKnownWorktreeIdsForPurge(
       }
     }
   } else {
-    for (const worktree of state.worktreesByRepo[repoId] ?? []) {
+    for (const worktree of selectWorktreesByRepo(state)[repoId] ?? []) {
       if (worktreeMatchesHost(worktree, hostId, matchOptions)) {
         knownIds.add(worktree.id)
       }

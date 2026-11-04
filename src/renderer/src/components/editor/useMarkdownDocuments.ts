@@ -4,8 +4,9 @@ import type { MarkdownDocument } from '../../../../shared/filesystem-entry-types
 import { useAppStore } from '@/store'
 import { translate } from '@/i18n/i18n'
 import { getConnectionIdFromState } from '@/lib/connection-context'
-import { statRuntimePath } from '@/runtime/runtime-file-client'
-import { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
+import { statRuntimePath } from '@/runtime/runtime-file-metadata-client'
+import { acquireEditorFileOperation } from '@/lib/editor-file-operation-owner'
+import { getRuntimeTargetForFileOwner } from '@/lib/file-owner-runtime-target'
 import type { MarkdownViewMode, OpenFile } from '@/store/slices/editor'
 import {
   createMarkdownDocumentIndex,
@@ -15,7 +16,10 @@ import {
 import { selectMarkdownDocumentWorktreePath } from './markdown-document-worktree-path-selector'
 import { requestSharedMarkdownDocumentList } from './markdown-document-list-request'
 import { findRestoredEditorWorkspaceRuntimeOwner } from './restored-editor-workspace-runtime-owner'
-import { useMarkdownDocumentWatchRefresh } from './use-markdown-document-watch-refresh'
+import {
+  getLatestMarkdownMembershipChangeAt,
+  useMarkdownDocumentWatchRefresh
+} from './use-markdown-document-watch-refresh'
 
 type OpenMarkdownDocumentOptions = {
   anchor?: string | null
@@ -58,8 +62,7 @@ export function useMarkdownDocuments(
   onSave: (content: string) => Promise<boolean>
 ): UseMarkdownDocumentsResult {
   const worktreeId = activeFile.worktreeId
-  // Why: PTY activity replaces worktree metadata; only a routing-path change
-  // should wake every mounted editor's document-link controller.
+  // PTY metadata churn must not wake every document-link controller unless the routing path changed.
   const worktreePath = useAppStore((s) => selectMarkdownDocumentWorktreePath(s, worktreeId))
   const openFile = useAppStore((s) => s.openFile)
   const openMarkdownPreview = useAppStore((s) => s.openMarkdownPreview)
@@ -76,14 +79,23 @@ export function useMarkdownDocuments(
   const requestRef = useRef(0)
 
   const refreshMarkdownDocuments = useCallback(
-    async (requireFresh = false, freshAfter?: number): Promise<void> => {
+    async (
+      requireFresh = false,
+      freshAfter?: number,
+      background = freshAfter !== undefined
+    ): Promise<void> => {
       if (!worktreeId || !worktreePath) {
         return
       }
       const state = useAppStore.getState()
-      const settings = settingsForRuntimeOwner(state.settings, activeFile.runtimeEnvironmentId)
+      const target = getRuntimeTargetForFileOwner(
+        state,
+        worktreeId,
+        activeFile.runtimeEnvironmentId
+      )
       // The content loader reowns retained tabs before metadata may use their new host.
       if (
+        !target ||
         findRestoredEditorWorkspaceRuntimeOwner(
           state,
           {
@@ -95,7 +107,7 @@ export function useMarkdownDocuments(
           },
           worktreeId
         ) ||
-        (connectionId === undefined && !settings?.activeRuntimeEnvironmentId?.trim())
+        (connectionId === undefined && target.kind === 'local')
       ) {
         return
       }
@@ -105,7 +117,7 @@ export function useMarkdownDocuments(
       try {
         const documents = await requestSharedMarkdownDocumentList(
           {
-            settings,
+            target,
             worktreeId,
             worktreePath,
             connectionId: connectionId ?? undefined
@@ -120,7 +132,7 @@ export function useMarkdownDocuments(
       } catch (err) {
         console.error('Failed to list markdown documents:', err)
         // Watcher refreshes are background work: keep the last good list and stay quiet.
-        if (freshAfter !== undefined) {
+        if (background) {
           return
         }
         if (requestRef.current === requestId) {
@@ -158,19 +170,14 @@ export function useMarkdownDocuments(
       if (!worktreeId || !worktreePath) {
         return
       }
+      let acquisition: ReturnType<typeof acquireEditorFileOperation>
       try {
-        const stats = await statRuntimePath(
-          {
-            settings: settingsForRuntimeOwner(
-              useAppStore.getState().settings,
-              activeFile.runtimeEnvironmentId
-            ),
-            worktreeId,
-            worktreePath,
-            connectionId: connectionId ?? undefined
-          },
-          document.filePath
-        )
+        acquisition = acquireEditorFileOperation(useAppStore.getState, activeFile, {
+          filePath: document.filePath,
+          worktreePath
+        })
+        const stats = await statRuntimePath(acquisition.context, document.filePath)
+        acquisition.assertCurrent()
         if (stats.isDirectory) {
           await refreshMarkdownDocuments(true)
           return
@@ -188,7 +195,8 @@ export function useMarkdownDocuments(
             relativePath: document.relativePath,
             worktreeId,
             language: 'markdown',
-            runtimeEnvironmentId: activeFile.runtimeEnvironmentId
+            runtimeEnvironmentId: acquisition.provenance.generation.route.runtimeEnvironmentId,
+            operationProvenance: acquisition.provenance
           },
           { anchor: options.anchor }
         )
@@ -200,14 +208,13 @@ export function useMarkdownDocuments(
         relativePath: document.relativePath,
         worktreeId,
         language: 'markdown',
-        runtimeEnvironmentId: activeFile.runtimeEnvironmentId,
+        runtimeEnvironmentId: acquisition.provenance.generation.route.runtimeEnvironmentId,
+        operationProvenance: acquisition.provenance,
         mode: 'edit'
       })
     },
     [
-      activeFile.mode,
-      activeFile.runtimeEnvironmentId,
-      connectionId,
+      activeFile,
       openFile,
       openMarkdownPreview,
       refreshMarkdownDocuments,
@@ -221,11 +228,22 @@ export function useMarkdownDocuments(
     if (!isMarkdown) {
       return
     }
-    void refreshMarkdownDocuments()
+    // Mount reads are foreground: errors still surface, but never join a pre-change scan.
+    const latestChange = worktreePath
+      ? getLatestMarkdownMembershipChangeAt(activeFile.runtimeEnvironmentId, worktreePath)
+      : undefined
+    void refreshMarkdownDocuments(false, latestChange, false)
     return () => {
       requestRef.current += 1
     }
-  }, [activeFile.id, isMarkdown, viewMode, refreshMarkdownDocuments])
+  }, [
+    activeFile.id,
+    activeFile.runtimeEnvironmentId,
+    isMarkdown,
+    viewMode,
+    worktreePath,
+    refreshMarkdownDocuments
+  ])
 
   useMarkdownDocumentWatchRefresh({
     enabled: isMarkdown && !!worktreeId,

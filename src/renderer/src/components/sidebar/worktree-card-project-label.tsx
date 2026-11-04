@@ -5,7 +5,7 @@ import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { Repo } from '../../../../shared/repo-types'
 import { cn } from '@/lib/utils'
 import { TruncatedSidebarLabel } from './truncated-sidebar-label'
-import type { WorktreeGroupBy } from './worktree-list/grouping/row-types'
+import type { WorktreeGroupBy } from '../../../../shared/sidebar-list/row-types'
 
 // Why: outside Project grouping no section header names the project, so the card must.
 export function getWorktreeCardProjectLabel(args: {

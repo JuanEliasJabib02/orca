@@ -1,3 +1,4 @@
+import type * as WorktreeListingModule from '../git/worktrees/catalog/worktree-listing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const electronMocks = vi.hoisted(() => {
@@ -13,23 +14,19 @@ const electronMocks = vi.hoisted(() => {
     app: { getPath: vi.fn(() => '/tmp'), isPackaged: false }
   }
 })
+vi.mock('../git/worktrees/catalog/worktree-listing', async (importOriginal) => {
+  return {
+    ...(await importOriginal<typeof WorktreeListingModule>()),
+    listWorktreesStrict: listWorktreesStrictMock
+  }
+})
+
 vi.mock('electron', () => electronMocks)
 
-const getSshGitProviderMock = vi.hoisted(() => vi.fn())
-vi.mock('../providers/ssh-git-dispatch', () => ({
-  getSshGitProvider: getSshGitProviderMock,
-  getSshGitProviderGeneration: vi.fn(() => 0),
-  SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE: 'unavailable',
-  requireSshGitProvider: (connectionId: string) => getSshGitProviderMock(connectionId)
-}))
-
 const listWorktreesStrictMock = vi.hoisted(() => vi.fn())
-vi.mock('../git/worktree', async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  listWorktreesStrict: listWorktreesStrictMock
-}))
 
 import { OrcaRuntimeService } from './orca-runtime'
+import type { HostWorktreeTarget } from '../../shared/worktree/host-qualified-identity'
 
 const LOCAL_REPO_ID = 'repo-local'
 const LOCAL_REPO_PATH = '/Users/me/dev/app'
@@ -43,7 +40,15 @@ function gitWorktree(path: string, isMain = false) {
 
 /** Local rows sort ahead of the remote ones, mirroring the fleet order that starves the cap. */
 function makeStore() {
-  const metaById: Record<string, unknown> = {}
+  // Why: this process serves no SSH git, so the SSH repo lists its stored rows.
+  const metaById: Record<string, unknown> = {
+    [`${SSH_REPO_ID}::${SSH_REPO_PATH}`]: {
+      hostId: `ssh:${SSH_CONNECTION_ID}`
+    },
+    [`${SSH_REPO_ID}::${SSH_REPO_PATH}-a`]: {
+      hostId: `ssh:${SSH_CONNECTION_ID}`
+    }
+  }
   return {
     getRepo: (id: string) =>
       makeStore()
@@ -68,7 +73,7 @@ function makeStore() {
     ],
     getAllWorktreeMeta: () => metaById,
     getWorktreeMeta: (id: string) => metaById[id],
-    setWorktreeMeta: (id: string, meta: Record<string, unknown>) => {
+    setWorktreeMeta: ({ id }: HostWorktreeTarget, meta: Record<string, unknown>) => {
       metaById[id] = { ...(metaById[id] as object), ...meta }
       return metaById[id]
     },
@@ -91,7 +96,6 @@ function makeStore() {
 
 describe('worktree.ps host coverage', () => {
   beforeEach(() => {
-    getSshGitProviderMock.mockReset()
     listWorktreesStrictMock.mockReset()
     listWorktreesStrictMock.mockResolvedValue([
       gitWorktree(LOCAL_REPO_PATH, true),
@@ -99,12 +103,6 @@ describe('worktree.ps host coverage', () => {
       gitWorktree(`${LOCAL_REPO_PATH}-b`),
       gitWorktree(`${LOCAL_REPO_PATH}-c`)
     ])
-    getSshGitProviderMock.mockReturnValue({
-      listWorktrees: vi.fn(async () => [
-        gitWorktree(SSH_REPO_PATH, true),
-        gitWorktree(`${SSH_REPO_PATH}-a`)
-      ])
-    })
   })
 
   it('names every host the page covers', async () => {

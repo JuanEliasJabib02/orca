@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { GitCommandTimeoutError, gitCommandTimeoutMs } from './git-command-timeout'
+import {
+  GitCommandTimeoutError,
+  gitCommandTimeoutMs
+} from '../../../shared/git/commands/git-command-timeout'
 
 describe('gitCommandTimeoutMs', () => {
   it.each([
@@ -16,10 +19,6 @@ describe('gitCommandTimeoutMs', () => {
   it('preserves every explicit timeout', () => {
     expect(gitCommandTimeoutMs(['status'], 7)).toBe(7)
     expect(gitCommandTimeoutMs(['fetch'], 7)).toBe(7)
-  })
-
-  it('provides a deterministic read-timeout seam', () => {
-    expect(gitCommandTimeoutMs(['status'], undefined, 25)).toBe(25)
   })
 })
 

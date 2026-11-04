@@ -8,8 +8,8 @@ import { getConnectionIdForFileFromState } from '@/lib/connection-owner-resoluti
 import { isLocalPathOpenBlocked, showLocalPathOpenBlockedToast } from '@/lib/local-path-open-guard'
 import { getLinkSourceLocalOpenOwner } from '@/lib/link-source-local-open-owner'
 import { resolveMarkdownLinkTarget } from '@/components/editor/markdown-internal-links'
-import { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
-import { statRuntimePath } from '@/runtime/runtime-file-client'
+import { runtimeTargetForOwnerEnvironment } from '@/runtime/runtime-client-target'
+import { statRuntimePath } from '@/runtime/runtime-file-metadata-client'
 import { getOpenedEditFileIdAfterOpen } from '../file-ids/editor-file-ids'
 import { scheduleEditorLineReveal } from '../focus/editor-focus-reveal'
 
@@ -44,7 +44,6 @@ export function createMarkdownLinkAction(
               ? ctx.runtimeEnvironmentId
               : inferredRuntimeEnvironmentId
       const runtimeOwnerId = sourceRuntimeEnvironmentId?.trim() || null
-      const sourceSettings = settingsForRuntimeOwner(initialState.settings, runtimeOwnerId)
       const resolvedConnectionId =
         ctx.sourceOwner || runtimeOwnerId
           ? undefined
@@ -63,7 +62,7 @@ export function createMarkdownLinkAction(
       }
       const sourceConnectionId = sourceOwner.kind === 'ssh' ? sourceOwner.connectionId : undefined
       const fileContext = {
-        settings: sourceSettings,
+        target: runtimeTargetForOwnerEnvironment(runtimeOwnerId),
         worktreeId: ctx.worktreeId,
         worktreePath: ctx.worktreeRoot,
         connectionId: sourceConnectionId
@@ -87,7 +86,7 @@ export function createMarkdownLinkAction(
               getLinkSourceLocalOpenOwner(initialState, sourceOwner, ctx.worktreeId)
             )
           ) {
-            // Why: a file:// link outside the worktree is client-local; remote runtime/SSH editors must not treat server paths as client paths.
+            // Outside-worktree file:// is client-local; never interpret remote runtime/SSH paths as desktop files.
             showLocalPathOpenBlockedToast()
             return
           }
@@ -139,7 +138,6 @@ export function createMarkdownLinkAction(
         return
       }
 
-      // target.kind === 'markdown'
       const { absolutePath, relativePath, line, column } = target
       let stats: { isDirectory: boolean }
       try {

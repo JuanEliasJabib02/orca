@@ -1,5 +1,4 @@
-// An adhoc run builds one commit: every job checks out what resolve-ref pinned at dispatch, so a
-// push mid-run can never mix slot lanes from one commit with a template merge from the next.
+// Pin every job to dispatch’s resolved commit so mid-run pushes cannot mix artifacts.
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -41,6 +40,7 @@ async function resolve(ref) {
       ...identity,
       REPO_URL: pathToFileURL(repository).href,
       GITHUB_OUTPUT: output,
+      RUNNER_TEMP: scratch,
       REQUESTED_REF: ref
     }
   })
@@ -61,20 +61,14 @@ afterAll(() => rmSync(directory, { recursive: true, force: true }))
 describe('adhoc build pins one commit for the whole run', () => {
   it('checks out the pinned commit in every job that builds from the repo', () => {
     const { jobs } = workflow
-    expect(jobs['relay-windows-process-tree'].with.ref).toBe(PINNED)
     expect(jobs['orcad-template'].with.ref).toBe(PINNED)
     const support = jobs['orcad-template-support'].steps.find((step) =>
       step.uses?.startsWith('actions/checkout@')
     )
     expect(support.with.ref).toBe(PINNED)
-    const vet = jobs['build-adhoc-mac'].steps.find((step) => step.id === 'vetted')
+    const vet = jobs['build-adhoc-mac-arch'].steps.find((step) => step.id === 'vetted')
     expect(vet.env.REQUESTED_REF).toBe(PINNED)
-    for (const name of [
-      'relay-windows-process-tree',
-      'orcad-template-support',
-      'orcad-template',
-      'build-adhoc-mac'
-    ]) {
+    for (const name of ['orcad-template-support', 'orcad-template', 'build-adhoc-mac']) {
       expect([jobs[name].needs].flat(), name).toContain('resolve-ref')
     }
   })

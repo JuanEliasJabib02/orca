@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { Repo } from '../../../../shared/repo-types'
+import type { ComposerCompanionSubmit } from '@/hooks/composer-state/multi-repo-worktree-creation'
 import { listComposerCompanionCandidates } from './composer-companion-repos'
 import { useComposerSpaceScope } from './use-composer-space-scope'
 
@@ -9,6 +10,8 @@ export type ComposerCompanionRepos = {
   toggle: (repoId: string) => void
   grantAgentAccess: boolean
   setGrantAgentAccess: (next: boolean) => void
+  /** The picks in the shape a quick create submits. */
+  submit: ComposerCompanionSubmit
 }
 
 /**
@@ -63,5 +66,10 @@ export function useComposerCompanionRepos(args: {
     [primaryRepoId, selectedIds]
   )
 
-  return { candidates, selectedIds, toggle, grantAgentAccess, setGrantAgentAccess }
+  const submit = useMemo(
+    () => ({ repoIds: selectedIds, grantAgentAccess }),
+    [grantAgentAccess, selectedIds]
+  )
+
+  return { candidates, selectedIds, toggle, grantAgentAccess, setGrantAgentAccess, submit }
 }

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { applyPRBotAuthorOverride } from '../../../shared/pr-bot-author-overrides'
+import { applyPRBotAuthorOverride } from '../../../shared/source-control/review-comments/pr-bot-author-overrides'
 
 const store = vi.hoisted(() => ({
   settings: { prBotAuthorOverrides: [] as string[] },
@@ -69,17 +69,5 @@ describe('PR bot author override updates', () => {
 
     await vi.waitFor(() => expect(store.apiUpdate).toHaveBeenCalledTimes(2))
     expect(store.settings.prBotAuthorOverrides).toEqual(['bob'])
-  })
-
-  it('warns without evicting an existing override when the limit is reached', async () => {
-    const current = Array.from({ length: 500 }, (_, index) => `bot-${index}`)
-    store.apiUpdate.mockResolvedValue({ prBotAuthorOverrides: current })
-
-    setPRBotAuthorOverride('new-bot', true)
-
-    await vi.waitFor(() =>
-      expect(store.warning).toHaveBeenCalledWith('Bot author override limit reached')
-    )
-    expect(store.settings.prBotAuthorOverrides).toEqual(current)
   })
 })

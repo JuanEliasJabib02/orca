@@ -2,10 +2,11 @@ import type { RefObject } from 'react'
 import '@/lib/new-workspace'
 import type { LinkedWorkItemSummary } from '@/lib/new-workspace'
 import type { GitHubWorkItem } from '../../../shared/github/work-item-types'
-import type { TuiAgent } from '../../../shared/tui-agent'
+import type { TuiAgent } from '../../../shared/agent-launch/catalog/tui-agent'
 import type { TaskSourceContext } from '../../../shared/task-source-context'
 import type { WorkspaceSource as WorkspaceCreateTelemetrySource } from '../../../shared/workspace-source'
 import type { WorkspaceStatus } from '../../../shared/worktree/types'
+import type { WorkspaceCreationTargetHint } from '@/lib/project-host-workspace-target'
 import { buildComposerCardProps } from './composer-state/composer-card-props'
 import {
   canResolveFolderSmartGitHubSubmit,
@@ -23,7 +24,7 @@ import { useComposerExternalSync } from './composer-state/composer-external-sync
 import { useComposerSourceState } from './composer-state/composer-source-state'
 import { useComposerSubmitOrchestration } from './composer-state/composer-submit-orchestration'
 import { assembleComposerModel } from './composer-state/assemble-composer-model'
-import type { ComposerCompanionSubmit } from './composer-state/multi-repo-worktree-creation'
+import type { ComposerQuickSubmitOptions } from './composer-state/composer-submit-model'
 import type {
   ComposerCardActionProps,
   ComposerCardSourceProps
@@ -50,6 +51,7 @@ export type UseComposerStateOptions = {
   initialLinkedWorkItem?: LinkedWorkItemSummary | null
   initialGitHubWorkItem?: GitHubWorkItem | null
   initialTaskSourceContext?: TaskSourceContext | null
+  initialWorkspaceTarget?: WorkspaceCreationTargetHint | null
   initialWorkspaceStatus?: WorkspaceStatus
   initialBaseBranch?: string
   persistDraft: boolean
@@ -69,8 +71,9 @@ export type UseComposerStateResult = {
   onComposerNodeChange: (node: HTMLDivElement | null) => void
   promptTextareaRef: RefObject<HTMLTextAreaElement | null>
   nameInputRef: RefObject<HTMLInputElement | null>
-  submitQuick: (agent: TuiAgent | null, companions?: ComposerCompanionSubmit) => Promise<void>
+  submitQuick: (agent: TuiAgent | null, options?: ComposerQuickSubmitOptions) => Promise<void>
   createDisabled: boolean
+  selectAddedProjectGroup: (groupId: string) => boolean
   selectAddedProjectRepo: (repoId: string) => void
 }
 
@@ -102,6 +105,7 @@ export function useComposerState(options: UseComposerStateOptions): UseComposerS
     nameInputRef: model.nameInputRef,
     submitQuick: model.submitQuick,
     createDisabled,
-    selectAddedProjectRepo: model.selectAddedProjectRepo
+    selectAddedProjectRepo: model.selectAddedProjectRepo,
+    selectAddedProjectGroup: model.selectAddedProjectGroup
   }
 }

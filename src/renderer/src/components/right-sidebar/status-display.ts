@@ -1,15 +1,6 @@
-import type { GitFileStatus, GitStatusEntry } from '../../../../shared/git-status-types'
+import type { GitFileStatus, GitStatusEntry } from '../../../../shared/git/status/git-status-types'
 import { joinPath, normalizeRelativePath } from '@/lib/path'
-import { splitPathSegments } from './path-tree'
-
-export const STATUS_LABELS: Record<GitFileStatus, string> = {
-  modified: 'M',
-  added: 'A',
-  deleted: 'D',
-  renamed: 'R',
-  untracked: 'U',
-  copied: 'C'
-}
+import { splitPathSegments } from '../../../../shared/cross-platform-path'
 
 export const STATUS_COLORS: Record<GitFileStatus, string> = {
   modified: 'var(--git-decoration-modified)',

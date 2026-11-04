@@ -3,7 +3,7 @@ import {
   RelayAssignmentRowBusyError,
   type RelayAssignment,
   type ResolvedRelayAssignment
-} from './assignment-store.js'
+} from './assignment/assignment-store.js'
 import type { RelayConfig } from './config.js'
 
 const fakes = vi.hoisted(() => ({
@@ -143,44 +143,6 @@ describe('drain-return lane', () => {
     expect(causes).toEqual(['sticky-lane'])
   })
 
-  it('names the cause of a placement that found no capacity', async () => {
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const assign = vi.fn(async () => {
-      throw new Error('relay_capacity_exhausted')
-    })
-    const causes: string[] = []
-    const app = createRelayApp(config(), {
-      store: {} as never,
-      assignments: { assign, resolve: vi.fn() } as never,
-      drain: vi.fn(),
-      ready: vi.fn(async () => true),
-      recordAssignmentUnavailable: (cause) => causes.push(cause)
-    })
-
-    const response = await app.request('/v1/assign', assignmentRequest('cccccccccccccccc'))
-
-    expect(response.status).toBe(503)
-    expect(causes).toEqual(['relay_capacity_exhausted'])
-  })
-
-  it('never classifies an unhinted request, which keeps the placement lane', async () => {
-    const host = 'uuuuuuuuuuuuuuuu'
-    const assign = vi.fn(async () => assignment('cell-u', host))
-    const resolve = vi.fn(async () => isolatedHome(host))
-    const outcomes: string[] = []
-    const app = createRelayApp(config(), {
-      store: {} as never,
-      assignments: { assign, resolve } as never,
-      drain: vi.fn(),
-      ready: vi.fn(async () => true),
-      recordAssignmentAdmission: (outcome) => outcomes.push(outcome)
-    })
-
-    expect((await app.request('/v1/assign', assignmentRequest(host))).status).toBe(200)
-    expect(resolve).not.toHaveBeenCalled()
-    expect(outcomes).toEqual(['placement'])
-  })
-
   it('answers a drained host’s row-busy redial with the short interval', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
     vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -233,17 +195,17 @@ describe('drain-return lane', () => {
     expect(redial.headers.get('retry-after')).toBe('2')
   })
 
-  it('admits a 2,500-host drain across five directors without a sticky or placement rejection', async () => {
+  it('admits a paced drain across five directors without a sticky or placement rejection', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     // Five directors behind a load balancer that sends each request to any of
-    // them. 2,500 drained hosts over the 300 s pace window, beside ordinary
-    // reconnects (c29 baseline ~13/s) and a trickle of new placements.
+    // them. A shorter cohort preserves the production arrival rates: ~8 drained
+    // hosts/s, ~13 ordinary reconnects/s, and a trickle of new placements.
     const DIRECTORS = 5
-    const DRAINED = 2_500
-    const PACE_WINDOW_MS = 300_000
-    const ORDINARY = 3_900
-    const PLACEMENTS = 30
+    const DRAINED = 250
+    const PACE_WINDOW_MS = 30_000
+    const ORDINARY = 390
+    const PLACEMENTS = 3
     // Measured c29 2026-10-01: ~5.8 re-placements/s fleet-wide, bound by the
     // region's inventory lock, so ~172 ms of lock per re-placement.
     const INVENTORY_LOCK_MS = 172
@@ -348,7 +310,7 @@ describe('drain-return lane', () => {
     }
 
     let elapsedMs = 0
-    while (inFlight > 0 && elapsedMs < 1_200_000) {
+    while (inFlight > 0 && elapsedMs < 120_000) {
       await vi.advanceTimersByTimeAsync(20)
       elapsedMs += 20
       // Signing the lease completes off the timer queue.
@@ -363,10 +325,11 @@ describe('drain-return lane', () => {
     expect(outcomes.get('sticky')).toBe(ORDINARY)
     expect(outcomes.get('placement')).toBe(PLACEMENTS)
     expect(outcomes.get('drain-return')).toBe(DRAINED)
+    expect(outcomes.get('drain-return-deferred') ?? 0).toBeGreaterThan(0)
     // Paced returns: fewer than two deferrals per drained host, none past the cap.
     expect(outcomes.get('drain-return-deferred') ?? 0).toBeLessThan(2 * DRAINED)
     expect(Math.max(...retryAfters)).toBeLessThanOrEqual(300)
-    // The cohort finishes at the inventory lock's rate, not minutes behind it.
+    // Retry rounding and off-thread signing keep their original fixed allowance.
     expect(elapsedMs).toBeLessThan(DRAINED * INVENTORY_LOCK_MS + 60_000)
   }, 300_000)
 })

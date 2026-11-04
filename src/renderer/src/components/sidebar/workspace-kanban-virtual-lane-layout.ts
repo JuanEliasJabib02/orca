@@ -2,9 +2,9 @@ import type { VirtualItem } from '@tanstack/react-virtual'
 
 type VirtualLaneLayoutRegistration = {
   spacerElement: HTMLElement
+  /** Card host identities, the board's lane keys. */
   getItemIds: () => readonly string[]
-  /** The worktree ids behind each item: several for a task card, none for a project header.
-   *  Defaults to one per item id. */
+  /** Host identities behind each item: several for a task card, none for a project header; defaults to the item id. */
   getItemWorktreeIds?: () => readonly (readonly string[])[]
   getMeasurements: () => readonly Pick<VirtualItem, 'index' | 'start' | 'end'>[]
 }
@@ -49,10 +49,7 @@ export function registerWorkspaceKanbanVirtualLaneLayout(args: {
   }
 }
 
-/**
- * The worktree ids behind each item (none for a project header), in the index space `resolveWorkspaceKanbanVirtualLaneDropIndex`
- * reports — every item in the lane view, not just the mounted virtual window.
- */
+/** The host identities behind every item in the virtual drop-index space, including unmounted rows. */
 export function getWorkspaceKanbanVirtualLaneItemWorktreeIds(
   scrollElement: HTMLElement
 ): readonly (readonly string[])[] | null {
@@ -81,7 +78,7 @@ export function getWorkspaceKanbanVirtualLaneItemRects(
     if (!isValidMeasurement(measurement, index)) {
       return null
     }
-    // Why: an item with no worktree is a project header, which a marquee passes over.
+    // An item with no worktree is a project header, which a marquee passes over.
     if (itemWorktreeIds?.[index]?.length === 0) {
       continue
     }

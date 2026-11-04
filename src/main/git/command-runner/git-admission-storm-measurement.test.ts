@@ -7,10 +7,12 @@ import { gitExecFileAsync } from './git-exec-file'
 import {
   GENERAL_CAP,
   GENERAL_HEADROOM,
-  GitAdmissionScheduler,
-  _gitAdmissionSnapshotForTests,
-  _resetGitAdmissionForTests,
   type GitAdmissionEvent
+} from '../../../shared/git/admission/git-admission-state'
+import { GitAdmissionScheduler } from '../../../shared/git/admission/git-admission-scheduler'
+import {
+  _gitAdmissionSnapshotForTests,
+  _resetGitAdmissionForTests
 } from './git-subprocess-admission'
 import {
   assertAdmissionLedger,
@@ -179,5 +181,4 @@ describe.skipIf(process.platform === 'win32')('git admission storm measurement',
       assertAdmissionLedger(enabled)
     }
   )
-  // Real-git output parity remains in git-admission-output-parity.test.ts, including Windows.
 })

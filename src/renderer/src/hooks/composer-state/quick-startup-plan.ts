@@ -1,21 +1,31 @@
+import { useAppStore } from '@/store'
+import { resolveQuickCreateLinkedWorkItemPrompt } from '@/lib/linked-work-item-context'
+import type { ComposerModel } from './composer-model'
+import { ensureAgentLaunchPreferences } from '@/runtime/agent-launch-settings/use-host-agent-launch-preferences'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
-import type { TuiAgent } from '../../../../shared/tui-agent'
-import type { AgentStartupShell } from '../../../../shared/tui-agent-startup-shell'
+import type { TuiAgent } from '../../../../shared/agent-launch/catalog/tui-agent'
+import type { AgentStartupShell } from '../../../../shared/agent-launch/startup/tui-agent-startup-shell'
 import type { AgentStartedTelemetry } from '@/lib/worktree-startup-payload'
 import type { WorktreeCreationRequest } from '@/lib/pending-worktree-creation'
-import type { AgentStartupPlan } from '@/lib/tui-agent-startup'
-import { buildAgentDraftLaunchPlan, buildAgentStartupPlan } from '@/lib/tui-agent-startup'
 import {
-  resolveTuiAgentLaunchArgs,
-  resolveTuiAgentLaunchEnv
-} from '../../../../shared/tui-agent-launch-defaults'
+  type AgentStartupPlan,
+  buildAgentDraftLaunchPlan,
+  buildAgentStartupPlan
+} from '../../../../shared/agent-launch/startup/tui-agent-startup'
+
+import {
+  resolveAgentStartupPlanInputs,
+  type AgentStartupPlanInputs
+} from '../../../../shared/agent-launch/startup/agent-startup-plan-inputs'
 import { tuiAgentToAgentKind } from '@/lib/telemetry'
+import { getAgentLabel } from '@/lib/agent-catalog'
+import { translate } from '@/i18n/i18n'
 import {
   agentSupportsAddDir,
   buildAddDirAgentArgs,
   withLeadingAgentArgs
 } from '../../../../shared/agent-add-dir-args'
-import { resolveStartupShell } from '../../../../shared/tui-agent-startup-shell'
+import { resolveStartupShell } from '../../../../shared/agent-launch/startup/tui-agent-startup-shell'
 import {
   requireExecutionHostPlatform,
   type ExecutionHostPlatformFact
@@ -31,6 +41,8 @@ export type QuickComposerStartupInput = {
   shell: AgentStartupShell | null | undefined
   isRemote: boolean
   telemetrySource: WorktreeCreationRequest['telemetrySource']
+  launchInputs?: WorktreeCreationRequest['launchInputs']
+  route?: WorktreeCreationRequest['agentLaunchRoute']
   /** Companion worktrees this launch may reach; dropped for agents without `--add-dir`. */
   addDirPaths?: readonly string[]
 }
@@ -41,32 +53,47 @@ export type QuickComposerStartup = {
   telemetry: AgentStartedTelemetry | null
 }
 
-function resolveQuickAgentArgs(input: QuickComposerStartupInput, agent: TuiAgent): string {
-  const configured = resolveTuiAgentLaunchArgs(agent, input.settings?.agentDefaultArgs)
-  if (!agentSupportsAddDir(agent) || !input.addDirPaths?.length) {
-    return configured
+/** Prepends the companions' `--add-dir` args to the resolved launch args. */
+function withCompanionAddDirArgs(
+  inputs: AgentStartupPlanInputs,
+  addDirPaths: readonly string[] | undefined
+): AgentStartupPlanInputs {
+  if (!agentSupportsAddDir(inputs.agent) || !addDirPaths?.length) {
+    return inputs
   }
-  const shell = resolveStartupShell(
-    requireExecutionHostPlatform(input.launchHost),
-    input.shell ?? undefined
-  )
-  return withLeadingAgentArgs(configured, buildAddDirAgentArgs(input.addDirPaths, shell))
+  const shell = resolveStartupShell(inputs.platform, inputs.shell)
+  return {
+    ...inputs,
+    agentArgs: withLeadingAgentArgs(
+      inputs.agentArgs ?? '',
+      buildAddDirAgentArgs(addDirPaths, shell)
+    )
+  }
 }
 
 export function buildQuickComposerStartup(input: QuickComposerStartupInput): QuickComposerStartup {
   const { agent, draftPrompt, prompt, settings } = input
+  const inputs =
+    agent === null
+      ? null
+      : withCompanionAddDirArgs(
+          resolveAgentStartupPlanInputs({
+            agent,
+            settings: settings ?? {},
+            agentArgs: input.launchInputs?.agentArgs,
+            sessionOptions: input.launchInputs?.sessionOptions,
+            platform: requireExecutionHostPlatform(input.launchHost),
+            shell: input.shell ?? undefined,
+            isRemote: input.isRemote
+          }),
+          input.addDirPaths
+        )
   const draftLaunchPlan =
-    agent === null || !draftPrompt
+    !inputs || !draftPrompt
       ? null
       : buildAgentDraftLaunchPlan({
-          agent,
-          draft: draftPrompt,
-          cmdOverrides: settings?.agentCmdOverrides ?? {},
-          agentArgs: resolveQuickAgentArgs(input, agent),
-          agentEnv: resolveTuiAgentLaunchEnv(agent, settings?.agentDefaultEnv),
-          platform: requireExecutionHostPlatform(input.launchHost),
-          shell: input.shell ?? undefined,
-          isRemote: input.isRemote
+          ...inputs,
+          draft: draftPrompt
         })
   let startupPlan: AgentStartupPlan | null = null
   if (draftLaunchPlan) {
@@ -76,26 +103,30 @@ export function buildQuickComposerStartup(input: QuickComposerStartupInput): Qui
       expectedProcess: draftLaunchPlan.expectedProcess,
       followupPrompt: null,
       launchConfig: draftLaunchPlan.launchConfig,
+      ...(draftLaunchPlan.sessionOptions ? { sessionOptions: draftLaunchPlan.sessionOptions } : {}),
       ...(draftLaunchPlan.startupCommandDelivery
         ? { startupCommandDelivery: draftLaunchPlan.startupCommandDelivery }
         : {}),
       ...(draftLaunchPlan.env ? { env: draftLaunchPlan.env } : {})
     }
-  } else if (agent !== null) {
+  } else if (inputs) {
     startupPlan = buildAgentStartupPlan({
-      agent,
+      ...inputs,
       prompt,
-      cmdOverrides: settings?.agentCmdOverrides ?? {},
-      agentArgs: resolveQuickAgentArgs(input, agent),
-      agentEnv: resolveTuiAgentLaunchEnv(agent, settings?.agentDefaultEnv),
-      platform: requireExecutionHostPlatform(input.launchHost),
-      shell: input.shell ?? undefined,
-      isRemote: input.isRemote,
       allowEmptyPromptLaunch: true
     })
     if (startupPlan && draftPrompt) {
       startupPlan.draftPrompt = draftPrompt
     }
+  }
+  if (agent && input.route !== 'structured-native-chat' && !startupPlan) {
+    throw new Error(
+      translate(
+        'agentPicker.workspaceStartupFailed',
+        'Could not start {{agent}}. Check Arguments in this setup and try again.',
+        { agent: getAgentLabel(agent) }
+      )
+    )
   }
   const telemetry: AgentStartedTelemetry | null =
     agent === null
@@ -112,6 +143,7 @@ export function buildQuickComposerStartup(input: QuickComposerStartupInput): Qui
           command: startupPlan.launchCommand,
           ...(startupPlan.env ? { env: startupPlan.env } : {}),
           launchConfig: startupPlan.launchConfig,
+          ...(startupPlan.sessionOptions ? { sessionOptions: startupPlan.sessionOptions } : {}),
           ...(agent ? { launchAgent: agent } : {}),
           ...(startupPlan.startupCommandDelivery
             ? { startupCommandDelivery: startupPlan.startupCommandDelivery }
@@ -120,4 +152,40 @@ export function buildQuickComposerStartup(input: QuickComposerStartupInput): Qui
         }
       : undefined
   return { startupPlan, backendStartup, telemetry }
+}
+
+export async function prepareQuickComposerStartup(
+  input: Omit<QuickComposerStartupInput, 'prompt' | 'draftPrompt'> & {
+    repoId: string
+    executionHostId: ComposerModel['selectedRepoExecutionHostId']
+    linkedWorkItem: Parameters<typeof resolveQuickCreateLinkedWorkItemPrompt>[0]
+    note: string
+  }
+): Promise<QuickComposerStartup & { prompt: string; draftPrompt: string | null }> {
+  const preferences = input.agent
+    ? await ensureAgentLaunchPreferences(useAppStore.getState(), {
+        kind: 'git-worktree',
+        repoId: input.repoId,
+        executionHostId: input.executionHostId ?? undefined
+      })
+    : undefined
+  const { prompt, draftPrompt } = resolveQuickCreateLinkedWorkItemPrompt(
+    input.agent ? input.linkedWorkItem : null,
+    input.note
+  )
+  return {
+    prompt,
+    draftPrompt,
+    ...buildQuickComposerStartup({
+      ...input,
+      prompt,
+      draftPrompt,
+      settings: input.settings
+        ? {
+            ...input.settings,
+            agentLaunchChoices: preferences?.agentLaunchChoices ?? input.settings.agentLaunchChoices
+          }
+        : input.settings
+    })
+  }
 }

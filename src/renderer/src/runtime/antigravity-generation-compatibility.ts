@@ -1,7 +1,7 @@
-import { ANTIGRAVITY_CONFIGURED_MODEL_RUNTIME_CAPABILITY } from '../../../shared/protocol-version'
-import { hasFlag } from '../../../shared/agent-cli-flag-detection'
-import { planCommitMessageGeneration } from '../../../shared/commit-message-plan'
-import { resolveSourceControlAiForOperation } from '../../../shared/source-control-ai'
+import { ANTIGRAVITY_CONFIGURED_MODEL_RUNTIME_CAPABILITY } from '../../../shared/source-control/runtime/source-control-runtime-capabilities'
+import { hasFlag } from '../../../shared/agent-session/options/agent-cli-flag-detection'
+import { planCommitMessageGeneration } from '../../../shared/source-control/ai/generation/commit-message-plan'
+import { resolveSourceControlAiForOperation } from '../../../shared/source-control/ai/source-control-ai-operation-resolution'
 import {
   getRuntimeCommitMessageSettings,
   type RuntimeGitContext,
@@ -17,11 +17,15 @@ export async function antigravityGenerationCompatibilityError(
 ): Promise<string | null> {
   let params = overrides?.sourceControlAiResolvedParams
   if (!params) {
-    const settings = getRuntimeCommitMessageSettings(context.settings, context.connectionId)
+    const settings = getRuntimeCommitMessageSettings(
+      context.target,
+      context.prefs,
+      context.connectionId
+    )
     const resolved = resolveSourceControlAiForOperation({
       settings: {
         ...settings,
-        defaultTuiAgent: context.settings?.defaultTuiAgent ?? null,
+        defaultTuiAgent: context.prefs?.defaultTuiAgent ?? null,
         sourceControlAi: overrides?.sourceControlAi ?? settings.sourceControlAi,
         agentCmdOverrides: overrides?.agentCmdOverrides ?? settings.agentCmdOverrides ?? {}
       },

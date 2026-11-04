@@ -7,15 +7,15 @@ import { useWorkspaceKanbanSearch } from './use-workspace-kanban-search'
 import { registerWorkspaceKanbanSidebarDropGroups } from './workspace-kanban-sidebar-drop'
 import { buildUnambiguousWorktreeIdIndex } from './worktree-unambiguous-id-index'
 import { useActiveSidebarSpaceScope } from './use-active-sidebar-space'
-import { getSidebarTaskKeys } from './worktree-list/grouping/worktree-task-keys'
+import { getSidebarTaskKeys } from '../../../../shared/sidebar-list/worktree-task-keys'
 import {
   buildWorkspaceKanbanLaneItems,
   buildWorkspaceKanbanTaskMoveIndex,
   collectWorkspaceKanbanTaskMoveIds,
   flattenLaneItemWorktrees,
-  getLaneItemWorktreeIds,
   type WorkspaceKanbanTaskGrouping
 } from './workspace-kanban-lane-items'
+import { buildWorkspaceKanbanTaskMoveKeyIndex } from './workspace-kanban-task-move-keys'
 import { buildWorkspaceKanbanCardMembers } from './workspace-kanban-card-selection'
 import { sectionWorkspaceKanbanLaneItemsByProject } from './workspace-kanban-project-sections'
 import { useWorkspaceKanbanProjectSections } from './use-workspace-kanban-project-sections'
@@ -23,7 +23,7 @@ import {
   composeWorktreeHostIdentity,
   getWorktreeHostIdentity
 } from '../../../../shared/worktree/host-qualified-identity'
-import type { Worktree } from '../../../../shared/worktree/types'
+import type { WorkspaceStatusDefinition, Worktree } from '../../../../shared/worktree/types'
 import type { ExecutionHostId } from '../../../../shared/execution-host'
 import type { WorktreeDragGroup } from './worktree-manual-order'
 import type { useRepoMap } from '@/store/selectors'
@@ -35,7 +35,7 @@ export function useWorkspaceKanbanBoardProjection(args: {
   open: boolean
   repoMap: ReturnType<typeof useRepoMap>
   sortBy: ReturnType<typeof useAppStore.getState>['sortBy']
-  workspaceStatuses: ReturnType<typeof useAppStore.getState>['workspaceStatuses']
+  workspaceStatuses: readonly WorkspaceStatusDefinition[]
 }) {
   const groupBy = useAppStore((s) => s.groupBy)
   const spaceScope = useActiveSidebarSpaceScope()
@@ -84,7 +84,13 @@ export function useWorkspaceKanbanBoardProjection(args: {
     () => buildUnambiguousWorktreeIdIndex(args.allWorktrees),
     [args.allWorktrees]
   )
-  // Why card order: manual order, sidebar-drop groups and range selection must match the screen.
+  // Drops carry each card's host identity, so same-id copies on two hosts stay separate cards.
+  const worktreeByKey = useMemo(
+    () =>
+      new Map(args.allWorktrees.map((worktree) => [getWorktreeHostIdentity(worktree), worktree])),
+    [args.allWorktrees]
+  )
+  // Card order: manual order, sidebar-drop groups and range selection must match the screen.
   const boardWorktrees = useMemo(
     () =>
       args.workspaceStatuses.flatMap((status) =>
@@ -92,11 +98,14 @@ export function useWorkspaceKanbanBoardProjection(args: {
       ),
     [args.workspaceStatuses, laneItems]
   )
+  // Lane members are host identities, as in the sidebar's drag groups.
   const boardDragGroups = useMemo<WorktreeDragGroup[]>(
     () =>
       args.workspaceStatuses.map((status) => ({
         key: status.id,
-        worktreeIds: getLaneItemWorktreeIds(laneItems.get(status.id) ?? [])
+        worktreeIds: flattenLaneItemWorktrees(laneItems.get(status.id) ?? []).map(
+          getWorktreeHostIdentity
+        )
       })),
     [args.workspaceStatuses, laneItems]
   )
@@ -146,6 +155,10 @@ export function useWorkspaceKanbanBoardProjection(args: {
     () => buildWorkspaceKanbanTaskMoveIndex(laneItems),
     [laneItems]
   )
+  const taskMoveKeysByWorktreeKey = useMemo(
+    () => buildWorkspaceKanbanTaskMoveKeyIndex(laneItems, worktreeById),
+    [laneItems, worktreeById]
+  )
   const activeWorktreeIdentity = args.activeWorktreeId
     ? composeWorktreeHostIdentity(
         args.activeWorkspaceExecutionHostId ?? undefined,
@@ -164,6 +177,8 @@ export function useWorkspaceKanbanBoardProjection(args: {
     renderedWorktreeIdentities,
     search,
     taskMoveIdsByWorktreeId,
-    worktreeById
+    taskMoveKeysByWorktreeKey,
+    worktreeById,
+    worktreeByKey
   }
 }

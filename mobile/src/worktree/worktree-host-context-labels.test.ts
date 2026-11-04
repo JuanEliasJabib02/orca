@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { Worktree } from './workspace-list-types'
+import type { Worktree, WorktreeHostContextView } from './workspace-list-types'
 import {
-  applyWorktreeHostContextLabels,
+  NO_WORKTREE_HOST_CONTEXT,
+  buildWorktreeHostContextOf,
   buildHostLabelById,
   buildRepoHostIdByRepoId,
   getWorktreeHostContextLabels,
@@ -19,7 +20,6 @@ function worktree(overrides: Partial<Worktree> = {}): Worktree {
     path: '/home/me/orca',
     liveTerminalCount: 0,
     hasAttachedPty: false,
-    preview: '',
     unread: false,
     isPinned: false,
     linkedPR: null,
@@ -28,6 +28,15 @@ function worktree(overrides: Partial<Worktree> = {}): Worktree {
 }
 
 const sshHostId = 'ssh:ssh-1785104650217-eduhep' as const
+
+// Each row's host context; an unlabelled row reads as an empty view.
+function applyWorktreeHostContextLabels(
+  rows: Worktree[],
+  sources: Parameters<typeof buildWorktreeHostContextOf>[1]
+): WorktreeHostContextView[] {
+  const hostContextOf = buildWorktreeHostContextOf(rows, sources)
+  return rows.map((row) => hostContextOf(row) ?? {})
+}
 
 describe('buildHostLabelById', () => {
   it('labels SSH targets by their registered label and lets a display override win', () => {
@@ -86,28 +95,63 @@ describe('getWorktreeHostContextLabels', () => {
   const sources = {
     repoHostIdByRepoId: new Map(),
     hostLabelById: new Map([[sshHostId, 'openclaw']]),
-    hostPlatform: 'darwin' as const
+    hostPlatform: 'darwin' as const,
+    hostHealthById: new Map()
   }
 
   it('returns nothing for a single-host list', () => {
     const rows = [worktree({ hostId: 'local' }), worktree({ hostId: 'local', worktreeId: 'b' })]
     expect(getWorktreeHostContextLabels(rows, sources)).toBeUndefined()
-    expect(applyWorktreeHostContextLabels(rows, sources)).toBe(rows)
+    expect(buildWorktreeHostContextOf(rows, sources)).toBe(NO_WORKTREE_HOST_CONTEXT)
   })
 
-  it('names every row by host once the list spans hosts', () => {
+  it('names an unhealthy host even in a single-host list, and only that host', () => {
+    const rows = [worktree({ hostId: sshHostId, worktreeId: 'a' })]
+    const unhealthy = applyWorktreeHostContextLabels(rows, {
+      ...sources,
+      hostHealthById: new Map([[sshHostId, 'connecting']])
+    })
+    expect(unhealthy.map((row) => [row.hostContextLabel, row.hostContextHealthLabel])).toEqual([
+      ['openclaw', 'Connecting']
+    ])
+    expect(
+      buildWorktreeHostContextOf(rows, {
+        ...sources,
+        hostHealthById: new Map([[sshHostId, 'available']])
+      })
+    ).toBe(NO_WORKTREE_HOST_CONTEXT)
+    const otherHostUnhealthy = applyWorktreeHostContextLabels(rows, {
+      ...sources,
+      hostHealthById: new Map([['ssh:x', 'error']])
+    })
+    expect(otherHostUnhealthy[0].hostContextLabel).toBeUndefined()
+  })
+
+  it('adds the health word only for hosts the desktop reports as unhealthy', () => {
     const rows = [
       worktree({ hostId: 'local', worktreeId: 'a' }),
       worktree({ hostId: sshHostId, worktreeId: 'b' }),
-      worktree({ hostId: 'ssh:unlabeled', worktreeId: 'c' }),
-      worktree({ hostId: 'runtime:env-1', worktreeId: 'd' })
+      worktree({ hostId: 'ssh:healthy', worktreeId: 'c' }),
+      worktree({ hostId: 'runtime:env-1', worktreeId: 'd' }),
+      worktree({ repoId: 'repo-ssh', worktreeId: 'e' })
     ]
-    const labeled = applyWorktreeHostContextLabels(rows, sources)
-    expect(labeled.map((row) => row.hostContextLabel)).toEqual([
-      'Local Mac',
-      'openclaw',
-      'unlabeled',
-      'env-1'
+    const labeled = applyWorktreeHostContextLabels(rows, {
+      ...sources,
+      repoHostIdByRepoId: buildRepoHostIdByRepoId([
+        { id: 'repo-ssh', connectionId: 'ssh-1785104650217-eduhep' }
+      ]),
+      hostHealthById: new Map([
+        ['local', 'local'],
+        [sshHostId, 'disconnected'],
+        ['ssh:healthy', 'available']
+      ])
+    })
+    expect(labeled.map((row) => row.hostContextHealthLabel)).toEqual([
+      undefined,
+      'Disconnected',
+      undefined,
+      undefined,
+      'Disconnected'
     ])
   })
 
@@ -118,6 +162,8 @@ describe('getWorktreeHostContextLabels', () => {
     ]
     const linux = applyWorktreeHostContextLabels(rows, { ...sources, hostPlatform: 'linux' })
     expect(linux[0].hostContextLabel).toBe('Local Linux')
+    const windows = applyWorktreeHostContextLabels(rows, { ...sources, hostPlatform: 'win32' })
+    expect(windows[0].hostContextLabel).toBe('Local Windows')
     const unknown = applyWorktreeHostContextLabels(rows, { ...sources, hostPlatform: null })
     expect(unknown[0].hostContextLabel).toBe('This computer')
   })

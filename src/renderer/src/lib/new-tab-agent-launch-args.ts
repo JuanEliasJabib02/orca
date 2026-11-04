@@ -1,33 +1,35 @@
-import type { AppState } from '@/store/types'
 import type { Repo } from '../../../shared/repo-types'
-import type { TuiAgent } from '../../../shared/tui-agent'
-import { resolveTuiAgentLaunchArgs } from '../../../shared/tui-agent-launch-defaults'
+import type { AgentStartupPlanInputs } from '../../../shared/agent-launch/startup/agent-startup-plan-inputs'
 import { withSpotlightAgentGuidance } from '../../../shared/spotlight-agent-guidance'
 
 export type NewTabAgentLaunchArgs = {
-  /** What this window's own launch passes to the agent CLI. */
-  effectiveAgentArgs: string | null | undefined
+  /** What this window's own launch builds its startup command from. */
+  startupInputs: AgentStartupPlanInputs
   /** What a host-started launch gets; undefined lets the host resolve its own defaults. */
   hostAgentArgs: string | null | undefined
 }
 
 /**
- * The agent CLI args for a new-tab launch. When Spotlight is active, tell the agent (Claude)
- * where the mirrored dev-server log lives so it uses it without the user having to explain the
- * setup. No-op for non-Spotlight repos and non-Claude agents.
+ * When Spotlight is active, tell the agent (Claude) where the mirrored dev-server log lives so it
+ * uses it without the user having to explain the setup. No-op for non-Spotlight repos and
+ * non-Claude agents.
  */
-export function resolveNewTabAgentLaunchArgs(
-  agent: TuiAgent,
+export function withNewTabSpotlightGuidance(
+  startupInputs: AgentStartupPlanInputs,
   agentArgs: string | null | undefined,
-  settings: AppState['settings'],
   repo: Repo | null | undefined
 ): NewTabAgentLaunchArgs {
-  const baseAgentArgs =
-    agentArgs !== undefined
-      ? agentArgs
-      : resolveTuiAgentLaunchArgs(agent, settings?.agentDefaultArgs)
-  const effectiveAgentArgs = withSpotlightAgentGuidance(baseAgentArgs, agent, repo)
+  const guidedAgentArgs = withSpotlightAgentGuidance(
+    startupInputs.agentArgs,
+    startupInputs.agent,
+    repo
+  )
+  if (guidedAgentArgs === startupInputs.agentArgs) {
+    return { startupInputs, hostAgentArgs: agentArgs }
+  }
   // Why: host launches resolve their own default args, so send ours only when the guidance changed them.
-  const hostAgentArgs = effectiveAgentArgs === baseAgentArgs ? agentArgs : effectiveAgentArgs
-  return { effectiveAgentArgs, hostAgentArgs }
+  return {
+    startupInputs: { ...startupInputs, agentArgs: guidedAgentArgs ?? null },
+    hostAgentArgs: guidedAgentArgs
+  }
 }

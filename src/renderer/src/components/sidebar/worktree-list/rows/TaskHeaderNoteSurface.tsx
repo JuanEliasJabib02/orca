@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/context-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { getTaskNote } from '@/store/slices/ui/ui-slice-task-note-actions'
-import type { TaskSectionInfo } from '../grouping/row-types'
+import type { TaskSectionInfo } from '../../../../../../shared/sidebar-list/row-types'
 import { stopRepoHeaderMenuEvent } from './header-event-guards'
 import { getTaskNoteActionLabel } from './task-note-action-label'
 

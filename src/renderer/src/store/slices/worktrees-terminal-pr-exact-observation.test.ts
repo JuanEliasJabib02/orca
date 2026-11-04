@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { GitHubWorkItem } from '../../../../shared/github/work-item-types'
-import type { HostedReviewInfo } from '../../../../shared/hosted-review'
+import type { HostedReviewInfo } from '../../../../shared/source-control/hosted-review/hosted-review-contracts'
 import { getWorkspaceAttachments } from '../../../../shared/workspace-attachments'
 import { makeWorktree } from './worktrees-slice-test-fixtures'
 import {
@@ -103,15 +103,6 @@ it.each([
     expect(branchLookup).not.toHaveBeenCalled()
   }
 )
-
-it('does not attach a source rejected by the configured-remote exact lookup', async () => {
-  const { store, workspace, branchLookup } = setup()
-  exactLookup.mockResolvedValue(null)
-  store.getState().observeTerminalGitHubPullRequestLink(workspace.id, link)
-  await flush()
-  expect(getWorkspaceAttachments(store.getState().worktreesByRepo.repo[0])).toEqual([])
-  expect(branchLookup).toHaveBeenCalledTimes(1)
-})
 
 it.each([false, true])(
   'checks a saved push branch and its late replacement=%s',

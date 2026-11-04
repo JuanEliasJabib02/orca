@@ -11,7 +11,6 @@ import {
 } from '@/lib/workspace-browser-tab-open'
 import { isLocalPathOpenBlocked, showLocalPathOpenBlockedToast } from '@/lib/local-path-open-guard'
 import { getLinkSourceLocalOpenOwner } from '@/lib/link-source-local-open-owner'
-import type { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
 import {
   absolutePathToFileUri as toFileUrlForOsEscape,
   resolveMarkdownLinkTarget
@@ -39,8 +38,6 @@ export type ActivateMarkdownLink = (
     sourceOwner?: HttpLinkSourceOwner
   }
 ) => void | Promise<unknown>
-
-export type RichMarkdownRuntimeSettings = Parameters<typeof settingsForRuntimeOwner>[0]
 
 type RichMarkdownEditorClickRoutingOptions = {
   activateMarkdownLink: ActivateMarkdownLink
@@ -117,7 +114,7 @@ export function handleRichMarkdownEditorClick({
   const href =
     clickedNode?.type.name === 'richMarkdownHtmlSuperscriptLink'
       ? String(clickedNode.attrs.href ?? '')
-      : getClickedLinkHref(view, pos)
+      : getClickedLinkHref(view, event)
   if (
     clickedNode?.type.name === 'richMarkdownHtmlSuperscriptLink' &&
     !classifyHtmlSuperscriptLinkAction(href, sourceSnapshot)
@@ -182,12 +179,26 @@ function activateMarkdownImageClick({
   return true
 }
 
-function getClickedLinkHref(view: EditorView, pos: number): string {
-  const linkMark = view.state.doc
-    .resolve(pos)
-    .marks()
-    .find((mark) => mark.type.name === 'link')
-  return linkMark ? (linkMark.attrs.href as string) || '' : ''
+function getClickedLinkHref(view: EditorView, event: MouseEvent): string {
+  const target =
+    event.target instanceof Element
+      ? event.target
+      : event.target instanceof Node
+        ? event.target.parentElement
+        : null
+  const link = target?.closest('a')
+  if (!link || !view.dom.contains(link)) {
+    return ''
+  }
+  // The rendered href is blanked for file:, drive-path and custom schemes, so read the mark instead.
+  let linkPos: number
+  try {
+    linkPos = view.posAtDOM(link, 0)
+  } catch {
+    return ''
+  }
+  const linkMark = view.state.doc.nodeAt(linkPos)?.marks.find((mark) => mark.type.name === 'link')
+  return linkMark ? String(linkMark.attrs.href ?? '') : ''
 }
 
 function openShiftModifiedMarkdownLink({
@@ -241,28 +252,30 @@ function openShiftModifiedMarkdownLink({
         : getLinkSourceLocalOpenOwner(useAppStore.getState(), sourceOwner, worktreeId)
     )
   ) {
-    // Why: Shift-click opens through the client OS, which cannot safely resolve
-    // server-local paths from SSH or remote runtime worktrees.
+    // Client-OS Shift-click cannot resolve server-local SSH/runtime paths safely.
     showLocalPathOpenBlockedToast()
     return
   }
   if (classified.kind === 'markdown') {
-    void window.api.shell.pathExists(classified.absolutePath).then((exists) => {
-      if (!exists) {
-        toast.error(
-          translate(
-            'auto.components.editor.rich.markdown.editor.click.routing.2d5fb9335d',
-            'File not found: {{value0}}',
-            { value0: classified.relativePath }
+    // A click is a user act: it may start the link's stopped WSL distro.
+    void window.api.shell
+      .pathExists(classified.absolutePath, { wakeWslDistro: true })
+      .then((exists) => {
+        if (!exists) {
+          toast.error(
+            translate(
+              'auto.components.editor.rich.markdown.editor.click.routing.2d5fb9335d',
+              'File not found: {{value0}}',
+              { value0: classified.relativePath }
+            )
           )
+          return
+        }
+        void window.api.shell.openFileUri(
+          toFileUrlForOsEscape(classified.absolutePath),
+          LOCAL_EXECUTION_HOST_ID
         )
-        return
-      }
-      void window.api.shell.openFileUri(
-        toFileUrlForOsEscape(classified.absolutePath),
-        LOCAL_EXECUTION_HOST_ID
-      )
-    })
+      })
     return
   }
   void window.api.shell.openFileUri(classified.uri, LOCAL_EXECUTION_HOST_ID)

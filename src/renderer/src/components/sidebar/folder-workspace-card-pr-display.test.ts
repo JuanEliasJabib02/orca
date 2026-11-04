@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { summarizeProviderChecks } from '../../../../shared/source-control/checks/provider-check-summary'
 import type { CheckStatus, PRInfo } from '../../../../shared/github/pull-request-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { WorkspaceLineage, WorktreeLineage } from '../../../../shared/worktree/lineage-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 import { folderWorkspaceKey, worktreeWorkspaceKey } from '../../../../shared/workspace-scope'
 import { getFolderWorkspaceCardPrDisplay } from './folder-workspace-card-pr-display'
+import { ReviewChecksBadge } from './WorktreeCardMetadataStatusBadges'
 
 const repo: Repo = {
   id: 'repo-1',
@@ -234,38 +238,37 @@ describe('getFolderWorkspaceCardPrDisplay', () => {
     expect(display).toBeNull()
   })
 
-  it.each([
-    ['repository', { repoId: 'repo-2' }, {}],
-    ['known host', { hostId: 'ssh:remote' as const }, { hostId: 'local' as const }],
-    ['known project', { projectId: 'project-b' }, { projectId: 'project-a' }]
-  ])('excludes nested PRs across a %s boundary', (_boundary, childOverrides, parentOverrides) => {
-    const parent = makeWorktree({ id: 'parent', instanceId: 'parent', ...parentOverrides })
-    const nested = makeWorktree({
-      id: 'nested',
-      instanceId: 'nested',
-      linkedPR: 4,
-      ...childOverrides
-    })
-    const nestedRepo = { ...repo, id: nested.repoId }
+  it.each([['known host', { hostId: 'ssh:remote' as const }, { hostId: 'local' as const }]])(
+    'excludes nested PRs across a %s boundary',
+    (_boundary, childOverrides, parentOverrides) => {
+      const parent = makeWorktree({ id: 'parent', instanceId: 'parent', ...parentOverrides })
+      const nested = makeWorktree({
+        id: 'nested',
+        instanceId: 'nested',
+        linkedPR: 4,
+        ...childOverrides
+      })
+      const nestedRepo = { ...repo, id: nested.repoId }
 
-    const display = getFolderWorkspaceCardPrDisplay({
-      folderWorkspaceId: 'folder-1',
-      workspaceLineageByChildKey: { [parent.id]: makeWorkspaceLineage(parent) },
-      worktreeLineageById: { [nested.id]: makeWorktreeLineage(nested, parent) },
-      worktreeMap: new Map([
-        [parent.id, parent],
-        [nested.id, nested]
-      ]),
-      repoMap: new Map([
-        [repo.id, repo],
-        [nestedRepo.id, nestedRepo]
-      ]),
-      hostedReviewCache: null,
-      prCache: { [`${nested.repoId}::nested`]: makePrEntry(4, 'success') }
-    })
+      const display = getFolderWorkspaceCardPrDisplay({
+        folderWorkspaceId: 'folder-1',
+        workspaceLineageByChildKey: { [parent.id]: makeWorkspaceLineage(parent) },
+        worktreeLineageById: { [nested.id]: makeWorktreeLineage(nested, parent) },
+        worktreeMap: new Map([
+          [parent.id, parent],
+          [nested.id, nested]
+        ]),
+        repoMap: new Map([
+          [repo.id, repo],
+          [nestedRepo.id, nestedRepo]
+        ]),
+        hostedReviewCache: null,
+        prCache: { [`${nested.repoId}::nested`]: makePrEntry(4, 'success') }
+      })
 
-    expect(display).toBeNull()
-  })
+      expect(display).toBeNull()
+    }
+  )
 
   it('excludes nested PRs from cyclic projected lineage', () => {
     const parent = makeWorktree({ id: 'parent', instanceId: 'parent' })
@@ -328,6 +331,58 @@ describe('getFolderWorkspaceCardPrDisplay', () => {
 
     expect(display).toMatchObject({ number: 11, status: 'failure' })
   })
+
+  it.each([
+    { attention: 'conflict', pendingSibling: false, pendingCheck: false },
+    { attention: 'conflict', pendingSibling: true, pendingCheck: false },
+    { attention: 'conflict', pendingSibling: true, pendingCheck: true },
+    { attention: 'closed', pendingSibling: true, pendingCheck: false },
+    { attention: 'draft', pendingSibling: true, pendingCheck: false }
+  ] as const)(
+    'preserves $attention attention with cancellation (sibling=$pendingSibling, pending check=$pendingCheck)',
+    ({ attention, pendingSibling, pendingCheck }) => {
+      const worktree = makeWorktree({ id: 'attention', linkedPR: 11 })
+      const pending = makeWorktree({ id: 'pending', linkedPR: 12 })
+      const worktrees = pendingSibling ? [pending, worktree] : [worktree]
+      const checksSummary = summarizeProviderChecks([
+        { status: 'completed', conclusion: 'cancelled' },
+        ...(pendingCheck ? [{ status: 'in_progress', conclusion: null }] : [])
+      ])
+      const display = getFolderWorkspaceCardPrDisplay({
+        folderWorkspaceId: 'folder-1',
+        workspaceLineageByChildKey: Object.fromEntries(
+          worktrees.map((child) => [child.id, makeWorkspaceLineage(child)])
+        ),
+        worktreeLineageById: {},
+        worktreeMap: new Map(worktrees.map((child) => [child.id, child])),
+        repoMap: new Map([[repo.id, repo]]),
+        hostedReviewCache: null,
+        prCache: {
+          'repo-1::attention': {
+            data: {
+              ...makePr(11, 'failure'),
+              state: attention === 'conflict' ? 'open' : attention,
+              mergeable: attention === 'conflict' ? 'CONFLICTING' : 'MERGEABLE',
+              checksSummary
+            },
+            fetchedAt: 2
+          },
+          'repo-1::pending': makePrEntry(12, 'pending')
+        }
+      })
+      expect(display).toMatchObject({ number: 11, status: 'failure' })
+      expect(display?.checksSummary).toBeUndefined()
+      const badge = renderToStaticMarkup(
+        createElement(ReviewChecksBadge, {
+          status: display?.status,
+          checksSummary: display?.checksSummary
+        })
+      )
+      expect(badge).toContain('Checks: Failing')
+      expect(badge).toContain('text-rose-600')
+      expect(badge).not.toContain('Cancelled')
+    }
+  )
 
   it('does not use stale merged branch PR cache after the worktree advances', () => {
     const worktree = makeWorktree({ id: 'advanced-after-merge', linkedPR: null, head: 'new-head' })

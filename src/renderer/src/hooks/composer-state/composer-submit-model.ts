@@ -1,12 +1,19 @@
-import type { TuiAgent } from '../../../../shared/tui-agent'
+import type { TuiAgent } from '../../../../shared/agent-launch/catalog/tui-agent'
+import type { QuickSubmitOptions } from './quick-creation-request'
 import type { GitPushTarget } from '../../../../shared/worktree/types'
 import type { SetupDecision } from '../../../../shared/worktree/create-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { WorkspaceIntentName } from '../../../../shared/workspace-name'
 import type { LinkedWorkItemSummary } from '@/lib/new-workspace'
 import type { WorktreeCreationRequest } from '@/lib/pending-worktree-creation'
+import type { ComposerCreateHandoff } from '@/lib/composer-create-handoff'
 import type { PendingSmartGitHubSubmitResolution } from './source-selection-decisions'
 import type { ComposerCompanionSubmit } from './multi-repo-worktree-creation'
+
+/** A quick create's launch options plus the "Also create in" companion repos. */
+export type ComposerQuickSubmitOptions = QuickSubmitOptions & {
+  companions?: ComposerCompanionSubmit
+}
 
 type SmartCreateNames = {
   workspaceName: string
@@ -30,6 +37,7 @@ export type QuickSubmitSource = {
 }
 
 export type PreparedQuickSubmit = QuickSubmitSource & {
+  branchIntent?: WorktreeCreationRequest['branchIntent']
   effectiveSetupDecision: SetupDecision
   hookPreparation: WorktreeCreationRequest['hookPreparation']
   linkedLinearIssue: string | undefined
@@ -49,8 +57,10 @@ export type ComposerSubmitModel = {
     workspaceNameSeed: string,
     workspaceRunContext: WorktreeCreationRequest['workspaceRunContext'],
     repoId: string,
-    selectedRepo: Repo,
-    companions?: ComposerCompanionSubmit
+    options?: ComposerQuickSubmitOptions,
+    handoff?: ComposerCreateHandoff,
+    /** The primary checkout companions are created next to; without it none are. */
+    selectedRepo?: Repo
   ) => Promise<void>
   prepareQuickSubmit: (
     resolution: PendingSmartGitHubSubmitResolution,
@@ -63,6 +73,9 @@ export type ComposerSubmitModel = {
     workspaceNameSeed: string
   ) => QuickSubmitSource | null
   resetForNextCreate: () => void
-  submitQuick: (agent: TuiAgent | null, companions?: ComposerCompanionSubmit) => Promise<void>
-  submitFolderTarget: (requestedAgent: TuiAgent | null) => Promise<void>
+  submitQuick: (agent: TuiAgent | null, options?: ComposerQuickSubmitOptions) => Promise<void>
+  submitFolderTarget: (
+    requestedAgent: TuiAgent | null,
+    options?: QuickSubmitOptions
+  ) => Promise<void>
 }

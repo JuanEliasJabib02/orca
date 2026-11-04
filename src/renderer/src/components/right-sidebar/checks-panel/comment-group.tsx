@@ -18,7 +18,10 @@ import {
   type PRCommentPresentationClasses
 } from '../pr-comment-presentation'
 import type { GitHubReactionContent, PRComment } from '../../../../../shared/github/comment-types'
-import { getPRCommentGroupId, type PRCommentGroup } from '../../../../../shared/pr-comment-groups'
+import {
+  getPRCommentGroupId,
+  type PRCommentGroup
+} from '../../../../../shared/source-control/review-comments/pr-comment-groups'
 import type { PRCommentGroupActionState } from '@/lib/pr-comment-action-state'
 import {
   RightPanelCommentComposer,
@@ -45,7 +48,8 @@ export function PRCommentGroupView({
   onEditComment,
   onDeleteComment,
   onSetReaction,
-  onQueueForAgent
+  onQueueForAgent,
+  onOpenLocation
 }: {
   group: PRCommentGroup
   botAuthorOverrides: ReadonlySet<string>
@@ -69,16 +73,15 @@ export function PRCommentGroupView({
     reacted: boolean
   ) => Promise<boolean>
   onQueueForAgent?: () => void
+  onOpenLocation?: (path: string, line: number) => void
 }): React.JSX.Element {
-  // Reply targets a specific comment id so any comment in a thread — root or
-  // nested reply — can be replied to, not just the thread root.
+  // Replies target any comment ID, including nested replies, rather than only the thread root.
   const renderReplyComposer = (comment: PRComment, nested = false): React.ReactNode =>
     replyingCommentId === comment.id && onReply ? (
       <div
         className={cn(
           'px-3 pb-2',
-          // Why: nest the composer under the parent the same way GitHub nests thread replies —
-          // the replies container already draws that rail, so only the root composer adds one.
+          // Nested replies already have a rail; only the root composer adds one.
           group.kind === 'thread' && !nested && 'ml-3 border-l-2 border-border/50 pl-3'
         )}
       >
@@ -88,7 +91,10 @@ export function PRCommentGroupView({
             'Reply to {{value0}}',
             { value0: comment.author }
           )}
-          submitLabel="Reply"
+          submitLabel={translate(
+            'auto.components.right.sidebar.checks.panel.content.c1f6fc006a',
+            'Reply'
+          )}
           autoFocus
           disabled={replyDisabled}
           disabledReason={replyDisabledReason}
@@ -116,7 +122,8 @@ export function PRCommentGroupView({
     onEditComment,
     onDeleteComment,
     onSetReaction,
-    onQueueForAgent
+    onQueueForAgent,
+    onOpenLocation
   }
 
   const content =
@@ -201,7 +208,8 @@ export function ResolvedCommentGroupsSection({
   onReply,
   onEditComment,
   onDeleteComment,
-  onSetReaction
+  onSetReaction,
+  onOpenLocation
 }: {
   groups: PRCommentGroup[]
   botAuthorOverrides: ReadonlySet<string>
@@ -221,6 +229,7 @@ export function ResolvedCommentGroupsSection({
     content: GitHubReactionContent,
     reacted: boolean
   ) => Promise<boolean>
+  onOpenLocation?: (path: string, line: number) => void
 }): React.JSX.Element | null {
   if (groups.length === 0) {
     return null
@@ -258,6 +267,7 @@ export function ResolvedCommentGroupsSection({
                 onEditComment={onEditComment}
                 onDeleteComment={onDeleteComment}
                 onSetReaction={onSetReaction}
+                onOpenLocation={onOpenLocation}
               />
             ))}
           </AccordionContent>

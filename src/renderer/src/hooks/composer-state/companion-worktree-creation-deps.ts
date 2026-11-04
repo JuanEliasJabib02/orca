@@ -2,8 +2,7 @@ import type { Repo } from '../../../../shared/repo-types'
 import { getRepoExecutionHostId, type ExecutionHostId } from '../../../../shared/execution-host'
 import { useAppStore } from '@/store'
 import { sourceControlLaunchAppliesAgentArgs } from '@/components/right-sidebar/source-control-launch-agent-args-applicability'
-import { getSetupConfig } from '@/lib/new-workspace'
-import { getSettingsForRepoRuntimeOwner } from '@/lib/repo-runtime-owner'
+import { getSetupConfig } from '../../../../shared/orca-hook-setup-config'
 import { checkRuntimeHooks } from '@/runtime/runtime-hooks-client'
 import {
   isHookScriptContentTrusted,
@@ -30,11 +29,7 @@ export async function resolveCompanionSetup(repo: Repo): Promise<CompanionSetupR
   }
   const state = useAppStore.getState()
   const hostId = getRepoExecutionHostId(repo)
-  const hooks = await checkRuntimeHooks(
-    getSettingsForRepoRuntimeOwner(state, repo.id),
-    repo.id,
-    hostId
-  ).then(
+  const hooks = await checkRuntimeHooks(hostId, repo.id).then(
     (result) => result.hooks,
     () => undefined
   )

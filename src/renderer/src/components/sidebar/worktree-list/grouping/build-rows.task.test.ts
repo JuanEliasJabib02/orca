@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { buildRows } from './build-rows'
-import { PINNED_GROUP_KEY } from './group-keys'
-import type { GroupHeaderRow, Row } from './row-types'
-import { SERVERS_LANE_KEY } from './server-root-lane'
-import { NO_TASK_LANE_KEY } from './worktree-task-key'
-import { getGroupKeysForWorktree } from './worktree-group-keys'
-import { buildWorktreeTaskKeys, getTaskKeysForAllWorktrees } from './worktree-task-keys'
-import type { WorktreeTaskKeys } from './worktree-task-keys'
+import { buildRows } from './build-rows.test-fixture'
+import { PINNED_GROUP_KEY } from '../../../../../../shared/sidebar-list/group-keys'
+import type { GroupHeaderRow, Row } from '../../../../../../shared/sidebar-list/row-types'
+import { SERVERS_LANE_KEY } from '../../../../../../shared/sidebar-list/server-root-lane'
+import { NO_TASK_LANE_KEY } from '../../../../../../shared/sidebar-list/worktree-task-key'
+import { getGroupKeysForWorktree } from '../../../../../../shared/sidebar-list/worktree-group-keys'
+import {
+  buildWorktreeTaskKeys,
+  getTaskKeysForAllWorktrees
+} from '../../../../../../shared/sidebar-list/worktree-task-keys'
+import type { WorktreeTaskKeys } from '../../../../../../shared/sidebar-list/worktree-task-keys'
+import { getSidebarHeaderLabel, getSidebarHeaderVisual } from '../rows/header-visuals'
 import { repo, worktree } from '../../worktree-list-groups-test-fixtures'
 import type { FolderWorkspace } from '../../../../../../shared/folder-workspace-types'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
@@ -87,6 +91,7 @@ function buildTaskRows(
     undefined,
     undefined,
     undefined,
+    [],
     options.taskKeys
   )
 }
@@ -148,7 +153,7 @@ describe('buildRows grouped by task', () => {
 
   it('labels a task with its Jira title when linked, the bare key otherwise', () => {
     const labels = headers(buildTaskRows([backend3448, admin3448, backend3356, backendMain])).map(
-      (row) => row.label
+      (row) => getSidebarHeaderLabel(row, getSidebarHeaderVisual(row.icon, []))
     )
 
     expect(labels).toEqual(['AX-3356', 'AX-3448 · Login flow', 'Servers'])
@@ -336,7 +341,6 @@ describe('buildRows grouped by task without a ticket key', () => {
         REPO_MAP,
         null,
         undefined,
-        undefined,
         [],
         undefined,
         taskKeys
@@ -354,17 +358,7 @@ describe('buildRows grouped by task without a ticket key', () => {
         itemIdsUnder(rows, row.key).includes(entry.id)
       )?.key
       expect(
-        getGroupKeysForWorktree(
-          'task',
-          entry,
-          REPO_MAP,
-          null,
-          undefined,
-          undefined,
-          [],
-          undefined,
-          taskKeys
-        )
+        getGroupKeysForWorktree('task', entry, REPO_MAP, null, undefined, [], undefined, taskKeys)
       ).toEqual([sectionKey])
     }
   })

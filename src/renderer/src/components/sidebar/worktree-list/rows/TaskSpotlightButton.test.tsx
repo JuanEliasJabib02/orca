@@ -8,7 +8,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
 import type { SpotlightOpResult } from '../../../../../../shared/spotlight'
-import type { TaskSectionInfo } from '../grouping/row-types'
+import type { TaskSectionInfo } from '../../../../../../shared/sidebar-list/row-types'
 import { TaskSpotlightButton } from './TaskSpotlightButton'
 import {
   OP_OK,

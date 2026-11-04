@@ -4,8 +4,8 @@ import type { Project, ProjectHostSetup } from '../../../../shared/project-types
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 import { makeWorktree } from '../../store/slices/store-test-helpers'
-import { makeRepo } from '../worktree-jump-palette-test-fixtures'
-import { buildProjectGroupingIndex } from './worktree-list/grouping/project-grouping'
+import { makeRepo } from '../worktree-jump/worktree-jump-palette-test-fixtures'
+import { buildProjectGroupingIndex } from '../../../../shared/project-section-grouping'
 import {
   getLaneItemWorktreeIds,
   toWorkspaceKanbanWorktreeLaneItems,

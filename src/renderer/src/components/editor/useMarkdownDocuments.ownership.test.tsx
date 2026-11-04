@@ -85,7 +85,10 @@ it('waits for the retained editor to take its managed workspace owner before lis
   await waitFor(() => expect(result.current.markdownDocuments).toEqual([document]))
   expect(mocks.list).toHaveBeenCalledTimes(1)
   expect(mocks.list).toHaveBeenCalledWith(
-    expect.objectContaining({ settings: { activeRuntimeEnvironmentId: 'env-1' }, worktreeId }),
+    expect.objectContaining({
+      target: { kind: 'environment', environmentId: 'env-1' },
+      worktreeId
+    }),
     '/remote/repo',
     { requireFresh: false }
   )
@@ -112,17 +115,6 @@ it('waits for missing ownership and resumes when the SSH catalog lands without a
   expect(mocks.list).toHaveBeenCalledTimes(1)
   expect(mocks.list).toHaveBeenCalledWith(
     expect.objectContaining({ connectionId: 'ssh-1' }),
-    '/remote/repo',
-    { requireFresh: false }
-  )
-})
-
-it('uses an explicit server owner even before its desktop repository catalog is present', async () => {
-  const { result } = render({ ...file, runtimeEnvironmentId: 'env-1' })
-  await waitFor(() => expect(result.current.markdownDocuments).toEqual([document]))
-  expect(mocks.list).toHaveBeenCalledTimes(1)
-  expect(mocks.list).toHaveBeenCalledWith(
-    expect.objectContaining({ settings: { activeRuntimeEnvironmentId: 'env-1' } }),
     '/remote/repo',
     { requireFresh: false }
   )
@@ -173,7 +165,7 @@ it('waits for ownership migration in a non-git folder workspace too', async () =
   await waitFor(() => expect(result.current.markdownDocuments).toEqual([document]))
   expect(mocks.list).toHaveBeenCalledWith(
     expect.objectContaining({
-      settings: { activeRuntimeEnvironmentId: 'env-1' },
+      target: { kind: 'environment', environmentId: 'env-1' },
       worktreeId: 'folder:notes'
     }),
     '/notes',

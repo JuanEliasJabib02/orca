@@ -71,6 +71,7 @@ function companions(overrides: Partial<ComposerCompanionRepos> = {}): ComposerCo
     toggle: vi.fn(),
     grantAgentAccess: true,
     setGrantAgentAccess: vi.fn(),
+    submit: { repoIds: [], grantAgentAccess: true },
     ...overrides
   }
 }

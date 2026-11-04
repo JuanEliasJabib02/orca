@@ -1,13 +1,14 @@
+import { sourceControlModelLabel, sourceControlThinkingLabel } from './source-control-model-label'
 import type { JSX } from 'react'
 import { Terminal } from 'lucide-react'
-import { CUSTOM_PROMPT_PLACEHOLDER } from '../../../../shared/commit-message-prompt'
+import { CUSTOM_PROMPT_PLACEHOLDER } from '../../../../shared/source-control/ai/generation/commit-message-prompt'
 import {
   CUSTOM_AGENT_ID,
   listCommitMessageAgentCapabilities,
   type CommitMessageAgentCapability,
   type CommitMessageModelCapability
-} from '../../../../shared/commit-message-agent-spec'
-import type { CommitMessageAiSettings } from '../../../../shared/commit-message-ai-types'
+} from '../../../../shared/source-control/ai/generation/commit-message-agent-spec'
+import type { CommitMessageAiSettings } from '../../../../shared/source-control/ai/generation/commit-message-ai-types'
 import { AgentIcon } from '@/lib/agent-catalog'
 import { cn } from '@/lib/utils'
 import { Input } from '../ui/input'
@@ -116,10 +117,10 @@ export function AiCommitPrSettingsFields({
         </Select>
         {unsupportedAgentLabel ? (
           <p className="col-start-2 text-[11px] leading-snug text-muted-foreground">
-            {unsupportedAgentLabel}{' '}
             {translate(
-              'auto.components.feature.wall.AiCommitPrSettingsCard.4d9b6d84df',
-              'unsupported. Choose Claude, Codex, or Custom.'
+              'auto.components.feature.wall.AiCommitPrSettingsCard.unsupportedAgent',
+              '{{agent}} is not supported. Choose Claude, Codex, or Custom.',
+              { agent: unsupportedAgentLabel }
             )}
           </p>
         ) : null}
@@ -137,7 +138,7 @@ export function AiCommitPrSettingsFields({
             <SelectContent portalContainer={selectPortalRoot} position="popper" align="start">
               {activeCapability.models.map((model) => (
                 <SelectItem key={model.id} value={model.id} className="cursor-pointer">
-                  {model.label}
+                  {sourceControlModelLabel(model)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -160,7 +161,7 @@ export function AiCommitPrSettingsFields({
             <SelectContent portalContainer={selectPortalRoot} position="popper" align="start">
               {activeModel.thinkingLevels.map((level) => (
                 <SelectItem key={level.id} value={level.id} className="cursor-pointer">
-                  {level.label}
+                  {sourceControlThinkingLabel(level)}
                 </SelectItem>
               ))}
             </SelectContent>

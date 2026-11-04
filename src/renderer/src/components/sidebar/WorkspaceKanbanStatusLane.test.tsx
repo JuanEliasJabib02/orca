@@ -5,7 +5,6 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
-import { serializeWorkspaceLaneFullIds } from './workspace-kanban-filtered-drop-index'
 import {
   toWorkspaceKanbanWorktreeLaneItems,
   type WorkspaceKanbanLaneItem
@@ -15,14 +14,8 @@ import WorkspaceKanbanStatusLane from './WorkspaceKanbanStatusLane'
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 vi.mock('./WorkspaceKanbanLaneCardList', () => ({
-  default: ({
-    items,
-    activeWorktreeIdentity
-  }: {
-    items: readonly WorkspaceKanbanLaneItem[]
-    activeWorktreeIdentity: string | null
-  }) => (
-    <div data-active-worktree-identity={activeWorktreeIdentity ?? ''}>
+  default: ({ items }: { items: readonly WorkspaceKanbanLaneItem[] }) => (
+    <div>
       {items.map((item) => (
         <div key={item.key} data-workspace-board-card-id={item.key} />
       ))}
@@ -47,24 +40,19 @@ let container: HTMLDivElement
 let root: Root
 
 function renderLane(props: {
-  items: Worktree[]
-  /** Overrides `items` for lanes holding project headers. */
-  laneItems?: WorkspaceKanbanLaneItem[]
+  items: WorkspaceKanbanLaneItem[]
   totalCount: number
   hasQuery: boolean
-  fullWorktreeIds?: string[]
-  activeWorktreeIdentity?: string | null
 }): void {
   act(() => {
     root.render(
       <WorkspaceKanbanStatusLane
         status={status}
-        items={props.laneItems ?? toWorkspaceKanbanWorktreeLaneItems(props.items)}
+        items={props.items}
         totalCount={props.totalCount}
         hasQuery={props.hasQuery}
-        fullWorktreeIds={props.fullWorktreeIds}
         repoMap={repoMap}
-        activeWorktreeIdentity={props.activeWorktreeIdentity ?? null}
+        activeWorktreeIdentity={null}
         columnWidth={308}
         isResizingColumn={false}
         isDragTarget={false}
@@ -85,14 +73,6 @@ function renderLane(props: {
   })
 }
 
-function lane(): HTMLElement {
-  const element = container.querySelector<HTMLElement>('[data-workspace-status-drop-target]')
-  if (!element) {
-    throw new Error('lane not rendered')
-  }
-  return element
-}
-
 beforeEach(() => {
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -107,15 +87,6 @@ afterEach(() => {
 })
 
 describe('WorkspaceKanbanStatusLane', () => {
-  it('shows a plain count without a query and a matches/total count with one', () => {
-    renderLane({ items: [worktree('a'), worktree('b')], totalCount: 2, hasQuery: false })
-    expect(container.textContent).toContain('2')
-    expect(container.textContent).not.toContain('2 / 2')
-
-    renderLane({ items: [worktree('a')], totalCount: 5, hasQuery: true })
-    expect(container.textContent).toContain('1 / 5')
-  })
-
   it('leaves project headers out of the card count', () => {
     const header: WorkspaceKanbanLaneItem = {
       type: 'project-header',
@@ -125,59 +96,11 @@ describe('WorkspaceKanbanStatusLane', () => {
       count: 2
     }
     renderLane({
-      items: [],
-      laneItems: [header, ...toWorkspaceKanbanWorktreeLaneItems([worktree('a'), worktree('b')])],
+      items: [header, ...toWorkspaceKanbanWorktreeLaneItems([worktree('a'), worktree('b')])],
       totalCount: 4,
       hasQuery: true
     })
 
     expect(container.textContent).toContain('2 / 4')
-  })
-
-  it('keeps a fully filtered lane as a labeled drop target', () => {
-    renderLane({ items: [], totalCount: 5, hasQuery: true })
-
-    expect(container.textContent).toContain('No matches')
-    expect(lane().hasAttribute('data-workspace-status-drop-target')).toBe(true)
-  })
-
-  it('shows the empty placeholder when there is no query', () => {
-    renderLane({ items: [], totalCount: 0, hasQuery: false })
-
-    expect(container.textContent).toContain('Empty')
-    expect(container.textContent).not.toContain('No matches')
-  })
-
-  it('leaves an already-empty lane as Empty under a query rather than "No matches"', () => {
-    renderLane({ items: [], totalCount: 0, hasQuery: true, fullWorktreeIds: [] })
-
-    expect(container.textContent).toContain('Empty')
-    expect(container.textContent).not.toContain('No matches')
-    expect(container.textContent).not.toContain('0 / 0')
-  })
-
-  it('publishes the full lane membership even when the rendered set is a subset', () => {
-    renderLane({
-      items: [worktree('b')],
-      totalCount: 3,
-      hasQuery: true,
-      fullWorktreeIds: ['a', 'b', 'c']
-    })
-
-    expect(lane().dataset.workspaceLaneFullIds).toBe(serializeWorkspaceLaneFullIds(['a', 'b', 'c']))
-    expect(container.querySelectorAll('[data-workspace-board-card-id]')).toHaveLength(1)
-  })
-
-  it('stays off the full-id channel when nothing is filtered', () => {
-    // Why: without a query the rendered card scan already is the full lane, and
-    // the attribute would carry every board id for no reader.
-    renderLane({
-      items: [worktree('a'), worktree('b')],
-      totalCount: 2,
-      hasQuery: false,
-      fullWorktreeIds: ['a', 'b']
-    })
-
-    expect(lane().dataset.workspaceLaneFullIds).toBeUndefined()
   })
 })

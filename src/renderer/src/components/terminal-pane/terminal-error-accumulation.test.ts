@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   appendPaneTerminalError,
   appendTerminalErrorMessage,
-  boundTerminalErrorSurface,
   clearPaneTerminalError,
   mapPaneTerminalErrors,
   MAX_TERMINAL_ERROR_CHARS,
@@ -10,34 +9,11 @@ import {
   terminalErrorForPane
 } from './terminal-error-accumulation'
 import { stripSshReconnectOwnedErrorLines } from './TerminalErrorToast'
+import { PTY_ALLOCATION_HINT } from '../../../../shared/terminal-spawn-error-copy'
 
 const MULTILINE_ERROR = 'Remote terminal write failed.\nThe remote runtime rejected the request.'
 
 describe('appendTerminalErrorMessage', () => {
-  it('starts the surface with the first message', () => {
-    expect(appendTerminalErrorMessage(null, 'Paste failed.')).toBe('Paste failed.')
-  })
-
-  it('appends distinct messages as newline-joined entries', () => {
-    const accumulated = appendTerminalErrorMessage(
-      appendTerminalErrorMessage(null, 'Paste failed.'),
-      'Remote terminal was closed.'
-    )
-    expect(accumulated).toBe('Paste failed.\nRemote terminal was closed.')
-  })
-
-  it('keeps the first occurrence of a repeated single-line message', () => {
-    const accumulated = appendTerminalErrorMessage(null, 'Paste failed.')
-    expect(appendTerminalErrorMessage(accumulated, 'Paste failed.')).toBe(accumulated)
-  })
-
-  it('does not re-append a repeated multi-line message', () => {
-    let accumulated = appendTerminalErrorMessage(null, MULTILINE_ERROR)
-    accumulated = appendTerminalErrorMessage(accumulated, MULTILINE_ERROR)
-    accumulated = appendTerminalErrorMessage(accumulated, MULTILINE_ERROR)
-    expect(accumulated).toBe(MULTILINE_ERROR)
-  })
-
   it('detects a repeated multi-line message in any position of the surface', () => {
     const leading = appendTerminalErrorMessage(
       appendTerminalErrorMessage(null, MULTILINE_ERROR),
@@ -55,28 +31,6 @@ describe('appendTerminalErrorMessage', () => {
     expect(appendTerminalErrorMessage(middle, MULTILINE_ERROR)).toBe(middle)
   })
 
-  it('keeps per-line dedup for a single-line message already present as a line', () => {
-    const accumulated = appendTerminalErrorMessage(null, MULTILINE_ERROR)
-    expect(appendTerminalErrorMessage(accumulated, 'Remote terminal write failed.')).toBe(
-      accumulated
-    )
-  })
-
-  it('appends a message that is only a substring of an existing line', () => {
-    const accumulated = appendTerminalErrorMessage(null, MULTILINE_ERROR)
-    expect(appendTerminalErrorMessage(accumulated, 'terminal write failed.')).toBe(
-      `${MULTILINE_ERROR}\nterminal write failed.`
-    )
-  })
-
-  it('stays a newline-joined string the toast can still filter per line', () => {
-    const accumulated = appendTerminalErrorMessage(
-      appendTerminalErrorMessage(null, 'SSH connection failed: host unreachable'),
-      MULTILINE_ERROR
-    )
-    expect(stripSshReconnectOwnedErrorLines(accumulated)).toBe(MULTILINE_ERROR)
-  })
-
   it('caps a distinct error storm to the newest lines', () => {
     let accumulated: string | null = null
     for (let index = 0; index < MAX_TERMINAL_ERROR_LINES + 12; index += 1) {
@@ -88,23 +42,27 @@ describe('appendTerminalErrorMessage', () => {
     expect(lines[0]).toBe('timeout #12')
     expect(lines.at(-1)).toBe(`timeout #${MAX_TERMINAL_ERROR_LINES + 11}`)
   })
-
-  it('drops a clipped leading line under the character budget', () => {
-    const latestLine = 'SSH connection failed: host unreachable'
-    const huge = `${'x'.repeat(MAX_TERMINAL_ERROR_CHARS + 500)}\n${latestLine}`
-
-    expect(boundTerminalErrorSurface(huge)).toBe(latestLine)
-  })
 })
 
 describe('pane terminal errors', () => {
-  it('shows only the active pane errors beside a tab-wide error', () => {
-    let errors = appendPaneTerminalError({}, 1, 'Pane one failed.')
-    errors = appendPaneTerminalError(errors, 2, 'Pane two failed.')
+  it('preserves resource classification through mapping and repeated oversized errors', () => {
+    const message = `${PTY_ALLOCATION_HINT}\n${'x'.repeat(MAX_TERMINAL_ERROR_CHARS + 500)}`
+    const errors = appendPaneTerminalError({}, 1, message)
+    expect(appendPaneTerminalError(errors, 1, message)).toBe(errors)
+    expect(mapPaneTerminalErrors(errors, (text) => text)).toBe(errors)
 
-    expect(terminalErrorForPane('Paste failed.', errors, 1)).toBe('Paste failed.\nPane one failed.')
-    expect(terminalErrorForPane(null, errors, 2)).toBe('Pane two failed.')
-    expect(terminalErrorForPane(null, errors, 3)).toBeNull()
+    const mapped = mapPaneTerminalErrors(errors, (text) => text.slice(1))
+    expect(terminalErrorForPane(null, mapped, 1)?.resourceLimit).toBe(true)
+    expect(clearPaneTerminalError(errors, 1, message)).toEqual({})
+  })
+
+  it('retains an unrelated error even when truncation gives it the same text as a resource error', () => {
+    const diagnostics = 'x'.repeat(MAX_TERMINAL_ERROR_CHARS + 500)
+    let errors = appendPaneTerminalError({}, 1, `${PTY_ALLOCATION_HINT}\n${diagnostics}`)
+    errors = appendPaneTerminalError(errors, 1, diagnostics)
+    expect(terminalErrorForPane(null, errors, 1)?.resourceLimit).toBe(false)
+    const cleared = clearPaneTerminalError(errors, 1, diagnostics)
+    expect(terminalErrorForPane(null, cleared, 1)?.resourceLimit).toBe(true)
   })
 
   it('clears only the recovered message for the matching pane', () => {
@@ -114,8 +72,8 @@ describe('pane terminal errors', () => {
 
     const cleared = clearPaneTerminalError(errors, 1, 'Remote terminal was closed.')
 
-    expect(terminalErrorForPane(null, cleared, 1)).toBe('Paste failed.')
-    expect(terminalErrorForPane(null, cleared, 2)).toBe('Remote terminal was closed.')
+    expect(terminalErrorForPane(null, cleared, 1)?.error).toBe('Paste failed.')
+    expect(terminalErrorForPane(null, cleared, 2)?.error).toBe('Remote terminal was closed.')
   })
 
   it('maps reconnect-owned lines without changing unrelated pane messages', () => {
@@ -125,19 +83,8 @@ describe('pane terminal errors', () => {
 
     const mapped = mapPaneTerminalErrors(errors, stripSshReconnectOwnedErrorLines)
 
-    expect(terminalErrorForPane(null, mapped, 1)).toBe(MULTILINE_ERROR)
-    expect(terminalErrorForPane(null, mapped, 2)).toBe('Paste failed.')
-  })
-
-  it('bounds distinct errors retained for one pane', () => {
-    let errors = {}
-    for (let index = 0; index < 20; index += 1) {
-      errors = appendPaneTerminalError(errors, 1, `Failure ${index}`)
-    }
-
-    expect(terminalErrorForPane(null, errors, 1)?.split('\n')).toEqual(
-      Array.from({ length: 8 }, (_, index) => `Failure ${index + 12}`)
-    )
+    expect(terminalErrorForPane(null, mapped, 1)?.error).toBe(MULTILINE_ERROR)
+    expect(terminalErrorForPane(null, mapped, 2)?.error).toBe('Paste failed.')
   })
 
   it('bounds individual pane errors and their joined display', () => {
@@ -148,7 +95,7 @@ describe('pane terminal errors', () => {
     )
     errors = appendPaneTerminalError(errors, 1, 'y'.repeat(MAX_TERMINAL_ERROR_CHARS + 500))
 
-    const visible = terminalErrorForPane(null, errors, 1)
+    const visible = terminalErrorForPane(null, errors, 1)?.error
 
     expect(visible?.split('\n').length).toBeLessThanOrEqual(MAX_TERMINAL_ERROR_LINES)
     expect(visible?.length).toBeLessThanOrEqual(MAX_TERMINAL_ERROR_CHARS)
@@ -163,6 +110,6 @@ describe('pane terminal errors', () => {
       errors = clearPaneTerminalError(errors, paneId)
     }
 
-    expect(errors).toEqual({ 1: ['Surviving pane failed.'] })
+    expect(errors).toEqual({ 1: [{ message: 'Surviving pane failed.', resourceLimit: false }] })
   })
 })

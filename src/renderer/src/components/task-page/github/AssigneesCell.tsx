@@ -5,18 +5,19 @@ import type { TaskSourceContext } from '../../../../../shared/task-source-contex
 import React, { useMemo, useState, useCallback } from 'react'
 import { useAppStore } from '@/store'
 import { useShallow } from 'zustand/react/shallow'
-import { getGitHubRepoRoutingSettings } from '@/lib/github-source-runtime-context'
+import { getGitHubRepoRoutingTarget } from '@/lib/github-source-runtime-context'
 import { parseGitHubIssueOrPRLink } from '@/lib/github-links'
 import { useRepoAssigneesBySlug } from '@/hooks/useGitHubSlugMetadata'
 import { translate } from '@/i18n/i18n'
-import { getActiveRuntimeTarget, callRuntimeRpc } from '@/runtime/runtime-rpc-client'
+import { callRuntimeRpc } from '@/runtime/runtime-rpc-client'
 import { githubProjectHost } from '../../../../../shared/github/project-identity'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { LoaderCircle, ChevronDown, Check } from 'lucide-react'
-import type { TaskPageGitHubWorkItemMutationRunner } from '../../task-page-linear-jira-list-model'
+import type { TaskPageGitHubWorkItemMutationRunner } from '../linear/task-page-linear-jira-list-model'
 import { GitHubAssigneeAvatar } from './Avatars'
 import { GitHubUserAvatar } from '@/components/github/github-user-avatar'
+import { codeHostErrorText } from '@/lib/code-host-error-copy'
 export function GHAssigneesCell({
   item,
   repo,
@@ -28,8 +29,8 @@ export function GHAssigneesCell({
   sourceContext?: TaskSourceContext | null
   workItemMutation: TaskPageGitHubWorkItemMutationRunner
 }): React.JSX.Element {
-  const sourceSettings = useAppStore(
-    useShallow((s) => getGitHubRepoRoutingSettings(s, repo?.id ?? null, sourceContext))
+  const ownerTarget = useAppStore(
+    useShallow((s) => getGitHubRepoRoutingTarget(s, repo?.id ?? null, sourceContext))
   )
   const [open, setOpen] = useState(false)
   const [pendingLogin, setPendingLogin] = useState<string | null>(null)
@@ -49,7 +50,7 @@ export function GHAssigneesCell({
     open ? owner : null,
     open ? repoName : null,
     seedLogins,
-    sourceSettings,
+    ownerTarget,
     parsed?.slug.host
   )
   const toggleAssignee = useCallback(
@@ -92,7 +93,7 @@ export function GHAssigneesCell({
               : {
                   addAssignees: [user.login]
                 }
-            const target = getActiveRuntimeTarget(sourceSettings)
+            const target = ownerTarget
             if (owner && repoName) {
               const args = {
                 owner,
@@ -108,7 +109,7 @@ export function GHAssigneesCell({
                     >(target, 'github.project.updateIssueBySlug', args, {
                       timeoutMs: 30_000
                     })
-                  : await window.api.gh.updateIssueBySlug(args)
+                  : await window.api.gh.updateIssueBySlug({ ...args, wakeWslDistro: true })
               if (!res.ok) {
                 throw new Error(res.error.message)
               }
@@ -142,11 +143,16 @@ export function GHAssigneesCell({
                       updates
                     })
               if (res && res.ok === false) {
-                throw new Error(res.error)
+                throw new Error(codeHostErrorText(res))
               }
               return res
             }
-            throw new Error('No GitHub repository context available for this issue.')
+            throw new Error(
+              translate(
+                'auto.components.TaskPage.noGitHubRepositoryContext',
+                'No GitHub repository context available for this issue.'
+              )
+            )
           }
         })
       } finally {
@@ -161,7 +167,7 @@ export function GHAssigneesCell({
       repo,
       repoName,
       sourceContext,
-      sourceSettings,
+      ownerTarget,
       workItemMutation
     ]
   )

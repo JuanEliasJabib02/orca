@@ -8,10 +8,10 @@ import type { PRCheckDetail } from '../../../../shared/github/check-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { WorkspaceLineage } from '../../../../shared/worktree/lineage-types'
 import type { Worktree } from '../../../../shared/worktree/types'
-import type { HostedReviewInfo } from '../../../../shared/hosted-review'
+import type { HostedReviewInfo } from '../../../../shared/source-control/hosted-review/hosted-review-contracts'
 import { folderWorkspaceKey, worktreeWorkspaceKey } from '../../../../shared/workspace-scope'
 import { getHostedReviewCacheKey } from '@/store/slices/hosted-review-cache-identity'
-import { getGitHubRepoCacheKey } from '@/store/slices/github-cache-key'
+import { getGitHubRepoCacheKey } from '../../../../shared/github/github-cache-key'
 import { prChecksCacheSuffix } from '@/store/github/cache-identity'
 
 type MockStoreState = {
@@ -47,13 +47,15 @@ vi.mock('@/i18n/i18n', () => ({
     values
       ? Object.entries(values).reduce(
           (text, [key, value]) => text.replaceAll(`{{${key}}}`, String(value)),
-          fallback
+          values.count === 1 && typeof values.defaultValue_one === 'string'
+            ? values.defaultValue_one
+            : fallback
         )
       : fallback
 }))
 
-vi.mock('@/lib/http-link-routing', () => ({
-  openHttpLink: (url: string) => {
+vi.mock('@/lib/app-http-link-open', () => ({
+  openAppHttpLink: (url: string) => {
     mockState.openedLinks.push(url)
   }
 }))

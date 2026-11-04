@@ -1,7 +1,7 @@
 import { DegradedDaemonPtyProvider } from './degraded-daemon-pty-provider'
 import type { DaemonPtyAdapter } from './daemon-pty-adapter'
 import { DaemonPtyRouter } from './daemon-pty-router'
-import type { IPtyProvider } from '../providers/types'
+import type { IPtyProvider } from '../providers/pty-provider-contract'
 
 export type DaemonProvider = DaemonPtyRouter | DaemonPtyAdapter | DegradedDaemonPtyProvider
 
@@ -35,7 +35,7 @@ export function getAllDaemonAdapters(provider: DaemonProvider): readonly DaemonP
     : [provider]
 }
 
-// Why: an inventory is authoritative only if every generation answered; otherwise unverifiable.
+// Partial generation inventories cannot authorize cleanup.
 export async function listEveryDaemonGeneration<T>(
   provider: DaemonProvider,
   list: (adapter: DaemonPtyAdapter) => Promise<T[]>

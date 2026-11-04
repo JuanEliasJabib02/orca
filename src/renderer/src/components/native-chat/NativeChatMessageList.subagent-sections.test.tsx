@@ -2,27 +2,48 @@
 
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, fireEvent, render, screen, within, act } from '@testing-library/react'
+import { cleanup, fireEvent, screen, within, act } from '@testing-library/react'
+import { render } from './native-chat-tooltip-test-harness'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// Why: these fixtures have neither inline visual owners nor sender navigation.
+const unusedChatLeaves = vi.hoisted(() => ({
+  inlineVisual: vi.fn(() => {
+    throw new Error('Unexpected inline visual in transcript fixture')
+  }),
+  openSender: vi.fn(() => {
+    throw new Error('Unexpected sender navigation in transcript fixture')
+  })
+}))
+vi.mock('./NativeChatInlineVisual', () => ({
+  NativeChatInlineVisual: unusedChatLeaves.inlineVisual
+}))
+vi.mock('@/lib/open-agent-message-sender', () => ({
+  openAgentMessageSender: unusedChatLeaves.openSender
+}))
+afterEach(() => {
+  expect(unusedChatLeaves.inlineVisual).not.toHaveBeenCalled()
+  expect(unusedChatLeaves.openSender).not.toHaveBeenCalled()
+})
 
 import type {
   AgentJournalItemBody,
   AgentJournalProducerLinkage,
   AgentJournalRenderItem
-} from '../../../../shared/agent-session-journal-types'
+} from '../../../../shared/agent-session/journal/agent-session-journal-types'
 
 import type {
   NativeChatSubagentState,
   NativeChatMessage
-} from '../../../../shared/native-chat-types'
+} from '../../../../shared/native-chat/native-chat-types'
 
-import { projectStructuredItemsToNativeChat } from '../../../../shared/structured-agent-session-projection'
+import { projectStructuredItemsToNativeChat } from '../../../../shared/agent-session/view/structured-agent-session-projection'
 
 import {
   foldStructuredAgentSubagentRoster,
   NO_STRUCTURED_AGENT_SUBAGENT_ROSTER
-} from '../../../../shared/structured-agent-session-subagent-roster'
+} from '../../../../shared/agent-session/view/structured-agent-session-subagent-roster'
 
 import { NativeChatMessageList } from './NativeChatMessageList'
 
@@ -139,7 +160,6 @@ import {
       fireEvent.click(screen.getByRole('button', { name: /Ran 1 subagent/ }))
       fireEvent.click(screen.getByRole('button', { name: /explore the lane/, expanded: false }))
 
-      // Named once: its entry heads its rows, which come before the parent's answer.
       expect(screen.getAllByText('explore the lane')).toHaveLength(1)
       const entry = screen.getByRole('button', { name: /explore the lane/, expanded: true })
       const said = screen.getByText('The PR is CLEAN.')
@@ -155,10 +175,7 @@ import {
       ).toBeVisible()
     })
 
-    // happy-dom has no layout, so the geometry is pinned by the margin that decides it:
-    // outside a section a row's controls hang into the gap below it (`-mb-5`), and
-    // inside one that overhang would leave them below the section's border, touching
-    // the parent's next row.
+    // happy-dom has no layout; assert margins so controls cannot overhang the section border into the next row.
     it("keeps a section row's controls inside the row that carries the section's border", () => {
       renderList()
       fireEvent.click(screen.getByRole('button', { name: /Ran 1 subagent/ }))
@@ -243,9 +260,7 @@ import {
       expect(screen.getByRole('button', { name: /explore the lane/, expanded: true })).toBeVisible()
     })
 
-    // Rows are grouped by the journal's turn records, so a subagent's edit counts in the
-    // turn that was running when it was made: not a send queued mid-turn, whose own turn
-    // had not opened, and in a turn keyed to its own record rather than the last prompt.
+    // Journal turn records own subagent edits, even when a newer send is queued or the opener is unloaded.
     it("counts a subagent's edit in the turn the journal says it was made in", () => {
       const say = (itemId: string, role: 'user' | 'assistant', text: string, sequence: number) =>
         journalItem(itemId, { kind: 'message', role, blocks: [{ type: 'text', text }] }, sequence)
@@ -354,7 +369,6 @@ import {
       expect(screen.getAllByText('explore the lane')).toHaveLength(1)
       rerender(listOf('working'))
       expect(screen.queryByText('The PR is CLEAN.')).toBeNull()
-      // The closed roster still says the agent works.
       expect(screen.getByRole('button', { name: /Kicked off 1 subagent/ })).toBeInTheDocument()
     })
 
@@ -364,9 +378,27 @@ import {
       rerender(listOf('working', true))
       expect(screen.queryByText('The PR is CLEAN.')).toBeNull()
 
-      // Closing the section from its entry left the list open.
       fireEvent.click(screen.getByRole('button', { name: /explore the lane/, expanded: false }))
       rerender(listOf('working'))
+      expect(screen.getByText('The PR is CLEAN.')).toBeInTheDocument()
+    })
+
+    it("does not replay a working subagent's streaming reply when its section reopens", () => {
+      const items = itemsWith('working', false).filter((next) => next.itemId !== 'child-edit')
+      render(
+        <NativeChatMessageList
+          session={session(projectStructuredItemsToNativeChat(items))}
+          journalItems={items}
+          isWorking
+          expandSignal={false}
+        />
+      )
+      expect(screen.getByText('The PR is CLEAN.')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: /explore the lane/, expanded: true }))
+      expect(screen.queryByText('The PR is CLEAN.')).toBeNull()
+
+      // Back as the transcript's last, still-streaming row: already read, so it shows whole at once.
+      fireEvent.click(screen.getByRole('button', { name: /explore the lane/, expanded: false }))
       expect(screen.getByText('The PR is CLEAN.')).toBeInTheDocument()
     })
 
@@ -489,7 +521,7 @@ import {
       fireEvent.click(screen.getByRole('button', { name: 'Second prompt' }))
       expect(scrollTo.mock.calls).toEqual([
         [{ top: 6000, behavior: 'auto' }],
-        [{ top: selectedTop, behavior: 'smooth' }]
+        [{ top: selectedTop, behavior: 'auto' }]
       ])
       expect(screen.queryByRole('button', { name: /^Edited .*a\.ts(?:\s|$)/ })).toBeNull()
       scrollTo.mockClear()
@@ -504,16 +536,12 @@ import {
       const diffTop =
         screen.getByText('Edited').closest<HTMLElement>('[data-index]')?.offsetTop ?? 0
       expect(Number.isFinite(diffTop)).toBe(true)
-      expect(scrollTo.mock.calls.filter(([options]) => options?.behavior === 'smooth')).toEqual([
-        [{ top: diffTop, behavior: 'smooth' }]
-      ])
+      expect(scrollTo).toHaveBeenCalledWith({ top: diffTop, behavior: 'auto' })
+      expect(scrollTo.mock.calls.some(([options]) => options?.behavior === 'smooth')).toBe(false)
     })
   })
 
-  // The rail borrows the reveal's pin to reach a row the window has left behind.
-  // Borrowing the pin means it also has to give it back: the request is what
-  // outranks a later reveal, and slots is rebuilt every render, so an effect that
-  // merely watched it would re-scroll forever.
+  // Rail jumps borrow the diff-reveal pin; release it after scrolling so later renders cannot repeat or outrank navigation.
   describe('jumping to a message from the rail', () => {
     afterEach(cleanup)
     let restoreLayout = (): void => {}
@@ -557,8 +585,7 @@ import {
       jumpToFirstPrompt()
       expect(scrollTo).toHaveBeenCalled()
 
-      // A streaming turn re-renders constantly with the same messages. The jump is
-      // spent; nothing here may drag the reader back to the row they left.
+      // Streaming rerenders must not replay a consumed jump after the reader leaves.
       scrollTo.mockClear()
       rerender(list(conversation))
       rerender(list(conversation))
@@ -575,9 +602,7 @@ import {
       jumpToFirstPrompt()
       expect(scrollTo).toHaveBeenCalled()
 
-      // The request is spent as soon as the scroll is issued, so the row it pinned
-      // is not held in the window afterwards. A pin still standing here would also
-      // still outrank a diff reveal, which shares the same slot.
+      // Release the pin after issuing the scroll so it cannot retain the row or outrank a diff reveal.
       expect(windowState(container).indexes).not.toContain(0)
     })
   })

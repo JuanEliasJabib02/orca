@@ -4,7 +4,7 @@ import type { SpotlightRepoState } from '../../../../../../shared/spotlight'
 import type { Worktree } from '../../../../../../shared/worktree/types'
 import type { SidebarSpaceScope } from '../../sidebar-space-scope'
 import { canHoldSpotlight } from '../../WorktreeCardSpotlightControls'
-import type { TaskSectionWorktree } from '../grouping/row-types'
+import type { TaskSectionWorktree } from '../../../../../../shared/sidebar-list/row-types'
 
 /** One project's stake in a task: the worktree a task-wide Spotlight would put on that project's root. */
 export type TaskSpotlightMember = {

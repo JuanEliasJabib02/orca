@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { buildRows } from './build-rows'
-import { ALL_GROUP_KEY, PINNED_GROUP_KEY } from './group-keys'
-import type { GroupHeaderRow, PinnedWorktreeDisplayPolicy, Row, WorktreeGroupBy } from './row-types'
-import { SERVERS_LANE_KEY, isServerRootWorktree } from './server-root-lane'
-import { NO_TASK_LANE_KEY } from './worktree-task-key'
-import { getGroupKeysForWorktree } from './worktree-group-keys'
-import { buildWorktreeTaskKeys } from './worktree-task-keys'
+import { buildRows } from './build-rows.test-fixture'
+import { ALL_GROUP_KEY, PINNED_GROUP_KEY } from '../../../../../../shared/sidebar-list/group-keys'
+import type {
+  GroupHeaderRow,
+  PinnedWorktreeDisplayPolicy,
+  Row,
+  WorktreeGroupBy
+} from '../../../../../../shared/sidebar-list/row-types'
+import {
+  SERVERS_LANE_KEY,
+  isServerRootWorktree
+} from '../../../../../../shared/sidebar-list/server-root-lane'
+import { NO_TASK_LANE_KEY } from '../../../../../../shared/sidebar-list/worktree-task-key'
+import { getGroupKeysForWorktree } from '../../../../../../shared/sidebar-list/worktree-group-keys'
+import { buildWorktreeTaskKeys } from '../../../../../../shared/sidebar-list/worktree-task-keys'
+import { getSidebarHeaderLabel, getSidebarHeaderVisual } from '../rows/header-visuals'
 import { computeVisibleWorktrees } from '../../visible-worktrees'
 import { repo, worktree } from '../../worktree-list-groups-test-fixtures'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../../../../shared/execution-host'
@@ -132,7 +141,10 @@ describe('Group by → Task: the Servers section', () => {
       (row) => row.key === SERVERS_LANE_KEY
     )
 
-    expect(header).toMatchObject({ label: 'Servers', count: 2 })
+    expect(header).toMatchObject({ icon: { kind: 'servers' }, count: 2 })
+    expect(header && getSidebarHeaderLabel(header, getSidebarHeaderVisual(header.icon, []))).toBe(
+      'Servers'
+    )
     expect(header?.task).toEqual({
       taskKey: null,
       title: null,
@@ -189,17 +201,7 @@ describe('Group by → Task: the Servers section', () => {
   it('reveals a root through Servers and a folder project root through No task', () => {
     const taskKeys = buildWorktreeTaskKeys([backendRoot, notesRoot])
     const keysFor = (entry: Worktree): string[] =>
-      getGroupKeysForWorktree(
-        'task',
-        entry,
-        REPO_MAP,
-        null,
-        undefined,
-        undefined,
-        [],
-        undefined,
-        taskKeys
-      )
+      getGroupKeysForWorktree('task', entry, REPO_MAP, null, undefined, [], undefined, taskKeys)
 
     expect(keysFor(backendRoot)).toEqual([SERVERS_LANE_KEY])
     expect(keysFor(notesRoot)).toEqual([NO_TASK_LANE_KEY])

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { extractTerminalFileLinks } from '@/lib/terminal-links'
+import { extractTerminalFileLinks } from '../../../../shared/terminal-links'
 import type * as FilePathMappingModule from './terminal-file-path-mapping'
 import {
   mayCheckFileLinkTargetUnprompted,
@@ -15,7 +15,7 @@ const routing = vi.hoisted(() => {
 vi.mock('./terminal-file-path-mapping', async (importOriginal) => ({
   ...(await importOriginal<typeof FilePathMappingModule>()),
   getTerminalFileContext: (worktreeId: string, worktreePath: string) => ({
-    settings: null,
+    target: { kind: 'local' },
     worktreeId,
     worktreePath,
     connectionId: routing.connectionId

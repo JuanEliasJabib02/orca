@@ -1,3 +1,4 @@
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
@@ -24,11 +25,11 @@ import { filterGitHubProjectPickerProjects } from './github-project-picker-filte
 import { ProjectPickerBrowse } from './ProjectPickerBrowse'
 import { ProjectViewPickStep } from './ProjectPickerPanels'
 import { parseProjectInput } from './project-picker-input'
+import { projectViewErrorMessage } from './project-view-error-copy'
 import {
   getProjectPickerBrowseHost,
   listProjectViewsForRuntime,
-  resolveProjectRefForRuntime,
-  type ProjectSourceSettings
+  resolveProjectRefForRuntime
 } from './project-picker-runtime'
 import type { ProjectPickerChoice, ResolvedProjectSelection } from './project-picker-selection'
 import { useProjectPickerBrowse } from './useProjectPickerBrowse'
@@ -46,7 +47,7 @@ type Props = {
     title?: string
   } | null
   onSelect: (selection: ResolvedProjectSelection) => void
-  sourceSettings: ProjectSourceSettings
+  sourceTarget: RuntimeClientTarget
 }
 
 const EMPTY_PROJECT_SETTINGS: GitHubProjectSettings = {
@@ -59,7 +60,7 @@ const EMPTY_PROJECT_SETTINGS: GitHubProjectSettings = {
 export default function ProjectPicker({
   activeProject,
   onSelect,
-  sourceSettings
+  sourceTarget
 }: Props): React.JSX.Element {
   const settings = useAppStore((state) => state.settings)
   const updateSettings = useAppStore((state) => state.updateSettings)
@@ -77,7 +78,7 @@ export default function ProjectPicker({
   const [viewList, setViewList] = useState<GitHubProjectViewSummary[]>([])
   const [viewLoading, setViewLoading] = useState(false)
   const browseHost = getProjectPickerBrowseHost(activeProject ?? projectSettings.activeProject)
-  const browse = useProjectPickerBrowse(sourceSettings, browseHost)
+  const browse = useProjectPickerBrowse(sourceTarget, browseHost)
   const { loadBrowse } = browse
 
   useEffect(() => {
@@ -149,18 +150,24 @@ export default function ProjectPicker({
       setViewPickFor(selection)
       setViewLoading(true)
       try {
-        const result = await listProjectViewsForRuntime(sourceSettings, {
-          owner: choice.owner,
-          ownerType: choice.ownerType,
-          projectNumber: choice.number,
-          host: githubProjectHost(choice.host)
-        })
+        const result = await listProjectViewsForRuntime(
+          sourceTarget,
+          {
+            owner: choice.owner,
+            ownerType: choice.ownerType,
+            projectNumber: choice.number,
+            host: githubProjectHost(choice.host)
+          },
+          { wake: true }
+        )
         if (!mountedRef.current) {
           return
         }
         if (!result.ok) {
           setViewList([])
-          toast.error(result.error.message)
+          toast.error(
+            projectViewErrorMessage(result.error, { host: githubProjectHost(choice.host) })
+          )
           return
         }
         setViewList(result.views)
@@ -185,29 +192,39 @@ export default function ProjectPicker({
         }
       }
     },
-    [commitSelection, mountedRef, projectSettings.lastViewByProject, sourceSettings]
+    [commitSelection, mountedRef, projectSettings.lastViewByProject, sourceTarget]
   )
 
   const handlePaste = useCallback(async () => {
     if (isGitHubProjectRefInputTooLarge(pasteInput)) {
-      setPasteError(GITHUB_PROJECT_REF_INPUT_TOO_LARGE_ERROR)
+      setPasteError(
+        projectViewErrorMessage({
+          type: 'validation_error',
+          message: GITHUB_PROJECT_REF_INPUT_TOO_LARGE_ERROR,
+          reason: 'input_too_large'
+        })
+      )
       return
     }
     const input = pasteInput.trim()
     const parsed = parseProjectInput(input)
     if (!parsed) {
-      setPasteError('Expected a project URL or owner/number')
+      setPasteError(
+        translate('projectViews.picker.pasteUnparseable', 'Expected a project URL or owner/number')
+      )
       return
     }
     setPasteError(null)
     setPasteBusy(true)
     try {
-      const result = await resolveProjectRefForRuntime(sourceSettings, input, parsed.host)
+      const result = await resolveProjectRefForRuntime(sourceTarget, input, parsed.host, {
+        wake: true
+      })
       if (!mountedRef.current) {
         return
       }
       if (!result.ok) {
-        setPasteError(result.error.message)
+        setPasteError(projectViewErrorMessage(result.error, { host: parsed.host }))
         return
       }
       setPasteInput('')
@@ -224,7 +241,7 @@ export default function ProjectPicker({
         setPasteBusy(false)
       }
     }
-  }, [handleChooseProject, mountedRef, pasteInput, sourceSettings])
+  }, [handleChooseProject, mountedRef, pasteInput, sourceTarget])
 
   const filteredBrowse = useMemo(
     () =>

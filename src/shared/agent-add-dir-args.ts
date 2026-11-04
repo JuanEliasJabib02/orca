@@ -1,5 +1,8 @@
-import type { TuiAgent } from './tui-agent'
-import { quoteStartupArg, type AgentStartupShell } from './tui-agent-startup-shell'
+import type { TuiAgent } from './agent-launch/catalog/tui-agent'
+import {
+  quoteStartupArg,
+  type AgentStartupShell
+} from './agent-launch/startup/tui-agent-startup-shell'
 
 /** Agents whose interactive CLI accepts `--add-dir` (Claude Code and Codex). */
 const ADD_DIR_AGENTS: ReadonlySet<TuiAgent> = new Set(['claude', 'codex'])

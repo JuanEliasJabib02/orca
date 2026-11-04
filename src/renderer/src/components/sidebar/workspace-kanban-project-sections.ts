@@ -3,17 +3,16 @@ import type { Repo } from '../../../../shared/repo-types'
 import type { ProjectOrderBy } from '../../../../shared/ui-chrome-types'
 import type { WorkspaceStatus, Worktree } from '../../../../shared/worktree/types'
 import { projectGroupIdFromRepoId } from '../../../../shared/folder-workspace-worktree'
-import { getProjectGroupHeaderKey } from './worktree-list/grouping/group-keys'
+import { getProjectGroupHeaderKey } from '../../../../shared/sidebar-list/group-keys'
 import {
-  addRepoIdToGroup,
   getProjectGroupingForRepo,
-  type ProjectGroupingIndex,
-  type WorktreeGroupEntry
-} from './worktree-list/grouping/project-grouping'
+  type ProjectGroupingIndex
+} from '../../../../shared/project-section-grouping'
+import type { WorktreeGroupEntry } from '../../../../shared/sidebar-list/worktree-group-entry'
 import {
   sortProjectEntries,
   withRepoSectionDisplayLabels
-} from './worktree-list/grouping/section-order'
+} from '../../../../shared/project-section-order'
 import {
   getLaneItemWorktrees,
   isLaneCardItem,
@@ -90,7 +89,7 @@ export function sectionWorkspaceKanbanLaneItemsByProject(
         entry.items.push(worktree)
       }
       if (section.repoId) {
-        addRepoIdToGroup(entry, section.repoId)
+        entry.repoIds.add(section.repoId)
       }
     }
   }

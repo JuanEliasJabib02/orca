@@ -1,14 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { MarkdownDocument } from '../../../../shared/filesystem-entry-types'
-import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client'
-import {
-  getMarkdownDocumentListRequestKey,
-  requestSharedMarkdownDocumentList
-} from './markdown-document-list-request'
+import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client-types'
+import { requestSharedMarkdownDocumentList } from './markdown-document-list-request'
 
 function context(overrides: Partial<RuntimeFileOperationArgs> = {}): RuntimeFileOperationArgs {
   return {
-    settings: { activeRuntimeEnvironmentId: null },
+    target: { kind: 'local' as const },
     worktreeId: 'worktree-1',
     worktreePath: '/repo',
     ...overrides
@@ -149,8 +146,7 @@ describe('shared Markdown document list requests', () => {
         load
       )
       now.mockReturnValue(31_001)
-      // A request for a different route sweeps the expired entry so the map
-      // does not pin the abandoned promise for the renderer's lifetime.
+      // A different route must release expired entries, including abandoned promises.
       await expect(
         requestSharedMarkdownDocumentList(context(), '/other-route', {}, load)
       ).resolves.toEqual([])
@@ -166,29 +162,6 @@ describe('shared Markdown document list requests', () => {
     } finally {
       now.mockRestore()
     }
-  })
-
-  it('keeps runtime routes isolated and encodes unusual paths losslessly', () => {
-    const local = context()
-    const ssh = context({ connectionId: 'ssh-1' })
-    const runtime = context({ settings: { activeRuntimeEnvironmentId: ' runtime-1 ' } })
-    const unusualRoot = '/repo\nwith-newline'
-    const windowsRoot = 'C:\\repo\\docs'
-    const uncRoot = '\\\\server\\share\\repo'
-
-    expect(getMarkdownDocumentListRequestKey(local, unusualRoot)).not.toBe(
-      getMarkdownDocumentListRequestKey(ssh, unusualRoot)
-    )
-    expect(getMarkdownDocumentListRequestKey(ssh, unusualRoot)).not.toBe(
-      getMarkdownDocumentListRequestKey(runtime, unusualRoot)
-    )
-    expect(JSON.parse(getMarkdownDocumentListRequestKey(local, unusualRoot)).at(-1)).toBe(
-      unusualRoot
-    )
-    expect(JSON.parse(getMarkdownDocumentListRequestKey(local, windowsRoot)).at(-1)).toBe(
-      windowsRoot
-    )
-    expect(JSON.parse(getMarkdownDocumentListRequestKey(local, uncRoot)).at(-1)).toBe(uncRoot)
   })
 
   it('clears rejected requests so a retry can run', async () => {

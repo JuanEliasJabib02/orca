@@ -1,8 +1,9 @@
 import React from 'react'
 import StatusIndicator from '../../StatusIndicator'
-import type { TaskSectionInfo } from '../grouping/row-types'
+import type { TaskSectionInfo } from '../../../../../../shared/sidebar-list/row-types'
 import { useTaskSectionAgentStatus } from './task-section-agent-status'
 import { TaskSpotlightEnvPill } from './TaskSpotlightEnvPill'
+import { TaskSpotlightButton } from './TaskSpotlightButton'
 
 export type TaskSectionHeaderProps = {
   task: TaskSectionInfo
@@ -28,5 +29,15 @@ export function TaskSectionHeader({ task, actions }: TaskSectionHeaderProps): Re
       ) : null}
       {task.taskKey !== null ? <TaskSpotlightEnvPill task={task} /> : null}
     </>
+  )
+}
+
+/** The sidebar section header's task parts: a keyed task can be Spotlighted, "No task"/"Servers" not. */
+export function SidebarTaskSectionHeader({ task }: { task: TaskSectionInfo }): React.JSX.Element {
+  return (
+    <TaskSectionHeader
+      task={task}
+      actions={task.taskKey ? <TaskSpotlightButton task={task} /> : undefined}
+    />
   )
 }

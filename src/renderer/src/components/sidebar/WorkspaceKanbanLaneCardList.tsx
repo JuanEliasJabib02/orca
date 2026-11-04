@@ -14,14 +14,12 @@ import {
   type WorkspaceKanbanTaskLaneItem
 } from './workspace-kanban-lane-items'
 
-// Why: board cards are uniform one-line rows; a close estimate keeps the first
-// virtual window right so the lane does not reflow once cards measure.
+// Estimate uniform card height so the first virtual window cannot reflow after measurement.
 const WORKSPACE_BOARD_CARD_ESTIMATED_HEIGHT = 36
-// Why: a task card is a header plus one row per member, so its estimate grows with them.
+// A task card is a header plus one row per member, so its estimate grows with them.
 const WORKSPACE_BOARD_TASK_CARD_HEADER_HEIGHT = 34
 const WORKSPACE_BOARD_TASK_CARD_ROW_HEIGHT = 26
 const WORKSPACE_BOARD_PROJECT_HEADER_HEIGHT = 24
-// Matches the `space-y-2` rhythm the lane used before virtualization.
 const WORKSPACE_BOARD_CARD_GAP = 8
 const WORKSPACE_BOARD_CARD_OVERSCAN = 6
 
@@ -78,8 +76,9 @@ function WorkspaceKanbanLaneCardList({
 }: WorkspaceKanbanLaneCardListProps): React.JSX.Element {
   const spacerRef = useRef<HTMLDivElement | null>(null)
   const itemIds = useMemo(() => items.map((item) => item.key), [items])
+  // Host identities, the board's lane keys; several for a task card, none for a header.
   const itemWorktreeIds = useMemo(
-    () => items.map((item) => getLaneItemWorktrees(item).map((worktree) => worktree.id)),
+    () => items.map((item) => getLaneItemWorktrees(item).map(getWorktreeHostIdentity)),
     [items]
   )
   const virtualizer = useVirtualizer({
@@ -92,8 +91,7 @@ function WorkspaceKanbanLaneCardList({
     getItemKey: useCallback((index: number) => items[index]?.key ?? index, [items]),
     overscan: WORKSPACE_BOARD_CARD_OVERSCAN,
     gap: WORKSPACE_BOARD_CARD_GAP,
-    // Why: sync-flushing rich card renders inside the scroll listener stalls the
-    // wheel; async + overscan keeps the lane filled without blocking input.
+    // Async renders plus overscan avoid blocking wheel events with rich-card flushes.
     useFlushSync: false
   })
 
@@ -110,8 +108,7 @@ function WorkspaceKanbanLaneCardList({
       getItemWorktreeIds: () => itemWorktreeIds,
       getMeasurements: () => virtualizer.measurementsCache
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- virtualizer is a stable instance (useVirtualizer holds it in useState), and getMeasurements reads measurementsCache off it live.
-  }, [itemIds, itemWorktreeIds, scrollRef])
+  }, [itemIds, itemWorktreeIds, scrollRef, virtualizer])
 
   const renderCard = (item: WorkspaceKanbanCardLaneItem, laneIndex: number): React.JSX.Element => {
     const isSelected =

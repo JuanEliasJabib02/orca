@@ -1,4 +1,7 @@
-import type { GitStatusEntry, GitUpstreamStatus } from '../../../../shared/git-status-types'
+import type {
+  GitStatusEntry,
+  GitUpstreamStatus
+} from '../../../../shared/git/status/git-status-types'
 import type { GitPushTarget } from '../../../../shared/worktree/types'
 
 export type ChecksPanelGitStatusContextInput = {
@@ -14,9 +17,7 @@ export type ChecksPanelGitStatusContextInput = {
   runtimeEnvironmentId: string | null
   repoConnectionId: string | null
   pushTarget: GitPushTarget | null | undefined
-  // Local execution host variant (`wsl:{distro}` vs `host`) so a Windows-host
-  // result never authorizes a WSL context (or another distro), and vice versa.
-  // Null for SSH/runtime contexts, which are already scoped by their host ids.
+  // Separate local host/WSL distro contexts; SSH/runtime scopes already use host IDs.
   localExecutionScope?: string | null
 }
 
@@ -80,8 +81,7 @@ export function buildChecksPanelGitStatusContextKey(
     worktreeId: input.worktreeId ?? '',
     worktreePath: input.worktreePath ?? '',
     branch: input.branch,
-    // Why: this key gates right-sidebar async commits too; link/unlink must
-    // make pre-change PR refreshes stale even when repo/branch are unchanged.
+    // Link/unlink must stale pending PR refreshes even when repo and branch stay unchanged.
     linkedGitHubPR: input.linkedGitHubPR ?? null,
     linkedGitLabMR: input.linkedGitLabMR ?? null,
     linkedBitbucketPR: input.linkedBitbucketPR ?? null,

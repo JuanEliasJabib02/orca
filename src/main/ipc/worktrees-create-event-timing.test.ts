@@ -1,14 +1,14 @@
+import type * as WorktreeScanCacheModule from '../git/worktrees/catalog/worktree-scan-cache'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   addWorktreeMock,
-  getActiveMultiplexerMock,
-  getSshGitProviderMock,
   gitExecFileAsyncMock,
   listWorktreesMock,
   setPlatform
 } from './worktrees-test-module-mocks'
-import { handlers, setupWorktreeHandlers, store } from './worktrees-test-harness'
-import { beginPreparationWork } from '../worktree-create-concurrency'
+import { handlers, mainWindow, setupWorktreeHandlers, store } from './worktrees-test-harness'
+import { beginPreparationWork } from '../workspaces/creation/worktree-create-concurrency'
+import { addWorktree } from '../git/worktrees/creation/worktree-add'
 
 const { trackMock, probeHookMock, telemetryEnabledMock } = vi.hoisted(() => ({
   trackMock: vi.fn<(name: string, props: Record<string, unknown>) => void>(),
@@ -16,18 +16,80 @@ const { trackMock, probeHookMock, telemetryEnabledMock } = vi.hoisted(() => ({
   telemetryEnabledMock: vi.fn(() => true)
 }))
 
+vi.mock('../git/worktrees/catalog/worktree-scan-cache', async (importOriginal) => {
+  return {
+    ...(await importOriginal<typeof WorktreeScanCacheModule>()),
+    listWorktrees: (await import('./worktrees-test-module-mocks')).listWorktreesMock,
+    listWorktreesSharedStrictAllowingTrueEmpty: (await import('./worktrees-test-module-mocks'))
+      .listWorktreesMock,
+    listWorktreesSharedStrict: (await import('./worktrees-test-module-mocks')).listWorktreesMock
+  }
+})
+
 vi.mock('electron', async () =>
   (await import('./worktrees-test-module-mocks')).electronModuleMock()
 )
-vi.mock('../git/worktree', async () =>
-  (await import('./worktrees-test-module-mocks')).gitWorktreeModuleMock()
-)
-vi.mock('../git/runner', async () =>
-  (await import('./worktrees-test-module-mocks')).gitRunnerModuleMock()
-)
+vi.mock('../../shared/git/worktrees/git-worktree-porcelain-parser', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  parseWorktreeList: (await import('./worktrees-test-module-mocks')).parseWorktreeListMock
+}))
+
+vi.mock('../git/worktrees/removal/worktree-removal-preflight', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  assertWorktreeCleanForRemoval: (await import('./worktrees-test-module-mocks'))
+    .assertWorktreeCleanForRemovalMock
+}))
+
+vi.mock('../git/worktrees/creation/worktree-add', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  addWorktree: (await import('./worktrees-test-module-mocks')).addWorktreeMock
+}))
+
+vi.mock('../git/worktrees/creation/worktree-sparse-add', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  addSparseWorktree: (await import('./worktrees-test-module-mocks')).addSparseWorktreeMock
+}))
+
+vi.mock('../git/worktrees/removal/worktree-removal', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  removeWorktree: (await import('./worktrees-test-module-mocks')).removeWorktreeMock
+}))
+
+vi.mock('../git/worktrees/removal/worktree-branch-removal', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  forceDeleteLocalBranch: (await import('./worktrees-test-module-mocks')).forceDeleteLocalBranchMock
+}))
+vi.mock('../git/worktrees/catalog/worktree-listing', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  listWorktreesStrict: (await import('./worktrees-test-module-mocks')).listWorktreesMock,
+  describeCreatedWorktree: (await import('./worktrees-test-module-mocks'))
+    .describeCreatedWorktreeMock
+}))
+const { getWorktreeRunnerMocks } = vi.hoisted(() => {
+  function createWorktreeRunnerMocks() {
+    return (async () => (await import('./worktrees-test-module-mocks')).gitRunnerModuleMock())()
+  }
+  let runner: ReturnType<typeof createWorktreeRunnerMocks> | undefined
+  return { getWorktreeRunnerMocks: () => (runner ??= createWorktreeRunnerMocks()) }
+})
+
+vi.mock('../git/command-runner/git-exec-file', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  gitExecFileAsync: (await getWorktreeRunnerMocks()).gitExecFileAsync
+}))
+
+vi.mock('../git/command-runner/git-exec-file-sync', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  gitExecFileSync: (await getWorktreeRunnerMocks()).gitExecFileSync
+}))
 vi.mock('../git/repo', async () =>
   (await import('./worktrees-test-module-mocks')).gitRepoModuleMock()
 )
+
+vi.mock('../git/repo-default-base-ref', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  getBaseRefDefault: (await import('./worktrees-test-module-mocks')).getBaseRefDefaultMock
+}))
 vi.mock('../git/git-username', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   resolveLocalGitUsername: (await import('./worktrees-test-module-mocks'))
@@ -39,36 +101,34 @@ vi.mock('../github/client', async () =>
 vi.mock('../source-control/hosted-review', async () =>
   (await import('./worktrees-test-module-mocks')).hostedReviewModuleMock()
 )
-vi.mock('../providers/ssh-git-dispatch', async () =>
-  (await import('./worktrees-test-module-mocks')).sshGitDispatchModuleMock()
-)
-vi.mock('../providers/ssh-filesystem-dispatch', async () =>
-  (await import('./worktrees-test-module-mocks')).sshFilesystemDispatchModuleMock()
-)
 vi.mock('./worktree-symlinks', async () =>
   (await import('./worktrees-test-module-mocks')).worktreeSymlinksModuleMock()
 )
-vi.mock('./ssh', async () => (await import('./worktrees-test-module-mocks')).sshModuleMock())
-vi.mock('../ssh/ssh-target-registry', async () =>
-  (await import('./worktrees-test-module-mocks')).sshTargetRegistryModuleMock()
+
+vi.mock('../git/worktrees/content-paths/worktree-symlink-detection', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  findExistingWorktreeSymlinkPaths: (await import('./worktrees-test-module-mocks'))
+    .findExistingWorktreeSymlinkPathsMock
+}))
+vi.mock('../workspace-hooks/hooks', async () =>
+  (await import('./worktrees-test-module-mocks')).hooksModuleMock()
 )
-vi.mock('../hooks', async () => (await import('./worktrees-test-module-mocks')).hooksModuleMock())
-vi.mock('../setup-runner-script-text', async (importOriginal) =>
+vi.mock('../workspace-hooks/setup-runner-script-text', async (importOriginal) =>
   (await import('./worktrees-test-module-mocks')).setupRunnerScriptTextModuleMock(
     await importOriginal<Record<string, unknown>>()
   )
 )
-vi.mock('../worktree-runner-script', async (importOriginal) =>
+vi.mock('../workspace-hooks/worktree-runner-script', async (importOriginal) =>
   (await import('./worktrees-test-module-mocks')).worktreeRunnerScriptModuleMock(
     await importOriginal<Record<string, unknown>>()
   )
 )
-vi.mock('../effective-hook-config', async (importOriginal) =>
+vi.mock('../workspace-hooks/effective-hook-config', async (importOriginal) =>
   (await import('./worktrees-test-module-mocks')).effectiveHookConfigModuleMock(
     await importOriginal<Record<string, unknown>>()
   )
 )
-vi.mock('../setup-hook-env-vars', async (importOriginal) =>
+vi.mock('../workspace-hooks/setup-hook-env-vars', async (importOriginal) =>
   (await import('./worktrees-test-module-mocks')).setupHookEnvVarsModuleMock(
     await importOriginal<Record<string, unknown>>()
   )
@@ -78,31 +138,36 @@ vi.mock('./worktree-logic', async (importOriginal) =>
     await importOriginal<Record<string, unknown>>()
   )
 )
-vi.mock('../terminal-history-deletion', async () =>
+vi.mock('../pty/history/terminal-history-deletion', async () =>
   (await import('./worktrees-test-module-mocks')).terminalHistoryDeletionModuleMock()
 )
 vi.mock('../ports/advertised-url-watcher', async () =>
   (await import('./worktrees-test-module-mocks')).advertisedUrlWatcherModuleMock()
 )
-vi.mock('../workspace-cleanup-scan-snapshot', async () =>
+vi.mock('../workspaces/cleanup/workspace-cleanup-scan-snapshot', async () =>
   (await import('./worktrees-test-module-mocks')).workspaceCleanupScanSnapshotModuleMock()
 )
-vi.mock('../workspace-space-analysis-snapshot', async () =>
+vi.mock('../workspaces/space-analysis/workspace-space-analysis-snapshot', async () =>
   (await import('./worktrees-test-module-mocks')).workspaceSpaceAnalysisSnapshotModuleMock()
 )
-vi.mock('../workspace-cleanup-removal-snapshot-prune', async () =>
+vi.mock('../workspaces/cleanup/workspace-cleanup-removal-snapshot-prune', async () =>
   (await import('./worktrees-test-module-mocks')).workspaceCleanupRemovalSnapshotPruneModuleMock()
 )
 vi.mock('../runtime/worktree-teardown', async () =>
   (await import('./worktrees-test-module-mocks')).worktreeTeardownModuleMock()
 )
-vi.mock('./pty', async () => (await import('./worktrees-test-module-mocks')).ptyModuleMock())
+vi.mock('./pty/provider/registry', async () =>
+  (await import('./worktrees-test-module-mocks')).ptyRegistryModuleMock()
+)
+vi.mock('./pty/provider/state-cleanup', async () =>
+  (await import('./worktrees-test-module-mocks')).ptyStateCleanupModuleMock()
+)
 
 vi.mock('../telemetry/client', () => ({
   track: trackMock,
   isTelemetryEnabled: telemetryEnabledMock
 }))
-vi.mock('../git/create-event-repo-probe', () => ({
+vi.mock('../git/worktrees/creation/create-event-repo-probe', () => ({
   probeCreateEventRepoFacts: probeHookMock
 }))
 
@@ -121,11 +186,7 @@ function makeRepo(fields: Record<string, unknown>) {
 function useRepo(repo: ReturnType<typeof makeRepo>): void {
   store.getRepos.mockReturnValue([repo])
   store.getRepo.mockReturnValue(repo)
-  store.setWorktreeMeta.mockImplementation((_worktreeId: string, meta: unknown) => meta)
-  getActiveMultiplexerMock.mockReturnValue({
-    request: vi.fn().mockResolvedValue(undefined),
-    notify: vi.fn()
-  })
+  store.setWorktreeMeta.mockImplementation((_target: unknown, meta: unknown) => meta)
 }
 
 function useLocalListing(): void {
@@ -133,36 +194,6 @@ function useLocalListing(): void {
     { path: '/workspace/repo', head: 'abc', branch: 'main', isBare: false, isMainWorktree: true },
     { path: '/workspace/wt', head: 'abc123', branch: 'wt', isBare: false, isMainWorktree: false }
   ])
-}
-
-function useSshProvider() {
-  useRepo(makeRepo({ path: '/remote/repo', executionHostId: 'ssh:target-a' }))
-  const provider = {
-    exec: vi.fn().mockImplementation(async (args: string[]) => {
-      if (args[0] === 'remote') {
-        return { stdout: 'origin\n', stderr: '' }
-      }
-      if (args[0] === 'show-ref') {
-        throw Object.assign(new Error('missing exact ref'), { code: 1 })
-      }
-      return { stdout: '', stderr: '' }
-    }),
-    fetchRemoteTrackingRef: vi.fn().mockResolvedValue(undefined),
-    addWorktree: vi.fn().mockResolvedValue(undefined),
-    listWorktrees: vi.fn().mockResolvedValue([
-      {
-        path: '/remote/repo-wt',
-        head: 'abc',
-        branch: 'refs/heads/wt',
-        isBare: false,
-        isMainWorktree: false
-      }
-    ])
-  }
-  getSshGitProviderMock.mockImplementation((connectionId: string) =>
-    connectionId === 'target-a' ? provider : undefined
-  )
-  return provider
 }
 
 function trackedEvents(name: string): Record<string, unknown>[] {
@@ -206,7 +237,7 @@ describe('worktrees:create event timing fields', () => {
 
     await handlers['worktrees:create'](null, { repoId: 'repo-1', name: 'wt' })
 
-    // The create already answered; the hook probe has not, so the event is not sent yet.
+    // Create has answered while the hook probe still delays telemetry.
     expect(trackedEvent('workspace_created')).toBeUndefined()
     const gitCallsAtReturn = gitWorkCallCount()
 
@@ -227,13 +258,11 @@ describe('worktrees:create event timing fields', () => {
       repo_file_count_bucket: '1k-10k',
       post_checkout_hook: 'present'
     })
-    // One create, one event: the runtime entry point never runs for an app create.
     expect(trackedEvents('workspace_created')).toHaveLength(1)
     expect(trackedEvents('workspace_create_failed')).toHaveLength(0)
     expect(typeof props?.total_ms).toBe('number')
     expect(typeof props?.git_worktree_add_ms).toBe('number')
     expect(props).toHaveProperty('prepared_checkout')
-    // Nothing that names the repo, the branch or a path rides along.
     expect(JSON.stringify(props)).not.toMatch(/workspace|wt|repo-1/)
   })
 
@@ -299,37 +328,16 @@ describe('worktrees:create event timing fields', () => {
     }
   )
 
-  it('records an SSH create without probing the remote for hooks', async () => {
-    useSshProvider()
+  it('refuses an SSH create and still names its host on the failed event', async () => {
+    useRepo(makeRepo({ path: '/remote/repo', executionHostId: 'ssh:target-a' }))
 
-    await handlers['worktrees:create'](null, { repoId: 'repo-1', name: 'wt' })
-    await vi.waitFor(() => expect(trackedEvent('workspace_created')).toBeDefined())
+    await expect(
+      handlers['worktrees:create'](null, { repoId: 'repo-1', name: 'wt' })
+    ).rejects.toThrow('Remote connection dropped')
 
+    expect(addWorktreeMock).not.toHaveBeenCalled()
     expect(probeHookMock).not.toHaveBeenCalled()
-    const props = trackedEvent('workspace_created')
-    expect(props).toMatchObject({ execution_host: 'ssh', worktree_count_bucket: '1' })
-    expect(props).not.toHaveProperty('post_checkout_hook')
-    expect(props).not.toHaveProperty('prepared_checkout')
-  })
-
-  it('attributes an old-relay SSH add error to the add through its cause', async () => {
-    const provider = useSshProvider()
-    provider.addWorktree.mockRejectedValue(new Error('Path outside authorized workspace: /x'))
-
-    let caught: unknown
-    try {
-      await handlers['worktrees:create'](null, { repoId: 'repo-1', name: 'wt' })
-    } catch (error) {
-      caught = error
-    }
-
-    expect(caught).toBeInstanceOf(Error)
-    expect(caught instanceof Error && caught.message).toMatch(/^Older relay reported/)
-    expect(caught instanceof Error && caught.cause).toBeInstanceOf(Error)
-    expect(trackedEvent('workspace_create_failed')).toMatchObject({
-      failed_phase: 'git_worktree_add',
-      execution_host: 'ssh'
-    })
+    expect(trackedEvent('workspace_create_failed')).toMatchObject({ execution_host: 'ssh' })
   })
 
   it('names the phase a failed create died in', async () => {
@@ -355,5 +363,34 @@ describe('worktrees:create event timing fields', () => {
     expect(trackedEvents('workspace_created')).toHaveLength(0)
     expect(typeof props?.total_ms).toBe('number')
     expect(JSON.stringify(props)).not.toMatch(/fatal|work tree/)
+  })
+})
+
+describe('worktrees:create checkout progress event', () => {
+  beforeEach(() => {
+    setupWorktreeHandlers()
+  })
+
+  it("forwards git's checkout meter to the pending create it belongs to", async () => {
+    useRepo(makeRepo({}))
+    useLocalListing()
+    await handlers['worktrees:create'](null, { repoId: 'repo-1', name: 'wt', creationId: 'c-7' })
+    const onCheckoutProgress = vi.mocked(addWorktree).mock.calls.at(-1)?.[6]?.onCheckoutProgress
+    vi.mocked(mainWindow.webContents.send).mockClear()
+
+    onCheckoutProgress?.({ percent: 42, completed: 420, total: 1000 })
+    onCheckoutProgress?.(null)
+
+    expect(vi.mocked(mainWindow.webContents.send).mock.calls).toEqual([
+      [
+        'createWorktree:progress',
+        {
+          creationId: 'c-7',
+          phase: 'creating',
+          checkout: { percent: 42, completed: 420, total: 1000 }
+        }
+      ],
+      ['createWorktree:progress', { creationId: 'c-7', phase: 'creating', checkout: null }]
+    ])
   })
 })

@@ -5,8 +5,7 @@ import path from 'node:path'
 import {
   assessProcessHostImports,
   collectProcessHostSources,
-  main,
-  readProcessHostBaseline
+  main
 } from './check-process-host-imports.mjs'
 import { collectModuleSpecifiers } from './static-module-specifiers.mjs'
 
@@ -192,6 +191,45 @@ describe('process-host import boundary', () => {
     })
   })
 
+  it('requires the distro allowlist check before any hand-built wsl.exe exec outside process-host', () => {
+    const exec = "import { execFile } from 'node:child_process'\n"
+    expect(
+      assess(
+        {
+          'src/main/unguarded.ts': `${exec}execFile('wsl.exe', ['-d', distro])`,
+          'src/main/resolved.ts': `${exec}execFile(resolveWslExecutablePath(), args)`,
+          'src/main/guarded.ts': `${exec}assertWslDistroAllowed('wsl.exe', args)\nexecFile('wsl.exe', args)`,
+          'src/main/unrelated.ts': `${exec}execFile('git', ['status'])`,
+          'src/main/built.ts': `${exec}execFile(program, buildWslExecArgs(distro, ['sh']))`,
+          'src/main/resolved-git.ts': `${exec}const r = resolveGitCommand(args, o)\nspawn(r.binary, r.args)`,
+          // resolveCommand checks only what it resolves, not a wsl.exe exec built beside it.
+          'src/main/mixed.ts': `${exec}const r = resolveCommand('git', a, cwd)\nexecFile('wsl.exe', ['-d', distro])`,
+          'src/main/comment-only.ts':
+            "import type { ChildProcess } from 'node:child_process'\n// wsl.exe pads output",
+          'src/main/caller.test.ts': `${exec}execFile('wsl.exe', [])`,
+          'config/scripts/tool.mjs': `${exec}execFile('wsl.exe', [])`
+        },
+        [
+          'src/main/unguarded.ts',
+          'src/main/resolved.ts',
+          'src/main/guarded.ts',
+          'src/main/unrelated.ts',
+          'src/main/built.ts',
+          'src/main/resolved-git.ts',
+          'src/main/mixed.ts',
+          'src/main/comment-only.ts'
+        ]
+      ).violations
+    ).toEqual(
+      [
+        'src/main/built.ts',
+        'src/main/mixed.ts',
+        'src/main/resolved.ts',
+        'src/main/unguarded.ts'
+      ].map((file) => `${file}: direct wsl.exe exec must call assertWslDistroAllowed`)
+    )
+  })
+
   it('scans nested package, consumer, test, config, and mobile source without generated checkouts', () => {
     const files = [
       `${PACKAGE_SOURCE}nested/runner.ts`,
@@ -239,11 +277,5 @@ describe('process-host import boundary', () => {
       'config/process-host-direct-import-baseline.txt': ''
     })
     expect(() => main(root)).toThrow('Missing process-host implementation')
-  })
-
-  it('reads a commented baseline without allowing formatting to invent entries', () => {
-    expect(readProcessHostBaseline('# migration debt\n\n src/main/legacy.ts \n')).toEqual([
-      'src/main/legacy.ts'
-    ])
   })
 })

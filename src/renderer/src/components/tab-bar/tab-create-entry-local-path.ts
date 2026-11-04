@@ -2,9 +2,15 @@ import { getEditorFileOperationContext } from '@/lib/editor-file-operation-owner
 import { getFolderWorkspaceConnectionId } from '@/lib/folder-workspace-connection'
 import { getLocalPathOpenOwnerForRoute, isLocalPathOpenBlocked } from '@/lib/local-path-open-guard'
 import { getResolvedExecutionHostIdForWorktree } from '@/lib/resolved-worktree-execution-host'
-import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client'
+import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client-types'
 import type { useAppStore } from '@/store'
 import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
+import { runtimeTargetEnvironmentId } from '@/runtime/runtime-client-target'
+import {
+  selectDetectedWorktreesByRepo,
+  selectFolderWorkspaces,
+  selectWorktreesByRepo
+} from '@/store/workspace-record-selectors'
 
 type TabEntryAbsolutePathOwnerState = Pick<
   ReturnType<typeof useAppStore.getState>,
@@ -23,12 +29,11 @@ type TabEntryAbsolutePathOwnerState = Pick<
 >
 
 export function isTabEntryAbsolutePathAllowed(
-  context: Pick<RuntimeFileOperationArgs, 'connectionId' | 'settings'>
+  context: Pick<RuntimeFileOperationArgs, 'connectionId' | 'target'>
 ): boolean {
-  // Why: file-operation contexts pin `settings` to the route owner, never to the focused server.
   return !isLocalPathOpenBlocked(
     getLocalPathOpenOwnerForRoute({
-      runtimeEnvironmentId: context.settings?.activeRuntimeEnvironmentId,
+      runtimeEnvironmentId: runtimeTargetEnvironmentId(context.target),
       connectionId: context.connectionId
     })
   )
@@ -69,9 +74,7 @@ export function getTabEntryFileOperationContext(
       getFolderWorkspaceConnectionId(state, workspaceKey.folderWorkspaceId) === null
     ) {
       return {
-        settings: state.settings
-          ? { ...state.settings, activeRuntimeEnvironmentId: null }
-          : { activeRuntimeEnvironmentId: null },
+        target: { kind: 'local' },
         worktreeId,
         worktreePath,
         expectedExecutionHostId: 'local'
@@ -94,9 +97,9 @@ export function createTabEntryAllowAbsolutePathsSelector(
     if (
       previousSlices?.settings === state.settings &&
       previousSlices.repos === state.repos &&
-      previousSlices.worktreesByRepo === state.worktreesByRepo &&
-      previousSlices.detectedWorktreesByRepo === state.detectedWorktreesByRepo &&
-      previousSlices.folderWorkspaces === state.folderWorkspaces &&
+      selectWorktreesByRepo(previousSlices) === selectWorktreesByRepo(state) &&
+      selectDetectedWorktreesByRepo(previousSlices) === selectDetectedWorktreesByRepo(state) &&
+      selectFolderWorkspaces(previousSlices) === selectFolderWorkspaces(state) &&
       previousSlices.projectGroups === state.projectGroups &&
       previousSlices.runtimeEnvironments === state.runtimeEnvironments &&
       previousSlices.runtimeEnvironmentCatalogHydrated ===
@@ -112,9 +115,9 @@ export function createTabEntryAllowAbsolutePathsSelector(
     previousSlices = {
       settings: state.settings,
       repos: state.repos,
-      worktreesByRepo: state.worktreesByRepo,
-      detectedWorktreesByRepo: state.detectedWorktreesByRepo,
-      folderWorkspaces: state.folderWorkspaces,
+      worktreesByRepo: selectWorktreesByRepo(state),
+      detectedWorktreesByRepo: selectDetectedWorktreesByRepo(state),
+      folderWorkspaces: selectFolderWorkspaces(state),
       projectGroups: state.projectGroups,
       runtimeEnvironments: state.runtimeEnvironments,
       runtimeEnvironmentCatalogHydrated: state.runtimeEnvironmentCatalogHydrated,

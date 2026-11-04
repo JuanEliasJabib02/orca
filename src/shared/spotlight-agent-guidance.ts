@@ -1,5 +1,5 @@
 import type { Repo } from './repo-types'
-import type { TuiAgent } from './tui-agent'
+import type { TuiAgent } from './agent-launch/catalog/tui-agent'
 
 /** Single-line so it survives startup-command tokenizing/quoting; avoids quotes,
  *  backslashes, `$`, backticks, AND parentheses so it embeds in the launch

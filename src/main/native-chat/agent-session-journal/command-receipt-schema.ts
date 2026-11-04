@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from 'node:util'
 import { z } from 'zod'
 import type Database from '../../sqlite/sync-database'
-import { readAgentSessionRefusalReference } from '../../../shared/agent-session-wire-refusals'
+import { readAgentSessionRefusalReference } from '../../../shared/agent-session/failures/agent-session-wire-refusals'
 
 export const commandReceiptScopeSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('global') }),
@@ -10,7 +10,7 @@ export const commandReceiptScopeSchema = z.discriminatedUnion('kind', [
 
 export type CommandReceiptScope = z.infer<typeof commandReceiptScopeSchema>
 
-/** Sends look across callers; other methods look up only the authenticated caller's row. */
+/** Sends deduplicate across callers; other receipts remain authenticated-caller scoped. */
 export function commandReceiptScope(
   callerKey: string,
   operationIdScope?: 'global'
@@ -18,7 +18,7 @@ export function commandReceiptScope(
   return operationIdScope === 'global' ? { kind: 'global' } : { kind: 'caller', callerKey }
 }
 
-/** The pointer locates the result; if its row is gone, the command stays spent: read what remains, else unknown, never rerun. */
+// Missing referenced rows never authorize rerunning spent commands; replay remaining facts or answer unknown.
 export const commandReceiptResultSchema = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('journal-row'),
@@ -29,6 +29,28 @@ export const commandReceiptResultSchema = z.discriminatedUnion('kind', [
     kind: z.literal('queued-draft'),
     messageId: z.string().min(1)
   }),
+  // Persist accepted prompt answers so rewinds/revisions cannot change their replay.
+  z.strictObject({
+    kind: z.literal('prompt-answer'),
+    itemId: z.string().min(1),
+    revision: z.int().positive(),
+    resolution: z.strictObject({
+      state: z.literal('resolved'),
+      selectedOptionId: z.string().nullable(),
+      answers: z
+        .array(
+          z.strictObject({
+            questionId: z.string(),
+            optionIds: z.array(z.string()),
+            other: z.string().optional()
+          })
+        )
+        .optional(),
+      resolvedBy: z.string().nullable(),
+      resolvedAt: z.number().nullable()
+    })
+  }),
+  z.strictObject({ kind: z.literal('stop') }),
   z.strictObject({
     kind: z.literal('no-op'),
     outcome: z.discriminatedUnion('kind', [
@@ -37,7 +59,17 @@ export const commandReceiptResultSchema = z.discriminatedUnion('kind', [
         cancelled: z.literal(false),
         turnId: z.string().optional()
       }),
-      z.strictObject({ kind: z.literal('queue-resume'), resumed: z.literal(false) })
+      z.strictObject({ kind: z.literal('queue-resume'), resumed: z.literal(false) }),
+      z.strictObject({
+        kind: z.literal('queue-move'),
+        messageId: z.string().min(1).max(512),
+        status: z.enum(['moved', 'unchanged', 'gone', 'stale'])
+      }),
+      z.strictObject({
+        kind: z.literal('queue-delete'),
+        messageId: z.string().min(1),
+        disposition: z.enum(['dispatched', 'withdrawn', 'missing'])
+      })
     ])
   })
 ])
@@ -79,7 +111,7 @@ export const commandReceiptSchema = z.discriminatedUnion('status', [
 
 export type CommandReceipt = z.infer<typeof commandReceiptSchema>
 
-/** Additive, so no version bump: one would stop older builds writing this database. */
+// Additive tables preserve older clients' database write compatibility.
 export function ensureCommandReceiptsTable(db: Database.Database): void {
   db.exec(`
 CREATE TABLE IF NOT EXISTS agent_session_command_receipts (

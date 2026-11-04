@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
-import type { TaskSectionInfo } from '../grouping/row-types'
+import type { TaskSectionInfo } from '../../../../../../shared/sidebar-list/row-types'
 import { TaskSpotlightEnvPill } from './TaskSpotlightEnvPill'
 import { holdersByRepo, makeSpotlightRepo, makeTaskWorktree } from './task-spotlight-test-fixtures'
 

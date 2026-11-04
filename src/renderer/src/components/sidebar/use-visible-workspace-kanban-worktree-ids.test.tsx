@@ -4,9 +4,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { useAppStore } from '@/store'
 import type { ProjectGroup } from '../../../../shared/project-group-types'
+import { structuredAgentSessionPaneKey } from '../../../../shared/agent-session/view/structured-agent-session-projection'
 import type { Tab } from '../../../../shared/tab-types'
 import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
-import { makeRepo, makeWorktree } from '../worktree-jump-palette-test-fixtures'
+import { makeRepo, makeWorktree } from '../worktree-jump/worktree-jump-palette-test-fixtures'
 import { useVisibleWorkspaceKanbanWorktreeIds } from './use-visible-workspace-kanban-worktree-ids'
 import { buildWorkspaceKanbanLaneViews } from './workspace-kanban-search'
 import {
@@ -84,6 +85,9 @@ describe('useVisibleWorkspaceKanbanWorktreeIds', () => {
     useAppStore.setState({
       worktreesByRepo: { [repo.id]: [worktree] },
       unifiedTabsByWorktree: { [worktree.id]: [structuredTab] },
+      structuredChatSleptAtByPaneKey: {
+        [structuredAgentSessionPaneKey(structuredTab.id, structuredTab.entityId)]: null
+      },
       showSleepingWorkspaces: false
     })
 

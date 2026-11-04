@@ -6,6 +6,10 @@ import {
   createBinaryStreamFrameReader,
   type DaemonStreamFraming
 } from './daemon-stream-binary-framing'
+import {
+  attachTurnBoundedSocketReader,
+  type TurnBoundedSocketReader
+} from './daemon-stream-ingest-turn-bound'
 import type { DaemonEvent, RpcResponse } from './types'
 
 export function attachControlResponseReader(
@@ -13,12 +17,11 @@ export function attachControlResponseReader(
   onResponse: (response: RpcResponse) => void,
   remainder: Buffer = Buffer.alloc(0)
 ): () => void {
-  // Why: control responses may contain terminal/startup data with multibyte
-  // text; keep incomplete UTF-8 bytes until the next socket chunk.
+  // Preserve multibyte UTF-8 sequences split across socket chunks.
   const decoder = new StringDecoder('utf8')
   const parser = createNdjsonParser(
     (msg) => onResponse(msg as RpcResponse),
-    () => {} // Ignore parse errors on control socket
+    () => {}
   )
 
   const onData = (chunk: Buffer) => parser.feed(decoder.write(chunk))
@@ -38,17 +41,12 @@ export function attachStreamEventReader(
   socket: Socket,
   { streamFraming, remainder }: StreamEventReaderFraming,
   onEvent: (event: DaemonEvent) => void
-): () => void {
+): TurnBoundedSocketReader {
   if (streamFraming === BINARY_STREAM_FRAMING) {
     const reader = createBinaryStreamFrameReader(onEvent, (error) => socket.destroy(error))
-    const onFrameData = (chunk: Buffer) => reader.feed(chunk)
-    socket.on('data', onFrameData)
-    reader.feed(remainder)
-    socket.resume()
-    return () => socket.off('data', onFrameData)
+    return attachTurnBoundedSocketReader(socket, (chunk) => reader.feed(chunk), remainder)
   }
-  // Why: PTY output streams include emoji/box-drawing tables; socket chunks
-  // can split those UTF-8 sequences across packets.
+  // PTY output can split multibyte UTF-8 sequences across socket chunks.
   const decoder = new StringDecoder('utf8')
   const parser = createNdjsonParser(
     (msg) => {
@@ -57,12 +55,11 @@ export function attachStreamEventReader(
         onEvent(event)
       }
     },
-    () => {} // Ignore parse errors on stream socket
+    () => {}
   )
-
-  const onData = (chunk: Buffer) => parser.feed(decoder.write(chunk))
-  socket.on('data', onData)
-  onData(remainder)
-  socket.resume()
-  return () => socket.off('data', onData)
+  return attachTurnBoundedSocketReader(
+    socket,
+    (chunk) => parser.feed(decoder.write(chunk)),
+    remainder
+  )
 }

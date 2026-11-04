@@ -1,17 +1,20 @@
+import { createPiRpcLaunchResolver } from '../runtime/structured-agent-launch-composition.test-support'
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../shared/constants'
-import type { AgentSessionJournalIdentity } from '../../shared/agent-session-journal-types'
-import type { AgentSessionProviderHandleLink } from '../../shared/agent-session-provider-handle'
-import { agentSessionProviderHandleKey } from '../../shared/agent-session-provider-handle'
+import type { AgentSessionJournalIdentity } from '../../shared/agent-session/journal/agent-session-journal-identity'
+import type { AgentSessionProviderHandleLink } from '../../shared/agent-session/lifecycle/agent-session-provider-handle'
+import { agentSessionProviderHandleKey } from '../../shared/agent-session/lifecycle/agent-session-provider-handle-encoding'
 import { closeTestJournalHostDatabase } from '../native-chat/agent-session-journal/journal-host-database-test-support'
-import { openTestAgentSessionRecordStore } from '../runtime/agent-session-record-store-test-harness'
+import { openTestAgentSessionRecordStore } from '../runtime/agent-session/records/agent-session-record-store-test-harness'
 import { buildPiRpcLaunch } from './rpc-launch'
-import { createPiRpcLaunchResolver, piRpcProviderLink } from './rpc-launch-resolution'
+import { piRpcProviderLink } from './rpc-launch-resolution'
 
-const probeVersion = vi.fn(async (..._input: unknown[]) => true)
+const probeVersion = vi.fn(async (..._input: unknown[]): Promise<{ version: string | null }> => ({
+  version: '0.84.0'
+}))
 
 const identity: AgentSessionJournalIdentity = {
   sessionId: 'session-pi-resolve',
@@ -22,11 +25,11 @@ const identity: AgentSessionJournalIdentity = {
 }
 let root: string
 beforeEach(async () => {
-  probeVersion.mockReset().mockResolvedValue(true)
+  probeVersion.mockReset().mockResolvedValue({ version: '0.84.0' })
   root = await mkdtemp(join(tmpdir(), 'orca-pi-resolver-'))
 })
 afterEach(async () => {
-  closeTestJournalHostDatabase(root)
+  await closeTestJournalHostDatabase(root)
   await rm(root, { recursive: true, force: true })
 })
 
@@ -82,24 +85,27 @@ async function setup() {
     observedAt: 100
   })
   const withPrior = (link: AgentSessionProviderHandleLink) => {
-    vi.spyOn(store, 'getRecord').mockReturnValue({ ...record, providerHandleChain: [link] })
+    vi.spyOn(store, 'requireWritableRecord').mockReturnValue({
+      ...record,
+      providerHandleChain: [link]
+    })
   }
   return { store, record, workspace, resolver, resolveCommand, settings, prior, withPrior }
 }
 
 describe('Pi host launch resolution', () => {
-  it('refuses acquisition if the selected binary was replaced by an unsupported version', async () => {
+  it('refuses acquisition if the selected binary was replaced by a too-old version', async () => {
     const h = await setup()
-    probeVersion.mockResolvedValue(false)
-    await expect(h.resolver(identity)).rejects.toThrow('structured_agent_session_unsupported')
-    expect(probeVersion).toHaveBeenCalledWith(
-      {
-        program: '/host/bin/pi',
-        cwd: h.workspace,
-        env: { PATH: '/host/bin', HOME: '/host/home', PI_CODING_AGENT_DIR: '/host/account' }
-      },
-      expect.any(Function)
-    )
+    probeVersion.mockResolvedValue({ version: '0.83.9' })
+    await expect(h.resolver(identity)).rejects.toMatchObject({
+      installation: { agent: 'pi', installedVersion: '0.83.9', minimumVersion: '0.84.0' }
+    })
+    expect(probeVersion).toHaveBeenCalledWith({
+      program: '/host/bin/pi',
+      prefixArgs: [],
+      cwd: h.workspace,
+      env: { PATH: '/host/bin', HOME: '/host/home', PI_CODING_AGENT_DIR: '/host/account' }
+    })
   })
 
   it('uses the runtime workspace, binary and account home for a new folder session', async () => {
@@ -118,11 +124,32 @@ describe('Pi host launch resolution', () => {
     })
   })
 
+  it('resolves Pi again after one environment refresh when the snapshot has no Pi', async () => {
+    const h = await setup()
+    let path = '/before-install'
+    const refresh = vi.fn(async () => {
+      path = '/host/bin'
+    })
+    const resolver = createPiRpcLaunchResolver({
+      store: h.store,
+      resolveWorkspacePath: async () => h.workspace,
+      resolveEnvironment: async () => ({ PATH: path, HOME: '/host/home' }),
+      refreshAfterMissingProgram: refresh,
+      resolveCommand: (name, options) => (options?.pathEnv === '/host/bin' ? '/host/bin/pi' : name),
+      probeVersion
+    })
+    await expect(resolver(identity)).resolves.toMatchObject({
+      command: '/host/bin/pi',
+      env: { PATH: '/host/bin' }
+    })
+    expect(refresh).toHaveBeenCalledOnce()
+  })
+
   it('starts a fresh session after clear without reading the previous file', async () => {
     const h = await setup()
     const old = join(root, 'old-malformed.jsonl')
     await writeFile(old, 'not a Pi session header')
-    vi.spyOn(h.store, 'getRecord').mockReturnValue({
+    vi.spyOn(h.store, 'requireWritableRecord').mockReturnValue({
       ...h.record,
       providerHandleChain: [],
       providerContextBoundary: { operationId: 'clear', afterFence: 2, clearedAt: 100 }
@@ -195,8 +222,7 @@ describe('Pi host launch resolution', () => {
       link: { ...h.prior(file), mintedAtFence: fence },
       now: 1_800_000_000_002
     })
-    // A restart: the store is closed and a fresh one reads the record back from disk.
-    closeTestJournalHostDatabase(root)
+    await closeTestJournalHostDatabase(root)
     const reopened = await openTestAgentSessionRecordStore(root)
     const launch = await createPiRpcLaunchResolver({
       store: reopened,
@@ -233,12 +259,12 @@ describe('Pi host launch resolution', () => {
     if (!record) {
       throw new Error('record missing')
     }
-    vi.spyOn(h.store, 'getRecord').mockReturnValue({
+    vi.spyOn(h.store, 'requireWritableRecord').mockReturnValue({
       ...record,
       location: { ...record.location, executionHostId: 'ssh:remote' }
     })
-    await expect(h.resolver(identity)).rejects.toThrow('another execution host')
-    vi.spyOn(h.store, 'getRecord').mockReturnValue({
+    await expect(h.resolver(identity)).rejects.toThrow('run on the local host')
+    vi.spyOn(h.store, 'requireWritableRecord').mockReturnValue({
       ...record,
       accountHome: { variable: 'CODEX_HOME', path: '/wrong' }
     })
@@ -257,7 +283,7 @@ describe('Pi launch folder of a floating chat', () => {
       location: { ...h.record.location, workspaceId: FLOATING_TERMINAL_WORKTREE_ID },
       ...(launchDirectory ? { launchDirectory } : {})
     }
-    vi.spyOn(h.store, 'getRecord').mockReturnValue(floating)
+    vi.spyOn(h.store, 'requireWritableRecord').mockReturnValue(floating)
     const pinLaunchDirectory = vi.spyOn(h.store, 'pinLaunchDirectory').mockResolvedValue(floating)
     const resolveWorkspacePath = vi.fn(async () => moved)
     const resolver = createPiRpcLaunchResolver({
@@ -274,7 +300,7 @@ describe('Pi launch folder of a floating chat', () => {
     const h = await floatingSetup(join(root, 'workspace'))
     const file = join(root, 'pinned.jsonl')
     await writeFile(file, `${JSON.stringify({ type: 'session', cwd: h.workspace })}\n`)
-    vi.spyOn(h.store, 'getRecord').mockReturnValue({
+    vi.spyOn(h.store, 'requireWritableRecord').mockReturnValue({
       ...h.floating,
       providerHandleChain: [h.prior(file)]
     })
@@ -302,7 +328,10 @@ describe('Pi launch folder of a floating chat', () => {
 
   it('keeps resolving a folder chat by its workspace, ignoring any recorded folder', async () => {
     const h = await setup()
-    vi.spyOn(h.store, 'getRecord').mockReturnValue({ ...h.record, launchDirectory: '/elsewhere' })
+    vi.spyOn(h.store, 'requireWritableRecord').mockReturnValue({
+      ...h.record,
+      launchDirectory: '/elsewhere'
+    })
     await expect(h.resolver(identity)).resolves.toMatchObject({ cwd: h.workspace })
   })
 })

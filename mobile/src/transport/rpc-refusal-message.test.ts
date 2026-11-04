@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { summarizeCommitFailure } from '../../../src/shared/source-control-commit-failure'
+import { summarizeCommitFailure } from '../../../src/shared/source-control/recovery/source-control-commit-failure'
 import { hostReplyErrorTextOrFallback, refusedRpcMessageOrFallback } from './rpc-refusal-message'
 
 describe('refusedRpcMessageOrFallback', () => {
@@ -32,7 +32,7 @@ describe('hostReplyErrorTextOrFallback', () => {
     expect(hostReplyErrorTextOrFallback(true, 'Commit failed')).toBe('Commit failed')
   })
 
-  // The consumer that main's pass-through broke: `.slice` on an object, `.replace` on an array.
+  // Malformed text must remain safe for consumers that call .slice or .replace.
   it('yields text the commit-failure summarizer can read', () => {
     for (const malformed of [{ message: 'inner refused' }, ['inner refused'], 7]) {
       expect(summarizeCommitFailure(hostReplyErrorTextOrFallback(malformed, 'Commit failed'))).toBe(

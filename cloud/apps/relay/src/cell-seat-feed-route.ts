@@ -7,8 +7,7 @@ import type { AppliedControlFlags } from './relay-control-flag-channel.js'
 import type { RelayRuntimeCounts } from './relay-observability.js'
 import { readBearer } from './relay-token-verifier.js'
 
-// Read-only, so it reuses the directors' rehome credential and grants it nothing new. Only
-// cells that already hold the rehome pair serve it: giving a cell the pair turns rehome on.
+// Reuse read-only rehome credentials only on cells already holding the pair; distributing it further would enable rehome.
 export function registerCellSeatFeedRoute(
   app: Hono,
   config: RelayConfig,
@@ -22,6 +21,8 @@ export function registerCellSeatFeedRoute(
     // A placing director's poll (reserver=1) feeds the cell's dead-man.
     onReserverPoll?: () => void
     admitModeEffective?: () => 'db' | 'reserve'
+    // Switch file and dead-man only: db the moment the cell trips, while re-registration runs.
+    admitModeRaw?: () => 'db' | 'reserve'
     // Step 5: what a director needs to estimate a seat and a booking here.
     reserveCounts?: () => {
       bookings: number
@@ -74,6 +75,7 @@ export function registerCellSeatFeedRoute(
       // Applied, never desired: generation 0 means no object has been read since boot.
       ...(input.cellFlags ? { flagsApplied: input.cellFlags() } : {}),
       ...(input.admitModeEffective ? { admitModeEffective: input.admitModeEffective() } : {}),
+      ...(input.admitModeRaw ? { admitModeRaw: input.admitModeRaw() } : {}),
       ...page
     })
   })

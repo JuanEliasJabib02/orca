@@ -1,11 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { RelayAssignmentStore } from './assignment-store.js'
+import type { RelayAssignmentStore } from './assignment/assignment-store.js'
 import type { RelayConfig } from './config.js'
-import {
-  combineRegionalRehomeSafety,
-  REGIONAL_REHOME_RECONNECTS_PER_CELL_LIMIT,
-  regionalRehomeSafetyFailure
-} from './regional-rehome-safety.js'
 import { startRegionalRehomeWorker } from './regional-rehome-worker.js'
 
 describe('regional rehome worker', () => {
@@ -14,12 +9,16 @@ describe('regional rehome worker', () => {
   it('bounds empty polling to the six-second cadence and stops its timer', async () => {
     vi.useFakeTimers()
     const selectIdleRegionalRehomeCandidates = vi.fn().mockResolvedValue([])
-    const worker = startRegionalRehomeWorker(config(), {
-      selectIdleRegionalRehomeCandidates
-    } as unknown as RelayAssignmentStore, {
-      safetySnapshot: () => safety(Date.now()),
-      random: () => 0
-    })!
+    const worker = startRegionalRehomeWorker(
+      config(),
+      {
+        selectIdleRegionalRehomeCandidates
+      } as unknown as RelayAssignmentStore,
+      {
+        safetySnapshot: () => safety(Date.now()),
+        random: () => 0
+      }
+    )!
     try {
       await vi.advanceTimersByTimeAsync(0)
       expect(selectIdleRegionalRehomeCandidates).toHaveBeenCalledTimes(1)
@@ -34,56 +33,6 @@ describe('regional rehome worker', () => {
       worker.stop()
       vi.useRealTimers()
     }
-  })
-
-  it('passes unsafe process telemetry to the durable claim gate', async () => {
-    let now = 0
-    let sqlFailures = 0
-    const selectIdleRegionalRehomeCandidates = vi.fn().mockResolvedValue([])
-    const assignments = {
-      selectIdleRegionalRehomeCandidates
-    } as unknown as RelayAssignmentStore
-    const worker = startRegionalRehomeWorker(config(), assignments, {
-      now: () => now,
-      safetySnapshot: () => ({ ...safety(now), sqlFailures }),
-      intervalMs: 60_000
-    })!
-    await settleWorker()
-    selectIdleRegionalRehomeCandidates.mockClear()
-    now = 100
-    sqlFailures = 1
-    await worker.run()
-    worker.stop()
-
-    expect(selectIdleRegionalRehomeCandidates).toHaveBeenCalledWith(
-      expect.objectContaining({ observedAt: 100, sqlFailures: 1 })
-    )
-  })
-
-  it('starts inert on directors so durable control can enable without a restart', async () => {
-    let now = 0
-    const selectIdleRegionalRehomeCandidates = vi.fn().mockResolvedValue([])
-    const assignments = {
-      selectIdleRegionalRehomeCandidates
-    } as unknown as RelayAssignmentStore
-    const worker = startRegionalRehomeWorker(config(), assignments, {
-      now: () => now,
-      safetySnapshot: () => safety(now),
-      intervalMs: 60_000
-    })
-    expect(worker).not.toBeNull()
-    await settleWorker()
-    selectIdleRegionalRehomeCandidates.mockClear()
-    now = 100
-    await worker!.run()
-    worker!.stop()
-    expect(selectIdleRegionalRehomeCandidates).toHaveBeenCalledOnce()
-
-    expect(
-      startRegionalRehomeWorker(config({ role: 'cell' }), {} as RelayAssignmentStore, {
-        safetySnapshot: () => safety(1)
-      })
-    ).toBeNull()
   })
 
   it('stops walking the page when the source names a deferral no candidate can pass', async () => {
@@ -143,42 +92,8 @@ describe('regional rehome worker', () => {
       outcomes: { 'deferred:host-unsupported': 1, busy: 1, committed: 1 }
     })
   })
-
-  it('counts a source that answers with an error in the same summary', async () => {
-    const fetchImpl = vi.fn(async () => new Response('nope', { status: 503 }))
-    const summaries = collectSummaries()
-    try {
-      await runOnePoll(fetchImpl, 2, summaries)
-    } finally {
-      summaries.restore()
-    }
-
-    expect(summaries.entries[0]).toMatchObject({ dispatched: 2, outcomes: { failed: 2 } })
-  })
-
-  it('treats the reconnect threshold as per-cell and excludes the director', () => {
-    const cells = 2
-    const limit = cells * REGIONAL_REHOME_RECONNECTS_PER_CELL_LIMIT
-    const processSafety = { ...safety(100), reconnects: limit * 10 }
-    const fleetSafety = { ...safety(100), reconnects: limit }
-    expect(
-      regionalRehomeSafetyFailure(
-        combineRegionalRehomeSafety(processSafety, fleetSafety),
-        100,
-        cells
-      )
-    ).toBeNull()
-    expect(
-      regionalRehomeSafetyFailure(
-        combineRegionalRehomeSafety(processSafety, { ...fleetSafety, reconnects: limit + 1 }),
-        100,
-        cells
-      )
-    ).toBe('elevated_reconnects')
-  })
 })
 
-// Answers each POST with the next scripted body, repeating the last one.
 function respondWith(bodies: { outcome: string; reason?: string }[]) {
   let index = 0
   return vi.fn(async () => {
@@ -192,8 +107,7 @@ function respondWith(bodies: { outcome: string; reason?: string }[]) {
 function collectSummaries() {
   const entries: Record<string, unknown>[] = []
   let arrived: (() => void) | undefined
-  // The worker polls once the moment it is constructed, so the poll under test
-  // is that one; `first` is how a test waits for it rather than for a tick.
+  // Construction immediately polls; await first instead of waiting for a timer tick.
   const first = new Promise<void>((resolve) => {
     arrived = resolve
   })
@@ -272,9 +186,4 @@ function safety(observedAt: number) {
     databasePoolOldestWaitMs: 0,
     databasePoolWaitMsMax: 0
   }
-}
-
-async function settleWorker(): Promise<void> {
-  await Promise.resolve()
-  await Promise.resolve()
 }

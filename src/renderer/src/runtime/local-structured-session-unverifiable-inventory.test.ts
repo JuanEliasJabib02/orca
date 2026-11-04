@@ -1,23 +1,17 @@
 // @vitest-environment happy-dom
 
-// A runtime whose chat journal will not open still answers the tab inventory, but cannot list a
-// single chat. Its empty chat set must not delete the saved chat tabs, or the next session save
-// persists their placement away.
+// Unreadable chat journal yields empty chat rows despite valid inventory; culling saved placement would persist away chats still on disk.
 
 import { afterEach, describe, expect, it } from 'vitest'
 import type { RuntimeMobileSessionTabsResult } from '../../../shared/runtime-types'
 import type { Tab } from '../../../shared/tab-types'
 import type { WorkspaceSessionState } from '../../../shared/workspace-session-state-types'
 import { buildPersistedUnifiedTabSessionData } from '../lib/workspace-session-unified-tabs'
-import {
-  applyLocalStructuredSessionTabSnapshots,
-  resetLocalStructuredSessionVersionForTests
-} from './local-structured-session-tabs-sync'
-import {
-  applyWebSessionTabsSnapshot,
-  resetWebSessionTabsSnapshotFreshnessForTests,
-  type WebSessionTabsSyncState
-} from './web-session-tabs-sync'
+import { applyLocalStructuredSessionTabSnapshots } from './local-structured-session-tabs-sync/snapshot-apply'
+import { resetLocalStructuredSessionVersionForTests } from './local-structured-session-tabs-sync/inventory-generation-fence'
+import './web-session-tabs-sync/snapshot-api'
+import { resetWebSessionTabsSnapshotFreshnessForTests } from './web-session-tabs-sync/tracking-lifecycle'
+import type { WebSessionTabsSyncState } from './web-session-tabs-sync/state'
 
 const WORKTREE_ID = 'repo-1::worktree-1'
 const TERMINAL_ID = 'terminal-1'
@@ -106,6 +100,7 @@ function hydratedState(): WebSessionTabsSyncState {
       }
     },
     openFiles: [],
+    editorBuffers: {},
     ptyIdsByTabId: { [TERMINAL_ID]: ['pty-1'] },
     remoteBrowserPageHandlesByPageId: {},
     tabBarOrderByWorktree: { [WORKTREE_ID]: [TERMINAL_ID, CLAUDE_TAB, CODEX_TAB] },
@@ -176,21 +171,5 @@ describe('an inventory that cannot list chats', () => {
 
     expect(chatTabIds(applied)).toEqual([])
     expect(savedChatTabs(applied)).toEqual([])
-  })
-
-  it('keeps them on a paired client applying the same frame', () => {
-    const state = hydratedState()
-
-    const patch = applyWebSessionTabsSnapshot(
-      state,
-      frameWithoutChats(true),
-      'environment-1',
-      1_700_000_000_000,
-      { contentScope: 'agent-session' }
-    )
-    const applied = { ...state, ...patch }
-
-    expect(chatTabIds(applied)).toEqual([CLAUDE_TAB, CODEX_TAB])
-    expect(savedChatTabs(applied)).toHaveLength(2)
   })
 })

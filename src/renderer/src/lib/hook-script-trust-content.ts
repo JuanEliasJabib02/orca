@@ -1,31 +1,18 @@
 import type { AppState } from '@/store/types'
 import type { OrcaHooks } from '../../../shared/orca-yaml-hook-types'
 import { resolveHookCommandSourcePolicy } from '../../../shared/hook-command-source-policy'
+import { getSetupTrustContent } from '../../../shared/orca-hook-setup-config'
+import { canUseRepoWideTrust } from '../../../shared/orca-hook-trust-entries'
 import { hashOrcaHookScript, type OrcaHookScriptKind } from './orca-hook-trust'
 import { checkRuntimeHooks, readRuntimeIssueCommand } from '@/runtime/runtime-hooks-client'
-import { getRuntimeEnvironmentIdForRepo } from './repo-runtime-owner'
 import {
   getRepoExecutionHostId,
-  parseExecutionHostId,
+  toRuntimeExecutionHostId,
   type ExecutionHostId
 } from '../../../shared/execution-host'
 
 // Why its own module: the trust prompt (ensure-hooks-confirmed) and prompt-free callers such as
 // companion worktree creation must read the same script text and the same approvals.
-
-function getSetupTrustContent(yamlHooks: OrcaHooks | null): string {
-  const defaultTabCommands = (yamlHooks?.defaultTabs ?? [])
-    .map((tab, index) => {
-      const command = tab.command?.trim()
-      if (!command) {
-        return null
-      }
-      const label = tab.title ? ` ${tab.title}` : ''
-      return `# defaultTabs[${index + 1}]${label}\n${command}`
-    })
-    .filter((entry): entry is string => entry !== null)
-  return [yamlHooks?.scripts?.setup?.trim(), ...defaultTabCommands].filter(Boolean).join('\n\n')
-}
 
 function getVmRecipeTrustContent(yamlHooks: OrcaHooks | null): string {
   return (yamlHooks?.environmentRecipes ?? [])
@@ -55,30 +42,28 @@ export function findHookRepo(state: AppState, repoId: string, hostId?: Execution
     : state.repos.find((repo) => repo.id === repoId)
 }
 
-export function settingsForHookRepoOwner(
+/** Inspect on the captured runtime owner, then explicit host, then repo owner; never substitute focused host, including server-owned SSH repos. */
+export function hookRepoOwnerHostId(
   state: AppState,
   repoId: string,
   hostId?: ExecutionHostId,
   runtimeOwnerEnvironmentId?: string | null
-): AppState['settings'] {
-  const parsedHost = hostId ? parseExecutionHostId(hostId) : null
-  const runtimeEnvironmentId =
-    runtimeOwnerEnvironmentId?.trim() ||
-    (hostId
-      ? parsedHost?.kind === 'runtime'
-        ? parsedHost.environmentId
-        : null
-      : getRuntimeEnvironmentIdForRepo(state, repoId))
-  // Why: hook inspection must follow the repo owner. SSH/local repos execute
-  // through desktop IPC, while runtime repos may differ from the focused host.
-  return state.settings
-    ? { ...state.settings, activeRuntimeEnvironmentId: runtimeEnvironmentId }
-    : ({ activeRuntimeEnvironmentId: runtimeEnvironmentId } as AppState['settings'])
-}
-
-export function canUseRepoWideTrust(state: AppState, repoId: string): boolean {
-  const hasDuplicateRepoId = state.repos.filter((repo) => repo.id === repoId).length > 1
-  return Boolean(state.trustedOrcaHooks[repoId]?.all) && !hasDuplicateRepoId
+): ExecutionHostId {
+  const ownerEnvironmentId = runtimeOwnerEnvironmentId?.trim()
+  if (ownerEnvironmentId) {
+    return toRuntimeExecutionHostId(ownerEnvironmentId)
+  }
+  const rows = hostId ? [] : state.repos.filter((entry) => entry.id === repoId)
+  // Why: with the id on two hosts, trusting one row's script could run the other's unseen.
+  if (rows.length > 1) {
+    throw new Error('The project exists on more than one host.')
+  }
+  const repo = rows[0] ?? null
+  const ownerHostId = hostId ?? (repo ? getRepoExecutionHostId(repo) : null)
+  if (!ownerHostId) {
+    throw new Error('The project host is unknown.')
+  }
+  return ownerHostId
 }
 
 export type HookTrustContent =
@@ -93,18 +78,17 @@ export async function resolveHookTrustContent(
   hostId?: ExecutionHostId,
   runtimeOwnerEnvironmentId?: string | null
 ): Promise<HookTrustContent> {
-  if (canUseRepoWideTrust(state, repoId)) {
+  if (canUseRepoWideTrust(state.trustedOrcaHooks, state.repos, repoId)) {
     return { kind: 'decided', decision: 'run' }
   }
   try {
     if (scriptKind === 'issueCommand') {
-      // Local overrides are user-owned; only shared orca.yaml commands need repo trust.
-      // Why: hostId disambiguates duplicate repo ids on the local IPC path,
-      // matching the checkRuntimeHooks call below.
+      // Only shared orca.yaml needs repo trust; user-owned overrides do not. Pass hostId to disambiguate same-ID repos, as checkRuntimeHooks does.
+      // A launch is a user act: it may start the repo's stopped WSL distro.
       const result = await readRuntimeIssueCommand(
-        settingsForHookRepoOwner(state, repoId, hostId, runtimeOwnerEnvironmentId),
+        hookRepoOwnerHostId(state, repoId, hostId, runtimeOwnerEnvironmentId),
         repoId,
-        hostId
+        { wakeWslDistro: true }
       )
       if (result.source === 'local') {
         return { kind: 'decided', decision: 'run' }
@@ -126,9 +110,8 @@ export async function resolveHookTrustContent(
       return { kind: 'decided', decision: 'run' }
     }
     const result = await checkRuntimeHooks(
-      settingsForHookRepoOwner(state, repoId, hostId, runtimeOwnerEnvironmentId),
-      repoId,
-      hostId
+      hookRepoOwnerHostId(state, repoId, hostId, runtimeOwnerEnvironmentId),
+      repoId
     )
     if (result.status === 'error') {
       return { kind: 'decided', decision: 'skip' }
@@ -156,7 +139,7 @@ export async function isHookScriptContentTrusted(
   scriptKind: OrcaHookScriptKind,
   scriptContent: string
 ): Promise<boolean> {
-  if (canUseRepoWideTrust(state, repoId) || !scriptContent) {
+  if (canUseRepoWideTrust(state.trustedOrcaHooks, state.repos, repoId) || !scriptContent) {
     return true
   }
   const contentHash = await hashOrcaHookScript(scriptContent)

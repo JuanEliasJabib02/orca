@@ -11,9 +11,9 @@ import {
   resolveSourceControlCompareBaseRef,
   resolveSourceControlPickerBaseRef,
   shouldClearBranchCompareForMissingBase
-} from './source-control/sync/base-ref-resolution'
-import type { GitBranchCompareSummary } from '../../../../shared/git-diff-compare-types'
-import type { GitUpstreamStatus } from '../../../../shared/git-status-types'
+} from '../../../../shared/source-control/decisions/source-control-base-ref-resolution'
+import type { GitBranchCompareSummary } from '../../../../shared/git/diff/git-diff-compare-types'
+import type { GitUpstreamStatus } from '../../../../shared/git/status/git-status-types'
 
 type ReactElementLike = {
   type: unknown
@@ -291,9 +291,7 @@ describe('SourceControl compare summary', () => {
   })
 
   it('keeps the branch compare while upstream status is still loading', () => {
-    // remoteStatus undefined means upstream status has not loaded yet; the
-    // upstream policy can still make compareBaseRef momentarily null when no
-    // fallback base is available.
+    // Unloaded upstream status can temporarily clear the compare base when no fallback exists.
     expect(
       shouldClearBranchCompareForMissingBase({
         isFolder: false,

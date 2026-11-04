@@ -4,7 +4,7 @@ import { useAppStore } from '@/store'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
-import type { TaskSectionInfo } from '../grouping/row-types'
+import type { TaskSectionInfo } from '../../../../../../shared/sidebar-list/row-types'
 import { resolveSidebarSpaceScopeFromState } from '../../sidebar-space-scope'
 import { notifyTaskSpotlightBatch, runTaskSpotlightBatch } from './task-spotlight-batch'
 import {

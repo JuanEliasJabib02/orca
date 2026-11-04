@@ -2,6 +2,7 @@ import { LOCAL_EXECUTION_HOST_ID } from '../execution-host'
 import { applyLayoutCommand } from './workspace-layout-commands'
 import type { LayoutCommand, LayoutContext } from './workspace-layout-command-types'
 import type { LayoutTerminalTab, WorkspaceLayoutModel } from './workspace-layout-model'
+import type { ProcessExitFacts } from './workspace-layout-process-exit'
 import { checkWorkspaceLayoutModelRules, emptyLayoutBeside } from './workspace-layout-model-rules'
 
 export const WS = 'repo-1::/Users/dev/orca'
@@ -27,7 +28,6 @@ export function emptyModel(): WorkspaceLayoutModel {
   }
 }
 
-/** Applies commands that must succeed and keep every structural rule. */
 export function build(context: LayoutContext, commands: LayoutCommand[], model = emptyModel()) {
   let next = model
   const results = commands.map((command) => {
@@ -55,7 +55,16 @@ export function terminalTab(model: WorkspaceLayoutModel, tabId: string): LayoutT
   return tab
 }
 
-/** A model with nothing beside it, as the Serializer and the rules check take it. */
 export function asLoaded(layout: WorkspaceLayoutModel) {
   return { ...emptyLayoutBeside(), layout }
+}
+/** An exit that retires under every rule: a clean exit on a host other than this one. */
+export const CLEAN_EXIT: ProcessExitFacts = {
+  exitCode: 0,
+  local: false,
+  spawnedFresh: false,
+  tabHadPaneAtConnect: false,
+  restored: false,
+  inputWritten: true,
+  outputReceived: true
 }

@@ -17,7 +17,7 @@ import {
   SPOTLIGHT_SERVER_ENVS
 } from '../../../../../../shared/spotlight-server-types'
 import { getSpotlightEnvLabel } from '../../spotlight-env-labels'
-import type { TaskSectionInfo } from '../grouping/row-types'
+import type { TaskSectionInfo } from '../../../../../../shared/sidebar-list/row-types'
 import {
   handleRepoHeaderActionPointerDown,
   stopRepoHeaderKeyboardToggle,

@@ -12,7 +12,6 @@ import { captureTerminalDropTarget } from './terminal-drop-target'
 import { resolveTerminalDropTargetShell } from './terminal-drop-shell'
 import { writeTerminalDropPathsToCapturedTarget } from './terminal-drop-path-writer'
 import { resolveInternalTerminalDropPane } from './terminal-drop-pane-resolution'
-import { getTerminalPasteSshRemotePlatform } from './terminal-paste-ssh-platform'
 import { showTerminalDropWriteFailure } from './terminal-drop-write-failure'
 import type { TerminalDropWriteFailureReason } from './terminal-drop-write-failure'
 import { getTerminalInternalFileDropRejectionMessage } from './terminal-drop-internal-rejection-message'
@@ -104,8 +103,7 @@ export async function handleInternalTerminalFileDrop({
   }
   const connectionId = getConnectionId(worktreeId)
   if (!runtimeEnvironmentId && connectionId === undefined) {
-    // Why: unresolved connection metadata means we cannot know whether these
-    // worktree-owned paths belong to a local, WSL, or SSH terminal.
+    // Unresolved ownership cannot distinguish local, WSL and SSH paths; refuse rather than guess.
     toast.error(
       translate(
         'auto.components.terminal.pane.terminal.drop.handler.0c77693641',
@@ -117,10 +115,7 @@ export async function handleInternalTerminalFileDrop({
   const targetShell = resolveTerminalDropTargetShell({
     activeRuntimeEnvironmentId: runtimeEnvironmentId,
     worktreePath,
-    // Why: internal Explorer drags paste worktree-owned paths directly, so SSH
-    // shell semantics must come from the remote session, not the client OS.
-    connectionId,
-    remotePlatform: getTerminalPasteSshRemotePlatform(connectionId)
+    connectionId
   })
 
   const writeResult = await writeTerminalDropPathsToCapturedTarget({

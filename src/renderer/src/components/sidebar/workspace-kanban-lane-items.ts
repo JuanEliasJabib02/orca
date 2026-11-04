@@ -7,10 +7,10 @@ import type {
 import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
 import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
 import { isWorktreeInSidebarSpace, type SidebarSpaceScope } from './sidebar-space-scope'
-import type { TaskSectionInfo } from './worktree-list/grouping/row-types'
-import { findTaskTitle } from './worktree-list/grouping/task-sections'
-import { getTaskLaneKey } from './worktree-list/grouping/worktree-task-key'
-import type { WorktreeTaskKeys } from './worktree-list/grouping/worktree-task-keys'
+import type { TaskSectionInfo } from '../../../../shared/sidebar-list/row-types'
+import { findTaskTitle } from '../../../../shared/sidebar-list/task-sections'
+import { getTaskLaneKey } from '../../../../shared/sidebar-list/worktree-task-key'
+import type { WorktreeTaskKeys } from '../../../../shared/sidebar-list/worktree-task-keys'
 
 export type WorkspaceKanbanWorktreeLaneItem = {
   type: 'worktree'

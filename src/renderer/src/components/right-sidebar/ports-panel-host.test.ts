@@ -6,7 +6,9 @@ import type {
 } from '@/lib/worktree-operation-route'
 import {
   getPortsPanelOwnerKey,
+  portsPanelForwardTargetId,
   portsPanelHostForOwnerKey,
+  portsPanelReachesSshHost,
   type PortsPanelHost
 } from './ports-panel-host'
 
@@ -55,8 +57,7 @@ const CASES: {
     host: { kind: 'direct-ssh', connectionId: 'box' }
   },
   {
-    // #24067: the repo row names no owner; only the workspace row names the VM. Recipe VM targets
-    // publish no connection state, so this app's own runtime scans them.
+    // Recipe VMs lack connection state; workspace ownership directs this app's scan even without repo ownership (#24067).
     name: 'recipe VM workspace whose repo row names no host',
     rows: {
       repos: [{ id: 'repo-1' }],
@@ -146,5 +147,72 @@ describe('Ports panel host', () => {
     expect(portsPanelHostForOwnerKey(getPortsPanelOwnerKey({}, null))).toEqual({
       kind: 'unknown'
     })
+  })
+})
+
+describe('Ports tab visibility', () => {
+  const managed = {
+    id: 'env-managed',
+    orcadDeployment: { sshTargetId: 'box', sshTargetGeneration: 1 }
+  } as const
+  const environments = [{ id: 'env-paired' }, managed]
+
+  it.each<[string, PortsPanelHost, boolean]>([
+    ['a direct SSH workspace', { kind: 'direct-ssh', connectionId: 'box' }, true],
+    ['an SSH target behind a paired server', serverSsh('env-paired', 't'), true],
+    [
+      'a workspace on a managed server reached over SSH',
+      { kind: 'endpoint', target: { kind: 'environment', environmentId: 'env-managed' } },
+      true
+    ],
+    [
+      'a workspace on a paired server that is not an SSH host',
+      { kind: 'endpoint', target: { kind: 'environment', environmentId: 'env-paired' } },
+      false
+    ],
+    ['a local workspace', { kind: 'endpoint', target: { kind: 'local' } }, false],
+    ['an unknown owner', { kind: 'unknown' }, false]
+  ])('%s', (_name, host, visible) => {
+    expect(portsPanelReachesSshHost(host, environments)).toBe(visible)
+  })
+
+  it('follows the workspace owner, not the repo connection', () => {
+    const state: WorktreeOperationRouteState = {
+      repos: [{ id: 'repo-1' }],
+      worktreesByRepo: { 'repo-1': [worktree('runtime:env-managed', 'env-managed')] },
+      runtimeEnvironments: [{ id: 'env-managed' }],
+      runtimeEnvironmentCatalogHydrated: true
+    }
+    const host = portsPanelHostForOwnerKey(getPortsPanelOwnerKey(state, WORKTREE_ID))
+    expect(portsPanelReachesSshHost(host, environments)).toBe(true)
+  })
+})
+
+describe('Ports panel forwards', () => {
+  const ports = { localPort: 41_000, remotePort: 6768 }
+  const environments = [
+    { id: 'env-paired' },
+    { id: 'env-ssh', orcadDeployment: { sshTargetId: 'box', sshTargetGeneration: 1, ...ports } },
+    { id: 'env-wsl', orcadDeployment: { kind: 'wsl' as const, distro: 'Ubuntu', ...ports } }
+  ]
+  const onServer = (environmentId: string): PortsPanelHost => ({
+    kind: 'endpoint',
+    target: { kind: 'environment', environmentId }
+  })
+
+  // #29153: a moved host's workspace is owned by its server, yet forwards still ride its SSH host.
+  it.each<[string, PortsPanelHost, string | null]>([
+    ['a workspace on a managed server reached over SSH', onServer('env-ssh'), 'box'],
+    ['a workspace on a managed WSL server', onServer('env-wsl'), null],
+    ['a workspace on a paired server', onServer('env-paired'), null],
+    ['a workspace on an unknown server', onServer('env-gone'), null],
+    ['a local workspace', { kind: 'endpoint', target: { kind: 'local' } }, null],
+    [
+      'a direct SSH workspace, which lists its own forwards',
+      { kind: 'direct-ssh', connectionId: 'box' },
+      null
+    ]
+  ])('%s', (_name, host, targetId) => {
+    expect(portsPanelForwardTargetId(host, environments)).toBe(targetId)
   })
 })

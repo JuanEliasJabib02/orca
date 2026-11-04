@@ -1,4 +1,4 @@
-import type { HostedReviewCreationBlockedReason } from '../../../../shared/hosted-review'
+import type { HostedReviewCreationBlockedReason } from '../../../../shared/source-control/hosted-review/hosted-review-contracts'
 import { translate } from '@/i18n/i18n'
 import {
   autoRetrySchedule,
@@ -168,9 +168,7 @@ export function branchBlockerState(
   const { reviewLabel, providerName } = input
   const detail = concurrentLookupDetail(input)
   const schedule = detail ? autoRetrySchedule(input) : {}
-  // Positive-unresolved evidence with a trusted URL must still expose Open Review
-  // beneath the blocker (Create/Push & Create stay suppressed). Retry is offered
-  // whenever a concurrent lookup failure produced a detail sentence.
+  // Keep trusted Open Review under blockers; lookup failures also offer Retry, while create stays suppressed.
   const canOpenReview = input.reviewLookup === 'positive_unresolved' && Boolean(input.openReviewUrl)
   const lookupRecovery: ChecksPanelRecoveryAction[] = [
     ...(canOpenReview ? (['open_review'] as ChecksPanelRecoveryAction[]) : []),
@@ -180,7 +178,6 @@ export function branchBlockerState(
   const vars = { reviewLabel, provider: providerName }
 
   if (reason === 'needs_push') {
-    // Push & Create unless review evidence or a hard error blocks create.
     const blocked =
       input.reviewLookup === 'positive_unresolved' ||
       isHardRefreshError(input.refresh) ||

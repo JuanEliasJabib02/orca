@@ -1,4 +1,5 @@
 import type { AppState } from '@/store/types'
+import { canUseRepoWideTrust } from '../../../shared/orca-hook-trust-entries'
 import { hashOrcaHookScript, type OrcaHookScriptKind } from './orca-hook-trust'
 import {
   readRuntimeIssueCommand,
@@ -7,10 +8,9 @@ import {
 import { MODAL_DISMISSED_KEY } from '@/store/slices/modal-slot-dismissal'
 import type { ExecutionHostId } from '../../../shared/execution-host'
 import {
-  canUseRepoWideTrust,
   findHookRepo,
-  resolveHookTrustContent,
-  settingsForHookRepoOwner
+  hookRepoOwnerHostId,
+  resolveHookTrustContent
 } from './hook-script-trust-content'
 
 export type HookScriptKind = OrcaHookScriptKind
@@ -36,17 +36,18 @@ async function confirmScriptContent(
   scriptKind: HookScriptKind,
   scriptContent: string,
   hostId?: ExecutionHostId,
-  isCancelled: () => boolean = NEVER_CANCEL_TRUST_CHECK
+  isCancelled: () => boolean = NEVER_CANCEL_TRUST_CHECK,
+  signal?: AbortSignal
 ): Promise<'run' | 'skip'> {
-  if (isCancelled()) {
+  if (isCancelled() || signal?.aborted) {
     return 'skip'
   }
-  if (canUseRepoWideTrust(state, repoId) || !scriptContent) {
+  if (canUseRepoWideTrust(state.trustedOrcaHooks, state.repos, repoId) || !scriptContent) {
     return 'run'
   }
 
   const contentHash = await hashOrcaHookScript(scriptContent)
-  if (isCancelled()) {
+  if (isCancelled() || signal?.aborted) {
     return 'skip'
   }
   const existingHash = state.trustedOrcaHooks[repoId]?.[scriptKind]?.contentHash
@@ -65,8 +66,18 @@ async function confirmScriptContent(
         return
       }
       settled = true
+      signal?.removeEventListener('abort', cancel)
       resolve(decision)
     }
+    const cancel = (): void => {
+      // Eviction settles first, so an abort can only close this prompt.
+      if (settled) {
+        return
+      }
+      settle('skip')
+      state.closeModal()
+    }
+    signal?.addEventListener('abort', cancel, { once: true })
     state.openModal('confirm-orca-yaml-hooks', {
       repoId,
       repoName,
@@ -145,11 +156,10 @@ export async function readAndConfirmRuntimeIssueCommand(
 ): Promise<ConfirmedRuntimeIssueCommand> {
   let result: IssueCommandReadResult
   try {
-    result = await readRuntimeIssueCommand(
-      settingsForHookRepoOwner(state, repoId, hostId),
-      repoId,
-      hostId
-    )
+    // Creating a workspace is a user act: it may start the repo's stopped WSL distro.
+    result = await readRuntimeIssueCommand(hookRepoOwnerHostId(state, repoId, hostId), repoId, {
+      wakeWslDistro: true
+    })
   } catch {
     result = {
       status: 'error',
@@ -164,16 +174,17 @@ export async function readAndConfirmRuntimeIssueCommand(
 }
 
 export async function ensureHooksConfirmed(
-  // Why a getter: a caller that queues behind an earlier prompt must see the trust it recorded.
+  // Read current trust when dequeued so earlier prompts’ decisions apply.
   stateOrGetter: AppState | (() => AppState),
   repoId: string,
   scriptKind: HookScriptKind,
   hostId?: ExecutionHostId,
   runtimeOwnerEnvironmentId?: string | null,
-  isCancelled: () => boolean = NEVER_CANCEL_TRUST_CHECK
+  isCancelled: () => boolean = NEVER_CANCEL_TRUST_CHECK,
+  signal?: AbortSignal
 ): Promise<'run' | 'skip'> {
   return enqueueTrustPrompt(async () => {
-    if (isCancelled()) {
+    if (isCancelled() || signal?.aborted) {
       return 'skip'
     }
     const state = typeof stateOrGetter === 'function' ? stateOrGetter() : stateOrGetter
@@ -193,7 +204,8 @@ export async function ensureHooksConfirmed(
       scriptKind,
       trustContent.scriptContent,
       hostId,
-      isCancelled
+      isCancelled,
+      signal
     )
   })
 }

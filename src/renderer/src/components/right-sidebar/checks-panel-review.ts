@@ -1,6 +1,6 @@
 import type { PRInfo } from '../../../../shared/github/pull-request-types'
-import type { HostedReviewInfo } from '../../../../shared/hosted-review'
-import { hostedReviewInfoFromGitHubPRInfo } from '../../../../shared/hosted-review-github'
+import type { HostedReviewInfo } from '../../../../shared/source-control/hosted-review/hosted-review-contracts'
+import { hostedReviewInfoFromGitHubPRInfo } from '../../../../shared/source-control/hosted-review/hosted-review-github'
 import { isGitHubPRSuppressed } from '../../../../shared/worktree/github-pr-suppression'
 
 export type ChecksPanelReview = HostedReviewInfo
@@ -17,8 +17,7 @@ export type ChecksPanelReviewSelectionInput = {
 }
 
 export function gitHubPRToChecksPanelReview(pr: PRInfo): ChecksPanelReview {
-  // Why: the checks panel must not maintain a second GitHub PR metadata mapper;
-  // merge-state fields drifting here regressed the right-sidebar action label.
+  // Reuse the GitHub mapper so merge-state metadata cannot drift and regress action labels.
   return hostedReviewInfoFromGitHubPRInfo(pr)
 }
 

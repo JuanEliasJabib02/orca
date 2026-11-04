@@ -1,3 +1,5 @@
+import { translate } from '@/i18n/i18n'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useMountedRef } from '@/hooks/useMountedRef'
 import type { GitHubProjectSummary } from '../../../../shared/github/project-types'
@@ -9,12 +11,11 @@ import {
 } from './project-picker-browse-cache'
 import {
   getProjectPickerRuntimeScope,
-  listAccessibleProjectsForRuntime,
-  type ProjectSourceSettings
+  listAccessibleProjectsForRuntime
 } from './project-picker-runtime'
 
 export function useProjectPickerBrowse(
-  settings: ProjectSourceSettings,
+  settings: RuntimeClientTarget,
   browseHost: string
 ): {
   browseProjects: GitHubProjectSummary[]
@@ -53,7 +54,10 @@ export function useProjectPickerBrowse(
     setBrowseProjects([])
     setPartialFailures([])
     try {
-      const result = await listAccessibleProjectsForRuntime(settings, browseHost)
+      const result = await listAccessibleProjectsForRuntime(settings, browseHost, {
+        // Browsing follows the user opening the picker.
+        wake: true
+      })
       if (result.ok) {
         rememberProjectPickerBrowseCacheEntry(cacheKey, {
           projects: result.projects,
@@ -73,7 +77,10 @@ export function useProjectPickerBrowse(
       if (mountedRef.current && activeCacheKeyRef.current === cacheKey) {
         setBrowseError({
           type: 'unknown',
-          message: error instanceof Error ? error.message : 'Failed to list projects'
+          message:
+            error instanceof Error
+              ? error.message
+              : translate('projectViews.picker.listFailed', 'Failed to list projects')
         })
       }
     } finally {

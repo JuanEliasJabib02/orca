@@ -1,7 +1,9 @@
+import { handleRichMarkdownViewportReveal } from './rich-markdown-viewport'
 import type { Editor, UseEditorOptions } from '@tiptap/react'
 import type { EditorView } from '@tiptap/pm/view'
 import { handleRichMarkdownCut } from './rich-markdown-cut-handler'
 import { handleRichMarkdownPaste } from './rich-markdown-paste-handler'
+import { handleRichMarkdownPasteAdmission } from './rich-markdown-paste-admission'
 import { encodeRawMarkdownHtmlForRichEditor } from './raw-markdown-html'
 import { normalizeEmptyListItems } from './rich-markdown-normalize'
 import { autoFocusRichEditor } from './rich-markdown-auto-focus'
@@ -19,15 +21,15 @@ import { isSingleEmptyTopLevelOrderedList } from './rich-markdown-list-continuat
 import type { LinkBubbleState } from './RichMarkdownLinkBubble'
 import {
   handleRichMarkdownEditorClick,
-  type ActivateMarkdownLink,
-  type RichMarkdownRuntimeSettings
+  type ActivateMarkdownLink
 } from './rich-markdown-editor-click-routing'
 import { createRichMarkdownKeyHandler } from './rich-markdown-key-handler'
-import { commitRichMarkdownSerialization } from './rich-markdown-serialization-commit'
+import { staleViewEditEpoch } from './editor-stale-view-edit'
 import {
   createRichMarkdownImageResolverContext,
   setRichMarkdownImageResolverContext
 } from './rich-markdown-image-context'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import { getRichMarkdownSpellcheckAttribute } from './rich-markdown-spellcheck'
 import type { MutableRefObject, Dispatch, SetStateAction } from 'react'
 import type { DiffComment } from '../../../../shared/diff-comment-types'
@@ -49,7 +51,8 @@ export type EditorConfigParams = {
   runtimeEnvironmentId?: string | null
   isMac: boolean
   richMarkdownSpellcheckEnabled: boolean
-  settings: RichMarkdownRuntimeSettings
+  /** The document owner's transport, for image reads. */
+  runtimeTarget: RuntimeClientTarget | null
   activateMarkdownLink: ActivateMarkdownLink
   rootRef: MutableRefObject<HTMLDivElement | null>
   editorRef: MutableRefObject<Editor | null>
@@ -72,12 +75,16 @@ export type EditorConfigParams = {
   handleEmojiPickRef: MutableRefObject<(menu: SlashMenuState) => void>
   typedEmptyOrderedListMarkerRef: MutableRefObject<boolean>
   cancelAutoFocusRef: MutableRefObject<(() => void) | null>
+  fileId: string
   serializeTimerRef: MutableRefObject<number | null>
+  /** Discard epoch when the pending serialization began. */
+  pendingEditEpochRef: MutableRefObject<number>
   isInitializingRef: MutableRefObject<boolean>
   isApplyingProgrammaticUpdateRef: MutableRefObject<boolean>
   markdownCommentsRef: MutableRefObject<DiffComment[]>
   markdownSourceLineOffsetRef: MutableRefObject<number>
-  flushPendingSerialization: () => void
+  /** Returns true when the pending edit was rejected instead of committed. */
+  flushPendingSerialization: () => boolean
   openSearchRef: MutableRefObject<() => void>
   openAnnotationPopoverRef: MutableRefObject<(requireLiveSelection?: boolean) => boolean>
   syncAnnotationTarget: (editor: Editor) => void
@@ -103,15 +110,13 @@ export function createRichMarkdownEditorConfig(params: EditorConfigParams): UseE
     runtimeEnvironmentId,
     isMac,
     richMarkdownSpellcheckEnabled,
-    settings,
+    runtimeTarget,
     activateMarkdownLink,
     rootRef,
     editorRef,
     lastCommittedMarkdownRef,
     originalSourceRef,
     baseCanonicalRef,
-    reconcileRoundTripRef,
-    onContentChangeRef,
     onDirtyStateHintRef,
     onOpenDocLinkRef,
     typedEmptyOrderedListMarkerRef,
@@ -156,12 +161,22 @@ export function createRichMarkdownEditorConfig(params: EditorConfigParams): UseE
     content: encodeRawMarkdownHtmlForRichEditor(content, codec, { htmlSuperscriptLinks: true }),
     contentType: 'markdown' as const,
     editorProps: {
+      handleScrollToSelection: handleRichMarkdownViewportReveal,
       attributes: {
         class: 'rich-markdown-editor',
         spellcheck: getRichMarkdownSpellcheckAttribute(richMarkdownSpellcheckEnabled)
       },
       handleDOMEvents: {
         cut: handleRichMarkdownCut,
+        paste: (view, event) =>
+          handleRichMarkdownPasteAdmission({
+            editor: editorRef.current,
+            event,
+            filePath,
+            worktreeId,
+            runtimeEnvironmentId,
+            view
+          }),
         // ProseMirror skips handleClick for Shift gestures to extend the selection.
         click: (view, event) => {
           if (
@@ -200,9 +215,6 @@ export function createRichMarkdownEditorConfig(params: EditorConfigParams): UseE
         typedEmptyOrderedListMarkerRef.current = /^\d+\.$/.test(beforeCursor)
         return false
       },
-      // Why: KeyHandlerContext is a typed subset of EditorConfigParams, so the
-      // spread stays type-checked while new context fields avoid re-listing
-      // every ref here.
       handleKeyDown: createRichMarkdownKeyHandler({
         ...params,
         linkBubbleOwnerId: codec.transport.key,
@@ -227,14 +239,10 @@ export function createRichMarkdownEditorConfig(params: EditorConfigParams): UseE
       params.flushPendingSerialization()
     },
     onCreate: ({ editor: nextEditor }) => {
-      // Why: normalizeEmptyListItems (not normalizeSoftBreaks) so hard-wrapped
-      // source paragraphs stay one paragraph and reflow via CSS instead of being
-      // split on load.
+      // Repair empty lists while keeping hard-wrapped prose in one paragraph for CSS reflow.
       normalizeEmptyListItems(nextEditor)
       lastCommittedMarkdownRef.current = content
-      // Why: seed the source-preserving reconciliation baseline — the raw loaded
-      // bytes and their canonical serialization — so the first edit patches onto
-      // the original style instead of re-canonicalizing the whole file.
+      // Seed raw/canonical reconciliation so the first edit preserves source style instead of canonicalizing the whole file.
       originalSourceRef.current = content
       baseCanonicalRef.current = nextEditor.getMarkdown()
       isInitializingRef.current = false
@@ -247,8 +255,7 @@ export function createRichMarkdownEditorConfig(params: EditorConfigParams): UseE
         createRichMarkdownImageResolverContext({
           filePath,
           externalSshTargetId,
-          runtimeEnvironmentId,
-          settings,
+          runtimeTarget,
           worktreeId,
           worktreeRoot
         })
@@ -266,22 +273,11 @@ export function createRichMarkdownEditorConfig(params: EditorConfigParams): UseE
       onDirtyStateHintRef.current(true)
       if (serializeTimerRef.current !== null) {
         window.clearTimeout(serializeTimerRef.current)
+      } else {
+        params.pendingEditEpochRef.current = staleViewEditEpoch(params.fileId)
       }
       serializeTimerRef.current = window.setTimeout(() => {
-        serializeTimerRef.current = null
-        try {
-          const { markdown, didSerialize } = commitRichMarkdownSerialization(
-            nextEditor,
-            { originalSourceRef, baseCanonicalRef, lastCommittedMarkdownRef },
-            reconcileRoundTripRef.current
-          )
-          if (didSerialize) {
-            onContentChangeRef.current(markdown)
-          }
-        } catch (error) {
-          // Why: teardown and reconcile failures are handled above; other failures must stay observable.
-          console.error('[editor] rich markdown serialize (debounced) failed', error)
-        }
+        params.flushPendingSerialization()
       }, 300)
     },
     onSelectionUpdate: ({ editor: nextEditor }) => {

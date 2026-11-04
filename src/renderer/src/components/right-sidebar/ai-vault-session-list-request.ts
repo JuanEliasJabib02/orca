@@ -1,5 +1,8 @@
 import type { AiVaultListArgs, AiVaultListResult } from '../../../../shared/ai-vault-types'
-import type { ExecutionHostScope } from '../../../../shared/execution-host'
+import {
+  parseRoutableExecutionHostId,
+  type ExecutionHostScope
+} from '../../../../shared/execution-host'
 import type { AiVaultSessionLimit } from './ai-vault-session-limit'
 import {
   aiVaultSessionResultCacheKey,
@@ -7,8 +10,7 @@ import {
   readCachedAiVaultSessionResult
 } from './ai-vault-session-result-cache'
 
-/** One Session History list request. Every reader sends it the panel's way, so they share the
- *  host's single cached list and the renderer's result cache instead of evicting each other. */
+/** Match panel requests so readers share host/renderer caches instead of evicting one another. */
 export type AiVaultSessionListRequest = {
   scopePaths: readonly string[]
   executionHostScope: ExecutionHostScope
@@ -49,7 +51,40 @@ export function cacheAiVaultSessionList(
     key: aiVaultSessionResultCacheKey(request.executionHostScope, request.scopePaths),
     executionHostScope: request.executionHostScope,
     limit: request.sessionLimit,
+    scopePaths: request.scopePaths,
     result,
     replaceHostEntries: options.replaceHostEntries
   })
+}
+
+export type AiVaultConditionalSnapshot = { fingerprint: string; result: AiVaultListResult }
+
+export async function refreshAiVaultSessionList(
+  request: AiVaultSessionListRequest,
+  options: { force?: boolean; requestToken: string },
+  previous?: AiVaultConditionalSnapshot
+): Promise<AiVaultListResult> {
+  const args = aiVaultSessionListArgs(request, options)
+  if (
+    request.sessionLimit !== 'unlimited' &&
+    parseRoutableExecutionHostId(request.executionHostScope)?.kind === 'runtime'
+  ) {
+    args.afterFingerprint = previous?.fingerprint ?? null
+  }
+  const result = await window.api.aiVault.listSessions(args)
+  if (!result.unchanged) {
+    return result
+  }
+  if (
+    !previous ||
+    typeof args.afterFingerprint !== 'string' ||
+    result.fingerprint !== args.afterFingerprint
+  ) {
+    const full = await window.api.aiVault.listSessions(aiVaultSessionListArgs(request, options))
+    if (full.unchanged) {
+      throw new Error('Session refresh did not return the requested full history')
+    }
+    return full
+  }
+  return { ...previous.result, scannedAt: result.scannedAt, fingerprint: result.fingerprint }
 }

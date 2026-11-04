@@ -1,11 +1,12 @@
 import type { AppState } from '@/store'
 import type { OpenFile } from '@/store/slices/editor'
+import { getIndexedWorktreesById } from '@/store/worktree-repo-index'
+import { folderWorkspaceKey } from '../../../shared/workspace-scope'
 import { findWorktreeById } from '@/store/slices/worktree-helpers'
 import { isVirtualEditorFile } from '@/store/slices/editor/tabs/editor-tab-content-type'
 import { findRepoForHost } from '@/store/slices/repo-host-identity'
 import { isLocalWindowsDesktopClient } from '@/lib/desktop-window-chrome'
-import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
-import { isWindowsAbsolutePathLike } from '../../../shared/cross-platform-path'
+import { runtimeEnvironmentIdOrLocalUnlessTwin } from '@/lib/worktree-runtime-owner'
 import {
   LOCAL_EXECUTION_HOST_ID,
   parseExecutionHostId,
@@ -14,7 +15,12 @@ import {
   type ExecutionHostId
 } from '../../../shared/execution-host'
 import { isGitRepoKind } from '../../../shared/repo-kind'
-import { resolveEditorExternalWatchTargetRows } from './editor-external-watch-target-rows'
+import {
+  canWatchLocalWindowsWslAliases,
+  resolveEditorExternalWatchTargetRows
+} from './editor-external-watch-target-rows'
+import { selectWatchEligibleWorkspaceIds } from './editor-external-watch-scope'
+import { selectFolderWorkspaces, selectWorktreesByRepo } from '@/store/workspace-record-selectors'
 
 export type EditorExternalWatchTarget = {
   worktreeId: string
@@ -42,13 +48,19 @@ export type EditorExternalWatchTargetState = Pick<
   Partial<
     Pick<
       AppState,
-      'activeWorkspaceExecutionHostId' | 'rightSidebarEffectiveTab' | 'spotlightByRepo'
+      | 'activeWorkspaceExecutionHostId'
+      | 'rightSidebarEffectiveTab'
+      | 'lastVisitedAtByWorktreeId'
+      | 'spotlightByRepo'
     >
   >
 
 type WatchedTargetsSnapshot = {
   targets: EditorExternalWatchTarget[]
   targetsKey: string
+  /** Keys of open-tab targets the background trim left unwatched; a later add of one must re-read its tabs. */
+  unwatchedTargetKeys: ReadonlySet<string>
+  unwatchedTargetsKey: string
 }
 
 let cachedOpenFiles: AppState['openFiles'] | null = null
@@ -65,11 +77,17 @@ let cachedGitStatusHugeByWorktree: AppState['gitStatusHugeByWorktree'] | null = 
 let cachedSshConnectionStates: AppState['sshConnectionStates'] | null = null
 let cachedFolderWorkspaces: AppState['folderWorkspaces'] | null = null
 let cachedProjectGroups: AppState['projectGroups'] | null = null
+let cachedLastVisitedAtByWorktreeId: AppState['lastVisitedAtByWorktreeId'] | undefined
 let cachedSpotlightByRepo: AppState['spotlightByRepo'] | null | undefined = null
-let cachedWatchedTargetsSnapshot: WatchedTargetsSnapshot = { targets: [], targetsKey: '' }
+let cachedWatchedTargetsSnapshot: WatchedTargetsSnapshot = {
+  targets: [],
+  targetsKey: '',
+  unwatchedTargetKeys: new Set(),
+  unwatchedTargetsKey: ''
+}
 
 export function getEditorExternalWatchTargetKey(target: EditorExternalWatchTarget): string {
-  // Why: include connectionId so a local placeholder watch is replaced by the real SSH watch once an SSH worktree's provider metadata hydrates.
+  // Include connectionId so hydrated SSH metadata replaces temporary local placeholder watch.
   return `${target.worktreeId}::${target.worktreePath}::${target.connectionId ?? 'local'}::${target.runtimeEnvironmentId ?? 'client'}::${target.allowLocalWindowsWslAliases === true ? 'wsl-aliases' : 'literal'}`
 }
 
@@ -112,7 +130,7 @@ function getSidebarWatchConsumer(
   worktreeId: string
 ): WatchConsumer {
   // Why: sidebar watcher must follow the selected worktree's host owner, not the host currently focused in the UI.
-  const owner = getRuntimeEnvironmentIdForWorktree(state, worktreeId)
+  const owner = runtimeEnvironmentIdOrLocalUnlessTwin(state, worktreeId)
   if (owner) {
     return { owner, hostId: toRuntimeExecutionHostId(owner) }
   }
@@ -133,41 +151,6 @@ function addWatchConsumer(
   consumers.set(`${consumer.owner ?? ''}::${consumer.hostId ?? ''}`, consumer)
 }
 
-function isLocalHostStamp(value: string | null | undefined): boolean {
-  return parseExecutionHostId(value)?.kind === 'local'
-}
-
-function canWatchLocalWindowsWslAliases(args: {
-  worktreePath: string
-  runtimeEnvironmentId: string | null
-  connectionId: string | null | undefined
-  worktree: AppState['worktreesByRepo'][string][number] | undefined
-  repo: AppState['repos'][number] | undefined
-  folderWorkspace: AppState['folderWorkspaces'][number] | undefined
-  projectGroup: AppState['projectGroups'][number] | undefined
-}): boolean {
-  if (
-    args.runtimeEnvironmentId !== null ||
-    args.connectionId !== null ||
-    !isWindowsAbsolutePathLike(args.worktreePath)
-  ) {
-    return false
-  }
-  if (args.worktree) {
-    return (
-      !!args.repo &&
-      !args.worktree.runtimeOwnerEnvironmentId?.trim() &&
-      isLocalHostStamp(args.worktree.hostId) &&
-      isLocalHostStamp(args.repo.executionHostId)
-    )
-  }
-  return (
-    !!args.folderWorkspace &&
-    isLocalHostStamp(args.folderWorkspace.executionHostId) &&
-    isLocalHostStamp(args.projectGroup?.executionHostId)
-  )
-}
-
 export function selectEditorExternalWatchTargets(
   state: EditorExternalWatchTargetState
 ): WatchedTargetsSnapshot {
@@ -175,7 +158,7 @@ export function selectEditorExternalWatchTargets(
   const activeWorkspaceExecutionHostId = state.activeWorkspaceExecutionHostId ?? null
   if (
     cachedOpenFiles === state.openFiles &&
-    cachedWorktreesByRepo === state.worktreesByRepo &&
+    cachedWorktreesByRepo === selectWorktreesByRepo(state) &&
     cachedRepos === state.repos &&
     cachedActiveWorktreeId === state.activeWorktreeId &&
     cachedActiveWorkspaceExecutionHostId === activeWorkspaceExecutionHostId &&
@@ -186,25 +169,39 @@ export function selectEditorExternalWatchTargets(
     cachedRightSidebarExplorerView === state.rightSidebarExplorerView &&
     cachedGitStatusHugeByWorktree === state.gitStatusHugeByWorktree &&
     cachedSshConnectionStates === state.sshConnectionStates &&
-    cachedFolderWorkspaces === state.folderWorkspaces &&
+    cachedFolderWorkspaces === selectFolderWorkspaces(state) &&
     cachedProjectGroups === state.projectGroups &&
+    cachedLastVisitedAtByWorktreeId === state.lastVisitedAtByWorktreeId &&
     cachedSpotlightByRepo === state.spotlightByRepo
   ) {
     return cachedWatchedTargetsSnapshot
   }
 
   const consumersByWorktreeId = new Map<string, Map<string, WatchConsumer>>()
-  // Why: watcher ownership is scoped by worktree + execution host — the same workspace id can be open locally, over SSH and in a runtime, and reads/saves already route per host.
+  const unwatchedConsumersByWorktreeId = new Map<string, Map<string, WatchConsumer>>()
+  const watchEligibleIds = selectWatchEligibleWorkspaceIds({
+    activeWorktreeId: state.activeWorktreeId,
+    lastVisitedAtByWorktreeId: state.lastVisitedAtByWorktreeId,
+    openFiles: state.openFiles,
+    exists: (id) =>
+      getIndexedWorktreesById(selectWorktreesByRepo(state), id).length > 0 ||
+      selectFolderWorkspaces(state).some((workspace) => folderWorkspaceKey(workspace.id) === id)
+  })
+  // Key watchers by workspace and execution host, matching reads/saves: same id may be open locally, over SSH and in a runtime.
   for (const file of state.openFiles) {
     // Why: a virtual tab (CI details, chat visual) has no file in the workspace to watch.
     if (isVirtualEditorFile(file)) {
       continue
     }
-    addWatchConsumer(consumersByWorktreeId, file.worktreeId, getOpenFileWatchConsumer(file))
+    // Why: background workspaces drop their native watch; switching back re-verifies their tabs against disk.
+    const consumers = watchEligibleIds.has(file.worktreeId)
+      ? consumersByWorktreeId
+      : unwatchedConsumersByWorktreeId
+    addWatchConsumer(consumers, file.worktreeId, getOpenFileWatchConsumer(file))
   }
   const activeWorktreeId = state.activeWorktreeId
   const activeWorktree = activeWorktreeId
-    ? findWorktreeById(state.worktreesByRepo, activeWorktreeId)
+    ? findWorktreeById(selectWorktreesByRepo(state), activeWorktreeId)
     : undefined
   const activeWorktreeHost = parseExecutionHostId(activeWorktree?.hostId)
   const activeRepo = activeWorktree
@@ -249,34 +246,12 @@ export function selectEditorExternalWatchTargets(
     })
   }
 
-  const targetsByKey = new Map<string, EditorExternalWatchTarget>()
-  for (const [id, consumers] of consumersByWorktreeId) {
-    for (const { owner, hostId } of consumers.values()) {
-      const rows = resolveEditorExternalWatchTargetRows(state, id, hostId)
-      if (!rows || (rows.connectionId === undefined && rows.folderWorkspace)) {
-        continue
-      }
-      const { worktree, repo, folderWorkspace, projectGroup, connectionId } = rows
-      const target = {
-        worktreeId: id,
-        worktreePath: worktree?.path ?? folderWorkspace!.folderPath,
-        connectionId: connectionId ?? undefined,
-        runtimeEnvironmentId: owner,
-        ...(canWatchLocalWindowsWslAliases({
-          worktreePath: worktree?.path ?? folderWorkspace!.folderPath,
-          runtimeEnvironmentId: owner,
-          connectionId,
-          worktree,
-          repo,
-          folderWorkspace,
-          projectGroup
-        })
-          ? { allowLocalWindowsWslAliases: true as const }
-          : {})
-      }
-      targetsByKey.set(getEditorExternalWatchTargetKey(target), target)
-    }
-  }
+  const targetsByKey = resolveWatchTargets(state, consumersByWorktreeId)
+  const unwatchedTargetKeys = new Set(
+    [...resolveWatchTargets(state, unwatchedConsumersByWorktreeId).keys()].filter(
+      (key) => !targetsByKey.has(key)
+    )
+  )
 
   // Why: consumers on one host (an unqualified legacy tab and its captured sibling) collapse to one watch.
   const sortedEntries = Array.from(targetsByKey).sort(([left], [right]) =>
@@ -284,8 +259,9 @@ export function selectEditorExternalWatchTargets(
   )
   const nextTargets = sortedEntries.map(([, target]) => target)
   const targetsKey = sortedEntries.map(([key]) => key).join('|')
+  const unwatchedTargetsKey = [...unwatchedTargetKeys].sort().join('|')
   cachedOpenFiles = state.openFiles
-  cachedWorktreesByRepo = state.worktreesByRepo
+  cachedWorktreesByRepo = selectWorktreesByRepo(state)
   cachedRepos = state.repos
   cachedActiveWorktreeId = state.activeWorktreeId
   cachedActiveWorkspaceExecutionHostId = activeWorkspaceExecutionHostId
@@ -296,14 +272,54 @@ export function selectEditorExternalWatchTargets(
   cachedRightSidebarExplorerView = state.rightSidebarExplorerView
   cachedGitStatusHugeByWorktree = state.gitStatusHugeByWorktree
   cachedSshConnectionStates = state.sshConnectionStates
-  cachedFolderWorkspaces = state.folderWorkspaces
+  cachedFolderWorkspaces = selectFolderWorkspaces(state)
   cachedProjectGroups = state.projectGroups
+  cachedLastVisitedAtByWorktreeId = state.lastVisitedAtByWorktreeId
   cachedSpotlightByRepo = state.spotlightByRepo
 
-  if (targetsKey === cachedWatchedTargetsSnapshot.targetsKey) {
+  if (
+    targetsKey === cachedWatchedTargetsSnapshot.targetsKey &&
+    unwatchedTargetsKey === cachedWatchedTargetsSnapshot.unwatchedTargetsKey
+  ) {
     return cachedWatchedTargetsSnapshot
   }
 
-  cachedWatchedTargetsSnapshot = { targets: nextTargets, targetsKey }
+  cachedWatchedTargetsSnapshot = {
+    targets: nextTargets,
+    targetsKey,
+    unwatchedTargetKeys,
+    unwatchedTargetsKey
+  }
   return cachedWatchedTargetsSnapshot
+}
+
+function resolveWatchTargets(
+  state: EditorExternalWatchTargetState,
+  consumersByWorktreeId: ReadonlyMap<string, ReadonlyMap<string, WatchConsumer>>
+): Map<string, EditorExternalWatchTarget> {
+  const targetsByKey = new Map<string, EditorExternalWatchTarget>()
+  for (const [id, consumers] of consumersByWorktreeId) {
+    for (const { owner, hostId } of consumers.values()) {
+      const rows = resolveEditorExternalWatchTargetRows(state, id, hostId)
+      if (!rows || (rows.connectionId === undefined && rows.folderWorkspace)) {
+        continue
+      }
+      const { worktree, folderWorkspace, connectionId } = rows
+      const target = {
+        worktreeId: id,
+        worktreePath: worktree?.path ?? folderWorkspace!.folderPath,
+        connectionId: connectionId ?? undefined,
+        runtimeEnvironmentId: owner,
+        ...(canWatchLocalWindowsWslAliases({
+          worktreePath: worktree?.path ?? folderWorkspace!.folderPath,
+          runtimeEnvironmentId: owner,
+          ...rows
+        })
+          ? { allowLocalWindowsWslAliases: true as const }
+          : {})
+      }
+      targetsByKey.set(getEditorExternalWatchTargetKey(target), target)
+    }
+  }
+  return targetsByKey
 }

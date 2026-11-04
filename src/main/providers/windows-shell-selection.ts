@@ -1,7 +1,7 @@
 // Which shell a new local Windows terminal launches for the shell family it was asked for.
 import { win32 as pathWin32 } from 'node:path'
 import { WINDOWS_GIT_BASH_SHELL } from '../../shared/windows-terminal-shell'
-import { resolveWindowsGitBashShellPath } from '../git-bash'
+import { resolveWindowsGitBashShellPath } from '../pty/shell-startup/git-bash'
 import {
   resolveEffectiveWindowsPowerShell,
   shouldProbeWindowsPowerShellAvailability,
@@ -22,7 +22,7 @@ export function selectWindowsShell(
 ): WindowsShellSelection {
   const normalizedShellFamily = pathWin32.basename(shellFamily).toLowerCase()
   const resolvedGitBashPath = resolveWindowsGitBashShellPath(shellFamily)
-  // Why: normalize setting-value and path forms to the PowerShell family so the resolver can fall back to inbox powershell.exe.
+  // Normalize family names and paths so PowerShell resolution can fall back to inbox powershell.exe.
   const resolvedShellFamily: WindowsPowerShellShellFamily =
     normalizedShellFamily === 'powershell.exe' || normalizedShellFamily === 'pwsh.exe'
       ? normalizedShellFamily

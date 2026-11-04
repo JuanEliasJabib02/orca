@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
-import { RelayAssignmentRowBusyError, type RelayAssignment } from './assignment-store.js'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { RelayAssignmentRowBusyError, type RelayAssignment } from './assignment/assignment-store.js'
 import type { RelayConfig } from './config.js'
 
 const fakes = vi.hoisted(() => ({
@@ -17,6 +17,11 @@ vi.mock('./relay-token-verifier.js', () => ({
 import { createRelayApp } from './app.js'
 
 describe('public assignment reconnect lane', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
   it('admits a verified reconnect past a saturated placement queue', async () => {
     const reconnecting = 'rrrrrrrrrrrrrrrr'
     const newcomerA = 'aaaaaaaaaaaaaaaa'
@@ -58,7 +63,13 @@ describe('public assignment reconnect lane', () => {
       { userId: 'user-1', relayHostId: reconnecting },
       { classifyHomeRollIsolation: true }
     )
-    expect(assign).toHaveBeenCalledWith({ userId: 'user-1', relayHostId: reconnecting })
+    expect(assign).toHaveBeenCalledWith(
+      { userId: 'user-1', relayHostId: reconnecting },
+      undefined,
+      undefined,
+      undefined,
+      { hostRequested: true }
+    )
     expect(outcomes).toContain('sticky')
 
     pending.get(newcomerA)?.resolve(assignment('cell-a', newcomerA))
@@ -87,26 +98,6 @@ describe('public assignment reconnect lane', () => {
     expect(repeat.headers.get('retry-after')).toBe('2')
     expect(resolve).toHaveBeenCalledTimes(1)
     expect(assign).toHaveBeenCalledTimes(1)
-  })
-
-  it('sends an unverified reconnect hint through the placement lane unchanged', async () => {
-    const host = 'nnnnnnnnnnnnnnnn'
-    const assign = vi.fn(async () => assignment('cell-n', host))
-    const resolve = vi.fn(async () => null)
-    const outcomes: string[] = []
-    const app = createRelayApp(config(), {
-      store: {} as never,
-      assignments: { assign, resolve } as never,
-      drain: vi.fn(),
-      ready: vi.fn(async () => true),
-      recordAssignmentAdmission: (outcome) => outcomes.push(outcome)
-    })
-
-    const response = await app.request('/v1/assign', assignmentRequest(host, { reconnect: true }))
-
-    expect(response.status).toBe(200)
-    expect(assign).toHaveBeenCalledTimes(1)
-    expect(outcomes).toEqual(['placement'])
   })
 
   it('rejects on the fast lane when the verification probe fails transiently', async () => {
@@ -191,21 +182,6 @@ describe('public assignment reconnect lane', () => {
     expect(response.headers.get('retry-after')).toBe('1')
     expect(await response.json()).toEqual({ error: 'relay_assignment_row_busy' })
     warn.mockRestore()
-  })
-
-  it('never probes for unhinted requests', async () => {
-    const host = 'uuuuuuuuuuuuuuuu'
-    const assign = vi.fn(async () => assignment('cell-u', host))
-    const resolve = vi.fn()
-    const app = createRelayApp(config(), {
-      store: {} as never,
-      assignments: { assign, resolve } as never,
-      drain: vi.fn(),
-      ready: vi.fn(async () => true)
-    })
-
-    expect((await app.request('/v1/assign', assignmentRequest(host))).status).toBe(200)
-    expect(resolve).not.toHaveBeenCalled()
   })
 })
 

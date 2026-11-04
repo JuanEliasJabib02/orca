@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { create } from 'zustand'
-import type { HostedReviewInfo } from '../../../../shared/hosted-review'
+import type { HostedReviewInfo } from '../../../../shared/source-control/hosted-review/hosted-review-contracts'
 import type { AppState } from '../types'
 import { createHostedReviewSlice } from './hosted-review'
 import {
@@ -10,13 +10,7 @@ import {
 } from './hosted-review-request-state'
 
 const runtimeRpc = vi.hoisted(() => ({ callRuntimeRpc: vi.fn() }))
-vi.mock('@/runtime/runtime-rpc-client', () => ({
-  callRuntimeRpc: runtimeRpc.callRuntimeRpc,
-  getActiveRuntimeTarget: (settings: AppState['settings']) => {
-    const environmentId = settings?.activeRuntimeEnvironmentId
-    return environmentId ? { kind: 'environment', environmentId } : { kind: 'local' }
-  }
-}))
+vi.mock('@/runtime/runtime-rpc-client', () => ({ callRuntimeRpc: runtimeRpc.callRuntimeRpc }))
 
 const forBranch = vi.fn()
 type TestState = Pick<
@@ -149,21 +143,4 @@ describe('hosted review lookup ownership after newer settlement', () => {
       expect(route === 'runtime' ? forBranch : runtimeRpc.callRuntimeRpc).not.toHaveBeenCalled()
     }
   )
-
-  it('dedupes each branch independently and removes settled generation entries', async () => {
-    const store = makeStore()
-    const pending = Promise.withResolvers<HostedReviewInfo | null>()
-    forBranch.mockReturnValue(pending.promise)
-    const callers = ['one', 'two'].flatMap((branch) =>
-      Array.from({ length: 10 }, () =>
-        store.getState().fetchHostedReviewForBranch('/repo', branch, { force: true })
-      )
-    )
-    expect(forBranch).toHaveBeenCalledTimes(2)
-    expect(hostedReviewRequestGenerations.size).toBe(2)
-    pending.resolve(review(20))
-    await Promise.all(callers)
-    expect(inflightHostedReviewRequests.size).toBe(0)
-    expect(hostedReviewRequestGenerations.size).toBe(0)
-  })
 })

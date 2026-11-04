@@ -158,9 +158,8 @@ type ChunkedPasteOutcome = {
 }
 
 export function getTerminalPasteOperationTimeoutMs(plan: TerminalPastePlan): number {
-  // Why: SSH/remote-runtime acknowledged PTY writes can include network
-  // backpressure; keep local paste hangs tight without aborting slow remotes.
-  return plan.target.runtime.kind === 'ssh' || plan.target.runtime.kind === 'remote-runtime'
+  // Allow remote acknowledged-write backpressure without loosening local paste timeout budgets.
+  return plan.target.runtime.kind === 'remote-runtime'
     ? TERMINAL_REMOTE_PASTE_OPERATION_TIMEOUT_MS
     : TERMINAL_PASTE_OPERATION_TIMEOUT_MS
 }

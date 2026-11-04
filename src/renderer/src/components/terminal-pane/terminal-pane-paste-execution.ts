@@ -1,11 +1,12 @@
 import { useAppStore } from '../../store'
 import type { ManagedPane } from '@/lib/pane-manager/pane-manager'
-import type { PtyTransport } from './pty-transport'
+import type { PtyTransport } from './pty-transport-types'
 import { getConnectionId } from '@/lib/connection-context'
-import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
-import type { TerminalPasteSource, TerminalPasteTextOptions } from './terminal-paste-coordinator'
-import { resolveTerminalPasteRuntime } from './terminal-paste-runtime'
-import { getTerminalPasteSshRemotePlatform } from './terminal-paste-ssh-platform'
+import type { TerminalPasteSource, TerminalPasteTextOptions } from './terminal-paste-model'
+import {
+  resolveTerminalPasteRuntime,
+  resolveTerminalPasteRuntimeEnvironmentId
+} from './terminal-paste-runtime'
 import {
   isTerminalPanePasteFocusCurrent,
   isTerminalPanePasteTargetCurrent
@@ -17,6 +18,8 @@ import { scheduleImagePasteWebglAtlasRecovery } from './terminal-webgl-atlas-rec
 import { pasteTerminalClipboard } from './terminal-clipboard-paste'
 import type { ReadClipboardTextOptions } from '../../../../shared/clipboard-text'
 import type { TerminalPaneCloseController } from './use-terminal-pane-close-actions'
+import { resolveProtectedMultilinePasteOptionsForPane } from './terminal-agent-paste-bracketing'
+import { resolveTerminalInputHostPlatform } from './terminal-input-host-platform'
 
 export type TerminalPanePasteExecution = ReturnType<typeof createTerminalPanePasteExecution>
 
@@ -58,7 +61,6 @@ export function createTerminalPanePasteExecution(
     text: string,
     options?: TerminalPasteTextOptions
   ): Promise<void> => {
-    const connectionId = getConnectionId(worktreeId) ?? null
     const transport = paneTransportsRef.current.get(pane.id)
     const ptyId = transport?.getPtyId() ?? null
     const keyboardOwnedPaste =
@@ -71,8 +73,6 @@ export function createTerminalPanePasteExecution(
       runtime: resolveTerminalPasteRuntime({
         platform: shortcutPlatform,
         ptyId,
-        connectionId,
-        remotePlatform: getTerminalPasteSshRemotePlatform(connectionId),
         transport,
         isWindowsConpty: forceBracketedMultilineTextPaste
       }),
@@ -103,6 +103,30 @@ export function createTerminalPanePasteExecution(
     }
   }
 
+  // Resolve per pane/PTY host: Windows Codex needs input-record newlines even beside other protocols.
+  const resolvePaneProtectedMultilinePasteOptions = (
+    pane: ManagedPane
+  ): TerminalPasteTextOptions | undefined => {
+    const state = useAppStore.getState()
+    const options = resolveProtectedMultilinePasteOptionsForPane({
+      isWindowsClient: forceBracketedMultilineTextPaste,
+      hostPlatform: resolveTerminalInputHostPlatform({
+        clientPlatform: shortcutPlatform,
+        state,
+        worktreeId,
+        transport: paneTransportsRef.current.get(pane.id) ?? null
+      }),
+      agentStatusByPaneKey: state.agentStatusByPaneKey,
+      paneForegroundAgentByPaneKey: state.paneForegroundAgentByPaneKey,
+      tabId,
+      leafId: pane.leafId
+    })
+    // Why: non-Windows clients keep xterm's own bracketing; only the Windows input-record contract is added.
+    return forceBracketedMultilineTextPaste || options?.windowsInputRecordNewline
+      ? options
+      : undefined
+  }
+
   const pasteFromClipboard = (
     pane: ManagedPane,
     source: Extract<TerminalPasteSource, 'keyboard' | 'paste-event'>,
@@ -110,9 +134,10 @@ export function createTerminalPanePasteExecution(
       .readClipboardText
   ): void => {
     const connectionId = getConnectionId(worktreeId) ?? null
-    const runtimeEnvironmentId = getRuntimeEnvironmentIdForWorktree(
+    const runtimeEnvironmentId = resolveTerminalPasteRuntimeEnvironmentId(
       useAppStore.getState(),
-      worktreeId
+      worktreeId,
+      paneTransportsRef.current.get(pane.id)
     )
     const activeElementAtDispatch = document.activeElement
     void pasteTerminalClipboard({
@@ -120,7 +145,7 @@ export function createTerminalPanePasteExecution(
       saveClipboardImageAsTempFile: window.api.ui.saveClipboardImageAsTempFile,
       connectionId,
       runtimeEnvironmentId,
-      forceBracketedMultilineTextPaste,
+      protectedMultilineTextPasteOptions: resolvePaneProtectedMultilinePasteOptions(pane),
       pasteText: (text, options) =>
         executePanePasteText(pane, source, activeElementAtDispatch, text, options),
       onTextPasteError: () =>
@@ -131,5 +156,5 @@ export function createTerminalPanePasteExecution(
     })
   }
 
-  return { executePanePasteText, pasteFromClipboard }
+  return { executePanePasteText, pasteFromClipboard, resolvePaneProtectedMultilinePasteOptions }
 }
