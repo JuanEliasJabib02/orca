@@ -51,7 +51,8 @@ describe('new project defaults on add', () => {
       expect(projectGroupsMoveProject).toHaveBeenCalledWith({
         projectId: localRepo.id,
         groupId: 'arctic-grey',
-        order: undefined
+        order: undefined,
+        hostId: 'local'
       })
     )
   })

@@ -62,7 +62,7 @@ function openFile(
         relativePath: 'src/index.ts',
         worktreeId: 'wt-1',
         language: 'typescript',
-        isDirty: overrides.isDirty ?? false,
+        isDirty: false,
         runtimeEnvironmentId: overrides.runtimeEnvironmentId ?? null
       }
     ],
@@ -70,14 +70,15 @@ function openFile(
     worktreesByRepo: { 'repo-1': [{ id: 'wt-1', path: WORKTREE_PATH }] },
     folderWorkspaces: []
   } as unknown as Parameters<typeof useAppStore.setState>[0])
+  if (overrides.isDirty) {
+    useAppStore.getState().markFileDirty('file-1', true)
+  }
 }
 
+// Dirty state lives on the editor buffer record; markFileDirty writes it and the tab mirror together.
 function setDirty(isDirty: boolean): void {
-  const openFiles = (useAppStore.getState() as unknown as { openFiles: { id: string }[] }).openFiles
   act(() => {
-    useAppStore.setState({
-      openFiles: openFiles.map((file) => (file.id === 'file-1' ? { ...file, isDirty } : file))
-    } as unknown as Parameters<typeof useAppStore.setState>[0])
+    useAppStore.getState().markFileDirty('file-1', isDirty)
   })
 }
 
@@ -99,6 +100,8 @@ async function flushDebounce(): Promise<void> {
 describe('LineBlameStatusSegment', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    // Retire the previous case's buffer record so a clean tab never meets a dirty record.
+    useAppStore.setState({ openFiles: [], editorDrafts: {} })
     blameMocks.getRuntimeGitLineBlame.mockReset()
     resetLineBlameRequestsForTests()
     i18nMocks.locale = 'en-US'

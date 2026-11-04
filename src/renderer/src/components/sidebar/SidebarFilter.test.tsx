@@ -41,6 +41,8 @@ function setState(overrides: Record<string, unknown> = {}): void {
     setHideCliCreatedWorkspaces: vi.fn(),
     hideDetachedHeadWorkspaces: false,
     setHideDetachedHeadWorkspaces: vi.fn(),
+    hideWorkspacesFromOtherDevices: false,
+    setHideWorkspacesFromOtherDevices: vi.fn(),
     alwaysShowDefaultBranchWorkspace: true,
     setAlwaysShowDefaultBranchWorkspace: vi.fn(),
     addRepo: vi.fn(),

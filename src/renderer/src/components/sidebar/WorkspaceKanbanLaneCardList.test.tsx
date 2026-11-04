@@ -202,8 +202,8 @@ describe('WorkspaceKanbanLaneCardList', () => {
     expect(virtualizerKeys).toEqual(['local|plain', 'task:AX-1'])
     // Why: sidebar drops convert the card index they read into worktrees through this.
     expect(getWorkspaceKanbanVirtualLaneItemWorktreeIds(scrollRef.current!)).toEqual([
-      ['plain'],
-      ['api', 'web']
+      ['local|plain'],
+      ['local|api', 'local|web']
     ])
   })
 
@@ -254,6 +254,9 @@ describe('WorkspaceKanbanLaneCardList', () => {
       container.querySelector<HTMLElement>('[data-workspace-board-card-id="local|api"]')?.dataset
         .workspaceBoardCardIndex
     ).toBe('1')
-    expect(getWorkspaceKanbanVirtualLaneItemWorktreeIds(scrollRef.current!)).toEqual([[], ['api']])
+    expect(getWorkspaceKanbanVirtualLaneItemWorktreeIds(scrollRef.current!)).toEqual([
+      [],
+      ['local|api']
+    ])
   })
 })

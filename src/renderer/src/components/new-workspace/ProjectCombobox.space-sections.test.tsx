@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NewWorkspaceProjectOption } from '@/lib/new-workspace-project-options'
 import ProjectCombobox from './ProjectCombobox'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 // Render the popover inline so assertions can reach the list without a portal.
 vi.mock('@/components/ui/popover', () => ({
@@ -77,12 +78,14 @@ function groups(): { label: string | null; rows: string[] }[] {
 function render(outOfSpaceOptionIds: ReadonlySet<string> | null, onValueChange = vi.fn()): void {
   act(() => {
     root.render(
-      <ProjectCombobox
-        options={options}
-        value={null}
-        onValueChange={onValueChange}
-        outOfSpaceOptionIds={outOfSpaceOptionIds}
-      />
+      <TooltipProvider>
+        <ProjectCombobox
+          options={options}
+          value={null}
+          onValueChange={onValueChange}
+          outOfSpaceOptionIds={outOfSpaceOptionIds}
+        />
+      </TooltipProvider>
     )
   })
 }

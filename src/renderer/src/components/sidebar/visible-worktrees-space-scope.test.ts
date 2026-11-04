@@ -116,7 +116,8 @@ describe('computeVisibleWorktreeIds with a sidebar space', () => {
       visibleOptions({ spaceScope: scope, filterRepoIds: ['in-space-2'] })
     )
 
-    expect(result).toEqual([secondInSpace.id])
+    // Why folder-in: folder workspaces skip the Projects filter; the space still drops folder-out.
+    expect(result).toEqual([folderIn.id, secondInSpace.id])
   })
 
   it('ignores a project filter that only names projects of another space', () => {
@@ -136,7 +137,8 @@ describe('computeVisibleWorktreeIds with a sidebar space', () => {
       visibleOptions({ filterRepoIds: ['other-space'] })
     )
 
-    expect(result).toEqual([outOfSpace.id])
+    // Why both folders: folder workspaces skip the Projects filter, and no space drops them.
+    expect(result).toEqual([outOfSpace.id, folderIn.id, folderOut.id])
   })
 
   it('lets a forced worktree outside the space bypass it', () => {

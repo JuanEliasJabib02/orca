@@ -19,7 +19,7 @@ vi.mock('./agent-foreground-process', () => ({
 
 import { readLocalPtyForegroundGroup } from './local-pty/local-pty-foreground-inspection'
 import { LocalPtyProvider } from './local-pty/local-pty-provider'
-import { ptyProcesses, ptyShellPath } from './local-pty/local-pty-provider-state'
+import { ptyIncarnations, ptyProcesses, ptyShellPath } from './local-pty/local-pty-provider-state'
 import { inspectPtyProviderProcess } from './pty-process-inspection'
 
 const SHELL_PID = 4242
@@ -43,6 +43,7 @@ function registerPane(id: string, foreground: string): pty.IPty {
     resume() {}
   }
   ptyProcesses.set(id, pane)
+  ptyIncarnations.set(id, `incarnation:${id}`)
   ptyShellPath.set(id, '/bin/zsh')
   return pane
 }
@@ -74,6 +75,7 @@ beforeEach(() => {
 
 afterEach(() => {
   ptyProcesses.clear()
+  ptyIncarnations.clear()
   ptyShellPath.clear()
 })
 

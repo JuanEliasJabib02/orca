@@ -121,6 +121,9 @@ describe('whole-file blame', () => {
     mocks.getRuntimeGitFileBlame.mockImplementation(
       () => new Promise((resolve) => (resolveFile = resolve))
     )
+    // The invalidation falls back to a per-line blame; give it a real answer
+    // so the dropped read is the only thing this case exercises.
+    mocks.getRuntimeGitLineBlame.mockResolvedValue(null)
 
     requestLineBlame(target(5))
     clearLineBlameCache()

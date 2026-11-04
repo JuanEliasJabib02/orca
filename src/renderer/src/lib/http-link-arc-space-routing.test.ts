@@ -21,7 +21,7 @@ const actionSpace: ProjectGroup = {
 
 describe('Arc space routing for system-browser links', () => {
   const openUrlMock = vi.fn()
-  const createBrowserTabMock = vi.fn()
+  const browserOpenerMock = vi.fn(() => Promise.resolve())
   const storeState = {
     settings: {} as {
       openLinksInApp?: boolean
@@ -29,7 +29,7 @@ describe('Arc space routing for system-browser links', () => {
       arcSpaceNameBySidebarSpaceId?: Record<string, string>
     },
     setActiveWorktree: vi.fn(),
-    createBrowserTab: createBrowserTabMock,
+    createBrowserTab: vi.fn(),
     repos: [{ id: 'r-action', displayName: 'backend', projectGroupId: 'action' }],
     projectGroups: [actionSpace],
     folderWorkspaces: [],
@@ -39,7 +39,7 @@ describe('Arc space routing for system-browser links', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     registerHttpLinkStoreAccessor(() => storeState)
-    registerWorkspaceHttpLinkBrowserOpener(vi.fn(() => Promise.resolve()))
+    registerWorkspaceHttpLinkBrowserOpener(browserOpenerMock)
     vi.stubGlobal('window', { api: { shell: { openUrl: openUrlMock } } })
   })
 
@@ -80,8 +80,8 @@ describe('Arc space routing for system-browser links', () => {
     openHttpLink('https://example.com/', { worktreeId: 'r-action::/repo' })
 
     expect(openUrlMock).not.toHaveBeenCalled()
-    expect(createBrowserTabMock).toHaveBeenCalledWith('r-action::/repo', 'https://example.com/', {
-      activate: true
-    })
+    expect(browserOpenerMock).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'r-action::/repo', url: 'https://example.com/' })
+    )
   })
 })

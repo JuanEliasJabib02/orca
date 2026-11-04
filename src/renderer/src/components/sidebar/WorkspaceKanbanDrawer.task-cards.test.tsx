@@ -25,7 +25,7 @@ type GridCapture = {
 type PointerDragCapture = {
   selectedWorktreeIds: ReadonlySet<string>
   onDropWorktreesInStatus: (args: {
-    worktreeIds: readonly string[]
+    worktreeKeys: readonly string[]
     status: string
     dropIndex: number
   }) => void
@@ -262,7 +262,11 @@ describe('WorkspaceKanbanDrawer task cards', () => {
     expect(describeLane('in-progress')).toEqual([])
     // Why: lane badges count cards, and a task card is one.
     expect(gridState.current?.laneViews.get('todo')?.totalCount).toBe(2)
-    expect(gridState.current?.laneFullWorktreeIds.get('todo')).toEqual([api.id, web.id, loose.id])
+    expect(gridState.current?.laneFullWorktreeIds.get('todo')).toEqual([
+      `local|${api.id}`,
+      `local|${web.id}`,
+      `local|${loose.id}`
+    ])
   })
 
   it('drags every worktree of the task in the space, hidden ones too, never primaries', () => {
@@ -270,7 +274,7 @@ describe('WorkspaceKanbanDrawer task cards', () => {
 
     act(() => {
       pointerDragState.current?.onDropWorktreesInStatus({
-        worktreeIds: [api.id],
+        worktreeKeys: [`local|${api.id}`],
         status: 'done',
         dropIndex: 0
       })
@@ -300,7 +304,7 @@ describe('WorkspaceKanbanDrawer task cards', () => {
 
     act(() => {
       pointerDragState.current?.onDropWorktreesInStatus({
-        worktreeIds: [api.id, web.id, loose.id],
+        worktreeKeys: [`local|${api.id}`, `local|${web.id}`, `local|${loose.id}`],
         status: 'done',
         dropIndex: 0
       })
@@ -334,7 +338,7 @@ describe('WorkspaceKanbanDrawer task cards', () => {
 
     act(() => {
       pointerDragState.current?.onDropWorktreesInStatus({
-        worktreeIds: [api.id],
+        worktreeKeys: [`local|${api.id}`],
         status: 'done',
         dropIndex: 0
       })

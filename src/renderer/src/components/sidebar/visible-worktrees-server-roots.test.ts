@@ -135,12 +135,13 @@ describe('computeVisibleWorktrees keeping the Servers roots (Group by → Task)'
   })
 
   it('keeps the sort order of the list', () => {
-    // Why no notes-root: a folder project's root is its default workspace, and it has no server.
+    // Why notes-root: a folder project's root has no default branch, so this filter never drops it.
     expect(visibleIds({ hideDefaultBranchWorkspace: true, keepServerRoots: true })).toEqual([
       'web-feature',
       'web-root',
       'api-root',
       'remote-root',
+      'notes-root',
       'home-root'
     ])
   })
@@ -154,7 +155,7 @@ describe('computeVisibleWorktrees keeping the Servers roots (Group by → Task)'
 
     expect(
       visibleIds({ spaceScope: work, hideDefaultBranchWorkspace: true, keepServerRoots: true })
-    ).toEqual(['web-feature', 'web-root', 'api-root'])
+    ).toEqual(['web-feature', 'web-root', 'api-root', 'notes-root'])
   })
 
   it('respects the host scope', () => {
@@ -189,6 +190,10 @@ describe('computeVisibleWorktrees keeping the Servers roots (Group by → Task)'
   })
 
   it('changes nothing without the option, as in every other Group by', () => {
-    expect(visibleIds({ hideDefaultBranchWorkspace: true })).toEqual(['web-feature', 'remote-root'])
+    expect(visibleIds({ hideDefaultBranchWorkspace: true })).toEqual([
+      'web-feature',
+      'remote-root',
+      'notes-root'
+    ])
   })
 })
