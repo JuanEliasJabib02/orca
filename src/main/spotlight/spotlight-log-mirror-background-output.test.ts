@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import nodePath from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('../ipc/pty', () => ({
+vi.mock('../ipc/pty/provider/registry', () => ({
   getLocalPtyProvider: vi.fn()
 }))
 vi.mock('../git/runner', () => ({

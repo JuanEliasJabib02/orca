@@ -151,6 +151,12 @@ const STATIC_TITLE_COPY = {
     translate('keybindings.title.terminalToggleNativeChat', 'Switch between Chat UI and terminal'),
   'sidebar.childWorkspaces.toggle': () =>
     translate('keybindings.title.sidebarChildWorkspacesToggle', 'Toggle Child Workspaces'),
+  'sidebar.space.select1': () =>
+    translate('keybindings.title.sidebarSpaceSelect1', 'Switch to Space 1'),
+  'sidebar.space.select2': () =>
+    translate('keybindings.title.sidebarSpaceSelect2', 'Switch to Space 2'),
+  'sidebar.space.select3': () =>
+    translate('keybindings.title.sidebarSpaceSelect3', 'Switch to Space 3'),
   'terminal.clearPaneTitle': () =>
     translate('keybindings.title.terminalClearPaneTitle', 'Clear Pane Title'),
   'terminal.closePane': () => translate('keybindings.title.terminalClosePane', 'Close active pane'),

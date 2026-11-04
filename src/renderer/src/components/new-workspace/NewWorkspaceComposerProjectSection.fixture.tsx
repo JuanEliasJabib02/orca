@@ -88,6 +88,7 @@ function ProjectAndHostPreview({
     <div className="space-y-4 rounded-xl border border-border bg-background p-4">
       <h1 className="text-base font-semibold">New worktree</h1>
       <NewWorkspaceComposerProjectSection
+        eligibleRepos={[]}
         projectError={null}
         selectedRepoConnectionId={null}
         selectedRepoRequiresConnection={false}

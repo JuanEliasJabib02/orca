@@ -19,6 +19,7 @@ const HOST_LABEL = 'gpu-vm'
 let worktreeCardProperties: WorktreeCardProperty[] = []
 let settings: Partial<GlobalSettings> | null = null
 let runtimeEnvironments: readonly object[] = []
+let groupBy = 'repo'
 const WORKTREE_CARD_IMPORT_TIMEOUT_MS = 15_000
 
 vi.mock('@/store', () => {
@@ -28,6 +29,7 @@ vi.mock('@/store', () => {
     fetchIssue,
     fetchLinearIssue,
     gitConflictOperationByWorktree: {},
+    groupBy,
     hostedReviewCache: {},
     issueCache: {},
     linearIssueCache: {},
@@ -137,6 +139,7 @@ describe('WorktreeCard host badge toggle', () => {
     vi.clearAllMocks()
     worktreeCardProperties = []
     runtimeEnvironments = []
+    groupBy = 'repo'
     settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle: false }
   })
 
@@ -187,6 +190,8 @@ describe('WorktreeCard host badge toggle', () => {
         }
       }
       for (const mode of ['repo', 'none', 'workspace-status', 'pr-status'] as const) {
+        // Why: outside Project grouping the card names its project itself.
+        groupBy = mode
         for (const pinned of [false, true]) {
           const trees = [{ ...parent, isPinned: pinned }, child]
           const rows = buildRows(

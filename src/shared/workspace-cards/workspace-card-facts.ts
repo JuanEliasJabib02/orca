@@ -91,6 +91,19 @@ export type WorkspaceCardFacts = {
     affiliateList: boolean
     /** The delete modifier is held over a card that may be deleted. */
     deleteQuickAction: boolean
+    /** The project the card names when no section header does (not grouped by Project). */
+    projectLabel: string | null
+  }
+  /** The repo's Spotlight, which mirrors one workspace onto the project root for testing. */
+  spotlight: {
+    /** This workspace may take the Spotlight: a local, opted-in git worktree that is not the root. */
+    eligible: boolean
+    /** The repo's Spotlight is on. */
+    active: boolean
+    /** On and the root still matches the mirror, so its detached HEAD is expected. */
+    ownsRoot: boolean
+    /** The server's port (`:8080`) on the holder row and the root while it listens; null elsewhere. */
+    portLabel: string | null
   }
   options: {
     style: WorkspaceCardStyle

@@ -8,6 +8,7 @@ import { makeWorktree } from '@/store/slices/worktrees-slice-test-fixtures'
 import type { Worktree } from '../../../../shared/worktree/types'
 import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
 import { useWorkspaceKanbanWorktreeActions } from './use-workspace-kanban-worktree-actions'
+import { toWorkspaceKanbanWorktreeLaneItem } from './workspace-kanban-lane-items'
 import { buildWorktreeManualOrderCatalog } from './worktree-manual-order-catalog'
 import { buildUnambiguousWorktreeIdIndex } from './worktree-unambiguous-id-index'
 
@@ -68,11 +69,13 @@ function renderBoardActions() {
         ['done', []]
       ]),
       laneViews: new Map([
-        ['todo', { items: lane }],
+        ['todo', { items: lane.map(toWorkspaceKanbanWorktreeLaneItem) }],
         ['done', { items: [] }]
       ]),
       maybeSyncTaskStatuses,
       sortBy: 'manual',
+      taskMoveIdsByWorktreeId: new Map(),
+      taskMoveKeysByWorktreeKey: new Map(),
       updateWorktreeMeta: vi.fn(),
       updateWorktreesMeta,
       workspaceStatuses: [
@@ -84,11 +87,7 @@ function renderBoardActions() {
       manualOrderCatalog: buildWorktreeManualOrderCatalog({
         worktrees: lane,
         folderWorkspaces: []
-      }),
-      worktreesByStatus: new Map([
-        ['todo', lane],
-        ['done', []]
-      ])
+      })
     })
   ).result
 }

@@ -102,7 +102,11 @@ export const PERSISTED_STATE_DISPOSITIONS = {
   onboarding: notApplicableDisposition(62),
   featureInteractionTelemetryBuckets: notApplicableDisposition(62),
   codexResetCreditAttemptLedger: notApplicableDisposition(62),
-  chatUiLaunchTipAudience: notApplicableDisposition(62)
+  chatUiLaunchTipAudience: notApplicableDisposition(62),
+  spotlightByRepoId: notApplicableDisposition(
+    62,
+    "Desktop cache of the repo's refs/orca/spotlight/*, which move with its bytes; Spotlight serves local projects only."
+  )
 } as const satisfies Record<keyof PersistedState, WslMoveFieldDisposition>
 
 export const WORKSPACE_SESSION_DISPOSITIONS = {

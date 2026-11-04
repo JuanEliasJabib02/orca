@@ -178,17 +178,15 @@ export function isSpacelessRepo(
 }
 
 /** Spaceless repos on one host, in store order: what the first space adopts when it is created. */
-export function listSpacelessRepoIdsOnHost(
+export function listSpacelessReposOnHost(
   repos: readonly Repo[],
   projectGroups: readonly ProjectGroup[],
   hostId: ExecutionHostId
-): string[] {
+): Repo[] {
   const knownGroupIds = new Set(projectGroups.map((group) => group.id))
-  return repos
-    .filter(
-      (repo) => isSpacelessRepo(repo, knownGroupIds) && getRepoExecutionHostId(repo) === hostId
-    )
-    .map((repo) => repo.id)
+  return repos.filter(
+    (repo) => isSpacelessRepo(repo, knownGroupIds) && getRepoExecutionHostId(repo) === hostId
+  )
 }
 
 function findTopLevelGroupId(

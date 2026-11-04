@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PtyProcessInspection } from '../providers/pty-process-inspection'
 import type { SpotlightRepoState } from '../../shared/spotlight'
 import type * as SpotlightSyncCore from '../../shared/spotlight-sync-core'
-import type { Store } from '../persistence'
+import type { Store } from '../persistence/loading-store/store'
 
 const fakePty = vi.hoisted(() => {
   const writes: { id: string; data: string }[] = []
@@ -22,7 +22,7 @@ const fakePty = vi.hoisted(() => {
   }
 })
 
-vi.mock('../ipc/pty', () => ({
+vi.mock('../ipc/pty/provider/registry', () => ({
   getLocalPtyProvider: () => fakePty,
   onLocalPtyProviderChanged: () => () => {}
 }))

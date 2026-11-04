@@ -43,6 +43,7 @@ const BOX_PROPS = [
   'inset',
   'overflow',
   'hoverGroup',
+  'anchor',
   'marker'
 ] as const
 
@@ -70,7 +71,9 @@ function boxAttrs(
       props.push === true && 'ml-auto',
       props.inset === 'end' && 'pr-1.5',
       pick(OVERFLOW, props.overflow),
-      props.hoverGroup === true && 'group/worktree-card'
+      props.hoverGroup === true && 'group/worktree-card',
+      // Positions children an element draws over the box, such as an edge bar.
+      props.anchor === true && 'relative'
     ),
     ...(marker ? { [marker]: '' } : {})
   }

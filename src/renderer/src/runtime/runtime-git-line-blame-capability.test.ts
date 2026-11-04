@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { GIT_BLAME_RUNTIME_CAPABILITY } from '../../../shared/protocol-version'
+import type { RuntimeGitContext } from './runtime-git-client-context'
 
 const mocks = vi.hoisted(() => ({
   callRuntimeRpc: vi.fn(),
@@ -8,19 +9,13 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./runtime-rpc-client', () => ({
   callRuntimeRpc: mocks.callRuntimeRpc,
-  getActiveRuntimeTarget: (
-    settings: { activeRuntimeEnvironmentId?: string | null } | null | undefined
-  ) => {
-    const environmentId = settings?.activeRuntimeEnvironmentId?.trim()
-    return environmentId ? { kind: 'environment', environmentId } : { kind: 'local' }
-  },
   runtimeEnvironmentSupportsCapability: mocks.supportsCapability
 }))
 
-const { getRuntimeGitLineBlame } = await import('./runtime-git-client')
+const { getRuntimeGitLineBlame } = await import('./runtime-git-blame-client')
 
-const REMOTE_CONTEXT = {
-  settings: { activeRuntimeEnvironmentId: 'env-1' },
+const REMOTE_CONTEXT: RuntimeGitContext = {
+  target: { kind: 'environment', environmentId: 'env-1' },
   worktreeId: 'wt-1',
   worktreePath: '/remote/repo'
 }
@@ -70,7 +65,7 @@ describe('getRuntimeGitLineBlame capability gate', () => {
     await expect(
       getRuntimeGitLineBlame(
         {
-          settings: { activeRuntimeEnvironmentId: null },
+          target: { kind: 'local' },
           worktreeId: 'wt-1',
           worktreePath: '/repo'
         },

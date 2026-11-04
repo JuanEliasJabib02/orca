@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GlobalSettings } from '../../shared/global-settings-types'
-import type * as GitBash from '../git-bash'
+import type * as GitBash from '../pty/shell-startup/git-bash'
 
 const pwsh = vi.hoisted(() => ({
   isPwshAvailableAsync: vi.fn(async (): Promise<boolean> => false)
 }))
 
-vi.mock('../pwsh', () => pwsh)
-vi.mock('../git-bash', async (importOriginal) => {
+vi.mock('../pty/shell-startup/pwsh', () => pwsh)
+vi.mock('../pty/shell-startup/git-bash', async (importOriginal) => {
   const actual = await importOriginal<typeof GitBash>()
   return {
     ...actual,
@@ -15,7 +15,7 @@ vi.mock('../git-bash', async (importOriginal) => {
   }
 })
 
-import { resolveWindowsGitBashShellPath } from '../git-bash'
+import { resolveWindowsGitBashShellPath } from '../pty/shell-startup/git-bash'
 
 import {
   configureSpotlightTerminalShell,

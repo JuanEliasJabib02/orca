@@ -20,11 +20,11 @@ const fakePty = vi.hoisted(() => {
   }
 })
 
-vi.mock('../ipc/pty', () => ({
+vi.mock('../ipc/pty/provider/registry', () => ({
   getLocalPtyProvider: () => fakePty,
   onLocalPtyProviderChanged: () => () => {}
 }))
-vi.mock('../pwsh', () => ({ isPwshAvailableAsync: vi.fn(async () => false) }))
+vi.mock('../pty/shell-startup/pwsh', () => ({ isPwshAvailableAsync: vi.fn(async () => false) }))
 vi.mock('../git/runner', () => ({
   gitExecFileAsync: vi.fn(async () => ({ stdout: '.git/info/exclude', stderr: '' }))
 }))

@@ -29,5 +29,5 @@ export async function fileNewRepoIntoActiveSidebarSpace(
   ) {
     return
   }
-  await state.moveProjectToGroup(repo.id, space.id)
+  await state.moveProjectToGroup(repo, space.id)
 }

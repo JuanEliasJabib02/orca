@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProcessTableRow } from '../../shared/process-table-snapshot'
 import type * as SnapshotReader from '../../shared/process-table-snapshot-reader'
 import type { PtyProcessInspection } from '../providers/pty-process-inspection'
-import type { PtyProcessInfo } from '../providers/types'
+import type { PtyProcessInfo } from '../providers/pty-provider-contract'
 
 const fakePty = vi.hoisted(() => {
   const writes: { id: string; data: string }[] = []
@@ -31,7 +31,7 @@ const { readTable } = vi.hoisted(() => ({
   readTable: vi.fn<() => Promise<ProcessTableRow[]>>()
 }))
 
-vi.mock('../ipc/pty', () => ({
+vi.mock('../ipc/pty/provider/registry', () => ({
   getLocalPtyProvider: () => fakePty,
   onLocalPtyProviderChanged: () => () => {}
 }))
@@ -39,7 +39,7 @@ vi.mock('../../shared/process-table-snapshot-reader', async (importOriginal) => 
   ...(await importOriginal<typeof SnapshotReader>()),
   getStrictProcessTableSnapshot: readTable
 }))
-vi.mock('../pwsh', () => ({ isPwshAvailableAsync: vi.fn(async () => false) }))
+vi.mock('../pty/shell-startup/pwsh', () => ({ isPwshAvailableAsync: vi.fn(async () => false) }))
 vi.mock('../git/runner', () => ({
   gitExecFileAsync: vi.fn(async () => ({ stdout: '.git/info/exclude', stderr: '' }))
 }))

@@ -2,10 +2,11 @@ import type * as Monaco from 'monaco-editor'
 import { useAppStore } from '@/store'
 import { detectLanguage } from '@/lib/language-detect'
 import { getConnectionId } from '@/lib/connection-context'
-import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
+import { isTwinWorkspace } from '@/lib/resolve-owner'
+import { runtimeEnvironmentIdOrLocalUnlessTwin } from '@/lib/worktree-runtime-owner'
 import { registerTreeSitterDefinitions } from '@/lib/tree-sitter-definitions/definition-provider'
+import { runtimeTargetForOwnerEnvironment } from '@/runtime/runtime-client-target'
 import { relativePathInsideRoot } from '../../../../shared/cross-platform-path'
-import { getRightSidebarWorktreeRuntimeSettings } from '../right-sidebar/file-explorer-runtime-owner'
 
 let registered = false
 
@@ -44,11 +45,14 @@ export function ensureTreeSitterDefinitions(monaco: typeof Monaco): void {
         return null
       }
       const worktreePath = owner?.path ?? state.getKnownWorktreeById(worktreeId)?.path
-      if (!worktreePath) {
+      // Why the twin check: two hosts publish that workspace, so either host's matches would mislead.
+      if (!worktreePath || isTwinWorkspace(state, worktreeId)) {
         return null
       }
       return {
-        settings: getRightSidebarWorktreeRuntimeSettings(worktreeId),
+        target: runtimeTargetForOwnerEnvironment(
+          runtimeEnvironmentIdOrLocalUnlessTwin(state, worktreeId)
+        ),
         worktreeId,
         worktreePath,
         connectionId: getConnectionId(worktreeId) ?? undefined
@@ -73,7 +77,7 @@ export function ensureTreeSitterDefinitions(monaco: typeof Monaco): void {
         language: detectLanguage(filePath),
         // Open against the target worktree's own runtime owner so remote/SSH
         // definitions load regardless of which host is globally active.
-        runtimeEnvironmentId: getRuntimeEnvironmentIdForWorktree(state, worktreeId),
+        runtimeEnvironmentId: runtimeEnvironmentIdOrLocalUnlessTwin(state, worktreeId),
         mode: 'edit'
       })
       // Two frames so the destination tab mounts before we reveal (matches the

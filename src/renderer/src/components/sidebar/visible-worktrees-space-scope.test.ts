@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { computeVisibleWorktreeIds, sidebarHasActiveFilters } from './visible-worktrees'
 import {
-  computeClearFilterActions,
-  computeVisibleWorktreeIds,
-  sidebarHasActiveFilters
-} from './visible-worktrees'
+  clearSidebarFilters,
+  type SidebarFilterSetters,
+  type SidebarFilterState
+} from './sidebar-filter-actions'
 import type { SidebarSpaceScope } from './sidebar-space-scope'
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
@@ -149,6 +150,25 @@ describe('computeVisibleWorktreeIds with a sidebar space', () => {
   })
 })
 
+/** The setters Clear Filters calls for this state, in call order. */
+function clearedSetters(state: SidebarFilterState): string[] {
+  const called: string[] = []
+  const record = (name: string) => () => void called.push(name)
+  const store: SidebarFilterSetters = {
+    setShowSleepingWorkspaces: record('setShowSleepingWorkspaces'),
+    setAlwaysShowDefaultBranchWorkspace: record('setAlwaysShowDefaultBranchWorkspace'),
+    setHideDefaultBranchWorkspace: record('setHideDefaultBranchWorkspace'),
+    setHideAutomationGeneratedWorkspaces: record('setHideAutomationGeneratedWorkspaces'),
+    setHideCliCreatedWorkspaces: record('setHideCliCreatedWorkspaces'),
+    setHideDetachedHeadWorkspaces: record('setHideDetachedHeadWorkspaces'),
+    setHideWorkspacesFromOtherDevices: record('setHideWorkspacesFromOtherDevices'),
+    setFilterRepoIds: record('setFilterRepoIds'),
+    setVisibleWorkspaceHostIds: record('setVisibleWorkspaceHostIds')
+  }
+  clearSidebarFilters(state, store)
+  return called
+}
+
 describe('sidebar space is not a filter', () => {
   // Why a variable: it mirrors useSidebarWorktreeFilters, which hands the whole filterState (spaceScope included) to these.
   const filterState = {
@@ -170,9 +190,7 @@ describe('sidebar space is not a filter', () => {
   })
 
   it('is never reset by Clear Filters', () => {
-    const actions = computeClearFilterActions(filterState)
-
-    expect(Object.values(actions).every((reset) => reset === false)).toBe(true)
+    expect(clearedSetters(filterState)).toEqual([])
   })
 })
 
@@ -193,20 +211,20 @@ describe('project filter picked in another space', () => {
     const state = { ...base, filterRepoIds: ['other-space'], spaceScope }
 
     expect(sidebarHasActiveFilters(state)).toBe(false)
-    expect(computeClearFilterActions(state).resetFilterRepoIds).toBe(false)
+    expect(clearedSetters(state)).not.toContain('setFilterRepoIds')
   })
 
   it('is active again once the space is left', () => {
     const state = { ...base, filterRepoIds: ['other-space'], spaceScope: null }
 
     expect(sidebarHasActiveFilters(state)).toBe(true)
-    expect(computeClearFilterActions(state).resetFilterRepoIds).toBe(true)
+    expect(clearedSetters(state)).toContain('setFilterRepoIds')
   })
 
   it('counts as active when one of its ids belongs to this space', () => {
     const state = { ...base, filterRepoIds: ['other-space', 'in-space'], spaceScope }
 
     expect(sidebarHasActiveFilters(state)).toBe(true)
-    expect(computeClearFilterActions(state).resetFilterRepoIds).toBe(true)
+    expect(clearedSetters(state)).toContain('setFilterRepoIds')
   })
 })

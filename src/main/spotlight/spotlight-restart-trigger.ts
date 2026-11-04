@@ -5,7 +5,7 @@
 import { watch, type FSWatcher } from 'node:fs'
 import { rm, stat } from 'node:fs/promises'
 import path from 'node:path'
-import { getLocalPtyProvider } from '../ipc/pty'
+import { getLocalPtyProvider } from '../ipc/pty/provider/registry'
 
 export const SPOTLIGHT_RESTART_TRIGGER_FILENAME = 'spotlight-restart'
 // Delay between the interrupt and re-running the command: long enough for the

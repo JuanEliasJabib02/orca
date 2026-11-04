@@ -12,7 +12,7 @@ import {
   isWorktreeInSidebarSpace,
   isSpacelessRepo,
   listSidebarSpaces,
-  listSpacelessRepoIdsOnHost,
+  listSpacelessReposOnHost,
   replaceSpaceRepoFilterIds,
   resolveActiveSidebarSpaceId,
   resolveSidebarSpaceScope,
@@ -317,7 +317,7 @@ describe('isSpacelessRepo', () => {
   })
 })
 
-describe('listSpacelessRepoIdsOnHost', () => {
+describe('listSpacelessReposOnHost', () => {
   it('lists ungrouped and orphaned repos on that host, in store order', () => {
     const repoList = [
       makeRepo('loose'),
@@ -326,10 +326,9 @@ describe('listSpacelessRepoIdsOnHost', () => {
       makeRepo('orphan', 'deleted-group')
     ]
 
-    expect(listSpacelessRepoIdsOnHost(repoList, groups, LOCAL_EXECUTION_HOST_ID)).toEqual([
-      'loose',
-      'orphan'
-    ])
+    expect(
+      listSpacelessReposOnHost(repoList, groups, LOCAL_EXECUTION_HOST_ID).map((repo) => repo.id)
+    ).toEqual(['loose', 'orphan'])
   })
 })
 

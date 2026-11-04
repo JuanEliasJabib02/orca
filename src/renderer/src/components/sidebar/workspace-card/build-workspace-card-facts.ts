@@ -5,6 +5,8 @@ import type {
   WorkspaceCardShowOptions
 } from '../../../../../shared/workspace-cards/workspace-card-facts'
 import type { WorktreeCardController } from '../use-worktree-card-controller'
+import { getWorktreeCardProjectLabel } from '../worktree-card-project-label'
+import { canHoldSpotlight } from '../WorktreeCardSpotlightControls'
 
 const showOptionsCache = new WeakMap<readonly WorktreeCardProperty[], WorkspaceCardShowOptions>()
 
@@ -115,7 +117,21 @@ export function buildWorkspaceCardFacts(card: WorktreeCardController): Workspace
       hideRepoBadge: card.hideRepoBadge === true,
       showProjectName: card.showProjectName === true,
       affiliateList: card.affiliateListMode,
-      deleteQuickAction: card.showDeleteQuickAction
+      deleteQuickAction: card.showDeleteQuickAction,
+      projectLabel: getWorktreeCardProjectLabel({
+        groupBy: card.groupBy,
+        affiliateListMode: card.affiliateListMode,
+        repo,
+        worktreeRepoId: worktree.repoId,
+        projectGroups: card.projectGroups
+      })
+    },
+    spotlight: {
+      eligible: canHoldSpotlight(worktree, repo, card.isFolder),
+      active: card.spotlight !== null,
+      // Why: a diverged root means someone checked out or committed there, so its detached HEAD is real.
+      ownsRoot: card.spotlight !== null && card.spotlight.lastError?.code !== 'root-diverged',
+      portLabel: card.spotlightPortLabel
     },
     options: {
       style: card.newCardStyle ? 'new' : card.compactCards ? 'compact' : 'classic',

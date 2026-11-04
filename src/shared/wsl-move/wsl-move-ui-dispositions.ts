@@ -72,7 +72,15 @@ export const UI_STATE_DISPOSITIONS = {
     38,
     'Filters belong to the Jira host, not a moved workspace.'
   ),
-  taskResumeState: notApplicableDisposition(38)
+  taskResumeState: notApplicableDisposition(38),
+  spotlightEnvByTaskKey: notApplicableDisposition(
+    38,
+    "Spotlight serves local projects only; a moved workspace's worktree-id fallback key goes unused and reads as Local."
+  ),
+  spotlightVariantByTaskRepo: notApplicableDisposition(
+    38,
+    'Same as spotlightEnvByTaskKey; the repoId half of the key is kept.'
+  )
 } as const satisfies Partial<Record<keyof PersistedUIState, WslMoveFieldDisposition>>
 
 export const UI_STATE_GLOBAL_FIELDS = [
@@ -86,6 +94,9 @@ export const UI_STATE_GLOBAL_FIELDS = [
   'markdownTocPanelWidth',
   'combinedDiffFileTreeWidth',
   'groupBy',
+  'activeSidebarSpaceGroupId',
+  'groupByBySpaceId',
+  'taskNoteByTaskKey',
   'sortBy',
   'projectOrderBy',
   'showActiveOnly',
@@ -181,6 +192,7 @@ export const UI_STATE_GLOBAL_FIELDS = [
   '_inlineAgentsDefaultedForExperiment',
   '_jiraIssueWorktreeCardPropertyDefaulted',
   '_kimiStatusBarDefaultAdded',
+  '_lineBlameStatusBarDefaultAdded',
   '_minimaxStatusBarDefaultAdded',
   '_portsStatusBarDefaultAdded',
   '_sortBySmartMigrated',

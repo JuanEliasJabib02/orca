@@ -1,7 +1,7 @@
 // Which shell the repo's Spotlight terminal runs, so a pending install is chained in syntax it parses.
 import type { GlobalSettings } from '../../shared/global-settings-types'
 import { withTimeout } from '../../shared/promise-timeout-fallback'
-import { isPwshAvailableAsync } from '../pwsh'
+import { isPwshAvailableAsync } from '../pty/shell-startup/pwsh'
 import {
   selectWindowsShell,
   type WindowsShellSelection

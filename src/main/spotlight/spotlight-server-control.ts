@@ -4,7 +4,7 @@
 // Local-only: the log capture that owns the terminal exists only for local repos.
 import type { SpotlightServerStartResult } from '../../shared/spotlight'
 import { SPOTLIGHT_STRAY_CHILD_PERSIST_MS } from '../../shared/spotlight-stray-startup'
-import { getLocalPtyProvider } from '../ipc/pty'
+import { getLocalPtyProvider } from '../ipc/pty/provider/registry'
 import {
   getSpotlightTerminal,
   restartSpotlightTerminalServer,

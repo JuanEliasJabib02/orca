@@ -50,7 +50,10 @@ describe('fileNewRepoIntoActiveSidebarSpace', () => {
   it('moves a new local project into the active space', async () => {
     await fileNewRepoIntoActiveSidebarSpace(makeRepo(), state)
 
-    expect(moveProjectToGroup).toHaveBeenCalledWith('new-repo', 'arctic-grey')
+    expect(moveProjectToGroup).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'new-repo' }),
+      'arctic-grey'
+    )
   })
 
   it('uses the first space when none is stored yet', async () => {
@@ -58,7 +61,10 @@ describe('fileNewRepoIntoActiveSidebarSpace', () => {
 
     await fileNewRepoIntoActiveSidebarSpace(makeRepo(), state)
 
-    expect(moveProjectToGroup).toHaveBeenCalledWith('new-repo', 'action-black')
+    expect(moveProjectToGroup).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'new-repo' }),
+      'action-black'
+    )
   })
 
   it('leaves a project that already has a group where it is', async () => {

@@ -1,7 +1,6 @@
 import { getConnectionIdForFile } from '@/lib/connection-context'
-import { settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
-import { getRuntimeGitFileBlame, getRuntimeGitLineBlame } from '@/runtime/runtime-git-client'
-import { useAppStore } from '@/store'
+import { runtimeTargetForOwnerEnvironment } from '@/runtime/runtime-client-target'
+import { getRuntimeGitFileBlame, getRuntimeGitLineBlame } from '@/runtime/runtime-git-blame-client'
 import type { GitLineBlameResult } from '../../../shared/git-line-blame-types'
 
 /** Why: debounce so scrubbing the cursor doesn't queue a git blame per line. */
@@ -169,10 +168,7 @@ async function loadFileBlame(target: BlameTarget): Promise<void> {
   const startedGeneration = generation
   const byLine = await getRuntimeGitFileBlame(
     {
-      settings: settingsForRuntimeOwner(
-        useAppStore.getState().settings,
-        target.runtimeEnvironmentId
-      ),
+      target: runtimeTargetForOwnerEnvironment(target.runtimeEnvironmentId),
       worktreeId: target.worktreeId,
       worktreePath: target.worktreePath,
       connectionId: getConnectionIdForFile(target.worktreeId, target.filePath) ?? undefined
@@ -258,7 +254,7 @@ function pump(): void {
   inFlightGeneration = startedGeneration
   void getRuntimeGitLineBlame(
     {
-      settings: settingsForRuntimeOwner(useAppStore.getState().settings, next.runtimeEnvironmentId),
+      target: runtimeTargetForOwnerEnvironment(next.runtimeEnvironmentId),
       worktreeId: next.worktreeId,
       worktreePath: next.worktreePath,
       // Why: folder workspaces resolve ownership per file, so asking the

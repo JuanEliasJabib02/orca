@@ -30,7 +30,9 @@ vi.mock('../git/runner', () => ({
   gitOptionalLocksDisabledEnv: () => ({ GIT_OPTIONAL_LOCKS: '0' })
 }))
 vi.mock('../git/repo-default-base-ref', () => ({ getDefaultBaseRefAsync: mocks.defaultBaseRef }))
-vi.mock('../project-runtime-git-options', () => ({ getLocalProjectWorktreeGitOptions: vi.fn() }))
+vi.mock('../workspaces/execution-host/project-runtime-git-options', () => ({
+  getLocalProjectWorktreeGitOptions: vi.fn()
+}))
 
 import { inferSpotlightVariantForWorktree } from './spotlight-variant-handler'
 

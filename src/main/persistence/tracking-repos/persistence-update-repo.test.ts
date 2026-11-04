@@ -753,9 +753,12 @@ describe('Store', () => {
     const store = await createStore()
     store.addRepo(makeRepo())
 
-    const updated = store.updateRepo('r1', {
-      spotlightServer: { local: ' pnpm local ', dev: '   ', port: 3002 }
-    })
+    const updated = store.updateRepo(
+      { id: 'r1' },
+      {
+        spotlightServer: { local: ' pnpm local ', dev: '   ', port: 3002 }
+      }
+    )
     expect(updated!.spotlightServer).toEqual({ local: 'pnpm local', port: 3002 })
 
     store.flush()
@@ -767,11 +770,11 @@ describe('Store', () => {
     const store = await createStore()
     store.addRepo(makeRepo({ spotlightServer: { dev: 'pnpm dev', port: 3000 } }))
 
-    store.updateRepo('r1', { spotlightServer: null })
+    store.updateRepo({ id: 'r1' }, { spotlightServer: null })
     expect(store.getRepo('r1')!.spotlightServer).toBeUndefined()
 
-    store.updateRepo('r1', { spotlightServer: { dev: 'pnpm dev' } })
-    store.updateRepo('r1', { spotlightServer: { dev: '  ', port: 0 } })
+    store.updateRepo({ id: 'r1' }, { spotlightServer: { dev: 'pnpm dev' } })
+    store.updateRepo({ id: 'r1' }, { spotlightServer: { dev: '  ', port: 0 } })
     expect(store.getRepo('r1')!.spotlightServer).toBeUndefined()
 
     store.flush()
@@ -783,9 +786,9 @@ describe('Store', () => {
     const store = await createStore()
     store.addRepo(makeRepo({ spotlightServer: { dev: 'pnpm dev' } }))
 
-    store.updateRepo('r1', { displayName: 'renamed' })
-    store.updateRepo('r1', { spotlightServer: undefined })
-    store.updateRepo('r1', { spotlightServer: 'pnpm dev' as never })
+    store.updateRepo({ id: 'r1' }, { displayName: 'renamed' })
+    store.updateRepo({ id: 'r1' }, { spotlightServer: undefined })
+    store.updateRepo({ id: 'r1' }, { spotlightServer: 'pnpm dev' as never })
 
     expect(store.getRepo('r1')!.spotlightServer).toEqual({ dev: 'pnpm dev' })
   })
@@ -795,8 +798,11 @@ describe('Store', () => {
     store.addRepo(makeRepo({ id: 'folder', kind: 'folder' }))
     store.addRepo(makeRepo({ id: 'ssh', connectionId: 'server', executionHostId: 'ssh:server' }))
 
-    for (const id of ['folder', 'ssh']) {
-      const updated = store.updateRepo(id, { spotlightServer: { dev: 'pnpm dev' } })
+    for (const target of [
+      { id: 'folder' },
+      { id: 'ssh', executionHostId: 'ssh:server' as const }
+    ]) {
+      const updated = store.updateRepo(target, { spotlightServer: { dev: 'pnpm dev' } })
       expect(updated).not.toBeNull()
       expect(updated!.spotlightServer).toBeUndefined()
     }
@@ -805,7 +811,9 @@ describe('Store', () => {
     store.addRepo(
       makeRepo({ id: 'legacy', kind: 'folder', spotlightServer: { dev: 'pnpm dev', port: 3000 } })
     )
-    expect(store.updateRepo('legacy', { spotlightServer: null })!.spotlightServer).toBeUndefined()
+    expect(
+      store.updateRepo({ id: 'legacy' }, { spotlightServer: null })!.spotlightServer
+    ).toBeUndefined()
   })
 
   it('getRepo does not expose a malformed persisted Spotlight server config', async () => {

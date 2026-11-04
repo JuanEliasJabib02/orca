@@ -3,20 +3,16 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GlobalSettings } from '../../shared/global-settings-types'
-import { RuntimeGitCommands, type ResolvedRuntimeGitWorktree } from './orca-runtime-git'
+import { SshHostNotServedError } from '../providers/ssh-host-not-served-error'
+import { RuntimeGitCommands } from './orca-runtime-git'
+import type { ResolvedRuntimeGitWorktree } from './runtime-git-command-target'
 
 const mocks = vi.hoisted(() => ({
-  getSshGitProvider: vi.fn(),
   getLineBlame: vi.fn()
 }))
 
 vi.mock('../git/line-blame', () => ({
   getLineBlame: mocks.getLineBlame
-}))
-
-vi.mock('../providers/ssh-git-dispatch', () => ({
-  getSshGitProvider: mocks.getSshGitProvider,
-  SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE: 'ssh git provider unavailable'
 }))
 
 const tempDirs: string[] = []
@@ -39,7 +35,6 @@ function makeWorktree(path: string): ResolvedRuntimeGitWorktree {
 
 describe('RuntimeGitCommands line blame', () => {
   beforeEach(() => {
-    mocks.getSshGitProvider.mockReset()
     mocks.getLineBlame.mockReset()
   })
 
@@ -74,9 +69,7 @@ describe('RuntimeGitCommands line blame', () => {
     expect(mocks.getLineBlame).toHaveBeenCalledWith(worktreePath, 'src/index.ts', 5, {})
   })
 
-  it('blames a remote line through the SSH git provider', async () => {
-    const provider = { getLineBlame: vi.fn().mockResolvedValue(null) }
-    mocks.getSshGitProvider.mockReturnValue(provider)
+  it('refuses an SSH line blame without running git here', async () => {
     const commands = new RuntimeGitCommands({
       resolveRuntimeGitTarget: async () => ({
         worktree: makeWorktree('/remote/repo'),
@@ -85,8 +78,9 @@ describe('RuntimeGitCommands line blame', () => {
       getRuntimeSettings: () => ({}) as GlobalSettings
     })
 
-    await expect(commands.getRuntimeGitLineBlame('id:wt-1', 'src/index.ts', 5)).resolves.toBeNull()
-    expect(provider.getLineBlame).toHaveBeenCalledWith('/remote/repo', 'src/index.ts', 5)
+    await expect(commands.getRuntimeGitLineBlame('id:wt-1', 'src/index.ts', 5)).rejects.toThrow(
+      SshHostNotServedError
+    )
     expect(mocks.getLineBlame).not.toHaveBeenCalled()
   })
 })

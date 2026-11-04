@@ -48,6 +48,8 @@ describe("drops into a paired host's own column", () => {
         laneViews: new Map(),
         maybeSyncTaskStatuses: vi.fn(),
         sortBy: 'manual',
+        taskMoveIdsByWorktreeId: new Map(),
+        taskMoveKeysByWorktreeKey: new Map(),
         updateWorktreeMeta: vi.fn(),
         updateWorktreesMeta,
         workspaceStatuses: [{ id: 'in-progress', label: 'In progress' }],
@@ -56,8 +58,7 @@ describe("drops into a paired host's own column", () => {
           [hosted.id, hosted]
         ]),
         worktreeByKey: new Map([local, hosted].map((row) => [getWorktreeHostIdentity(row), row])),
-        manualOrderCatalog: catalog,
-        worktreesByStatus: new Map()
+        manualOrderCatalog: catalog
       })
     )
 

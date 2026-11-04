@@ -5,7 +5,7 @@ import type { RemoteForegroundEvidence } from '../../shared/foreground-process-e
 import { getStrictProcessTableSnapshot } from '../../shared/process-table-snapshot-reader'
 import type { PtyForegroundGroup } from '../../shared/terminal-process-inspection'
 import { resolvePtyForegroundGroup } from './posix-shell-foreground-group'
-import type { IPtyProvider } from './types'
+import type { IPtyProvider } from './pty-provider-contract'
 
 type PtyInventory = Pick<IPtyProvider, 'listProcesses'>
 

@@ -7,7 +7,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppStore } from '@/store'
 import { resetAgentStatusEpochClockForTests } from '@/lib/agent-status-epoch-clock'
-import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
+import type { AgentStatusEntry } from '../../../../shared/agent-status/contracts/agent-status-types'
 import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { Repo } from '../../../../shared/repo-types'
 import { makePaneKey } from '../../../../shared/stable-pane-id'
@@ -104,7 +104,7 @@ function makeAgentStatus(tabId: string, state: AgentStatusEntry['state']): Agent
 
 const setActiveGroupId = vi.fn()
 const createProjectGroup = vi.fn()
-const moveProjectToGroup = vi.fn()
+const moveProjectToGroup = vi.fn<ReturnType<typeof useAppStore.getState>['moveProjectToGroup']>()
 
 function seedStore(state: Partial<ReturnType<typeof useAppStore.getState>>): void {
   act(() => {
@@ -241,7 +241,7 @@ describe('SidebarSpaceSwitcher', () => {
     await userEvent.type(nameInput, '  Side projects ')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
 
-    await waitFor(() => expect(createProjectGroup).toHaveBeenCalledWith('Side projects'))
+    await waitFor(() => expect(createProjectGroup).toHaveBeenCalledWith('Side projects', 'local'))
     await waitFor(() => expect(setActiveGroupId).toHaveBeenCalledWith('created'))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(moveProjectToGroup).not.toHaveBeenCalled()
@@ -264,7 +264,7 @@ describe('SidebarSpaceSwitcher', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(setActiveGroupId).toHaveBeenCalledWith('created'))
-    expect(moveProjectToGroup.mock.calls).toEqual([
+    expect(moveProjectToGroup.mock.calls.map(([repo, groupId]) => [repo.id, groupId])).toEqual([
       ['loose', 'created'],
       ['orphan', 'created']
     ])
@@ -283,7 +283,7 @@ describe('SidebarSpaceSwitcher', () => {
     await userEvent.type(within(dialog).getByRole('textbox'), 'Side projects')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
 
-    await waitFor(() => expect(createProjectGroup).toHaveBeenCalledWith('Side projects'))
+    await waitFor(() => expect(createProjectGroup).toHaveBeenCalledWith('Side projects', 'local'))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(setActiveGroupId).not.toHaveBeenCalled()
   })

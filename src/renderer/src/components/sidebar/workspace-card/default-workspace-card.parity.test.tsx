@@ -11,6 +11,7 @@ import type { WorktreeCardProperty } from '../../../../../shared/ui-chrome-types
 import type { Worktree } from '../../../../../shared/worktree/types'
 import { DEFAULT_WORKTREE_CARD_PROPERTIES } from '../../../../../shared/worktree/card-properties'
 import type { WorktreeCardProps } from '../worktree-card-model'
+import { makeOwnedPort, makePortScan } from '../spotlight-holder-ports-test-fixtures'
 
 type Mocks = {
   state: Record<string, unknown>
@@ -153,6 +154,22 @@ type Case = {
 }
 
 const wt = makeWorktree()
+const rootWt = makeWorktree({
+  id: 'repo-1::/repo',
+  path: '/repo',
+  displayName: 'orca',
+  isMainWorktree: true,
+  branch: 'refs/heads/main'
+})
+const spotlightRepo: Partial<Repo> = { spotlightTestingEnabled: true }
+function spotlightOn(lastError: { code: string; message: string } | null = null) {
+  return {
+    spotlightByRepo: {
+      'repo-1': { repoId: 'repo-1', holderWorktreeId: wt.id, status: 'active', lastError }
+    },
+    worktreesByRepo: { 'repo-1': [rootWt, wt] }
+  }
+}
 const CASES: Record<string, Case> = {
   plain: {},
   titleOnly: { cardProps: ['status'], worktree: { branch: '' } },
@@ -237,11 +254,37 @@ const CASES: Record<string, Case> = {
   affiliate: { props: { affiliateListMode: true } },
   activeLinear: { props: { isActive: true }, worktree: { linkedLinearIssue: 'ORC-2' } },
   flushIndented: { props: { flushSurface: true, contentIndent: 24 } },
-  indented: { props: { contentIndent: 16 } }
+  indented: { props: { contentIndent: 16 } },
+  spotlightRoot: { worktree: rootWt, repo: spotlightRepo, state: spotlightOn() },
+  spotlightRootDetached: {
+    worktree: { ...rootWt, branch: '', head: 'deadbeef' },
+    repo: spotlightRepo,
+    state: spotlightOn()
+  },
+  spotlightRootDiverged: {
+    worktree: { ...rootWt, branch: '', head: 'deadbeef' },
+    repo: spotlightRepo,
+    state: spotlightOn({ code: 'root-diverged', message: 'root moved' })
+  },
+  spotlightToggle: { repo: spotlightRepo },
+  spotlightHolder: { repo: spotlightRepo, state: spotlightOn() },
+  spotlightPortWithPortsOff: {
+    cardProps: ['status'],
+    repo: spotlightRepo,
+    state: { ...spotlightOn(), workspacePortScan: makePortScan([makeOwnedPort(rootWt.id, 58941)]) }
+  },
+  projectLabel: { state: { groupBy: 'none' } },
+  projectLabelPinned: { props: { inPinnedSection: true }, state: { groupBy: 'task' } },
+  projectLabelFolder: {
+    repo: null,
+    worktree: { repoId: 'folder-workspace:g1', branch: '' },
+    state: { groupBy: 'none', projectGroups: [{ id: 'g1', name: 'Client apps' }] }
+  },
+  projectLabelAffiliate: { props: { affiliateListMode: true }, state: { groupBy: 'none' } }
 }
 
 // Proof each case draws what it is named for, so a parity pass is not two empty cards.
-const SHOWS: Partial<Record<keyof typeof CASES, string>> = {
+const SHOWS: Partial<Record<keyof typeof CASES, string | readonly string[]>> = {
   sparse: 'sparse',
   renameFailed: 'rename failed',
   removalError: 'data-worktree-card-delete-failed',
@@ -251,7 +294,21 @@ const SHOWS: Partial<Record<keyof typeof CASES, string>> = {
   deleteQuickAction: 'Delete workspace',
   lineage: 'data-lineage-toggle',
   details: 'Waiting on review',
-  activeLinear: 'Linear'
+  activeLinear: 'Linear',
+  spotlightRoot: ['data-worktree-card-spotlight-bar', 'Spotlight is on'],
+  spotlightRootDetached: 'Spotlight is on',
+  spotlightRootDiverged: 'Spotlight is on',
+  spotlightToggle: 'Spotlight this workspace',
+  spotlightHolder: 'Click to turn off',
+  spotlightPortWithPortsOff: '1 live port :58941',
+  projectLabelPinned: 'data-worktree-card-project-label',
+  projectLabelFolder: 'Client apps'
+}
+// What a case must leave out in every style.
+const HIDES: Partial<Record<keyof typeof CASES, string>> = {
+  // Spotlight detaches the root on purpose, so its badge would only be noise.
+  spotlightRootDetached: 'Detached HEAD',
+  projectLabelAffiliate: 'data-worktree-card-project-label'
 }
 
 const STYLES: Record<string, Partial<GlobalSettings>> = {
@@ -270,6 +327,8 @@ function stateFor(style: Partial<GlobalSettings>, testCase: Case): Record<string
     linearIssueCache: {},
     prCache: {},
     projectGroups: [],
+    // The app's default grouping, whose section headers already name the project.
+    groupBy: 'repo',
     remoteBranchConflictByWorktreeId: {},
     runtimeEnvironments: [],
     settings: { ...style },
@@ -408,8 +467,12 @@ describe('default workspace card template parity with the original card', () => 
         )
         const shows =
           caseName === 'sparse' && styleName === 'new' ? 'Sparse checkout' : SHOWS[caseName]
-        if (shows) {
-          expect(legacy).toContain(shows)
+        for (const text of [shows ?? []].flat()) {
+          expect(legacy).toContain(text)
+        }
+        const hides = HIDES[caseName]
+        if (hides) {
+          expect(legacy).not.toContain(hides)
         }
         const [actualWindow, expectedWindow] = aroundFirstDifference(template, legacy)
         expect(actualWindow).toBe(expectedWindow)

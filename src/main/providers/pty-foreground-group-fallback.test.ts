@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RemoteForegroundEvidence } from '../../shared/foreground-process-evidence'
 import type { ProcessTableRow } from '../../shared/process-table-snapshot'
 import type * as SnapshotReader from '../../shared/process-table-snapshot-reader'
-import type { IPtyProvider, PtyProcessInfo } from './types'
+import type { IPtyProvider, PtyProcessInfo } from './pty-provider-contract'
 
 const { readTable } = vi.hoisted(() => ({
   readTable: vi.fn<() => Promise<ProcessTableRow[]>>()

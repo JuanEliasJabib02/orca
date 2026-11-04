@@ -1,11 +1,7 @@
 import type { GitLineBlameResult } from '../../../shared/git-line-blame-types'
 import { GIT_BLAME_RUNTIME_CAPABILITY } from '../../../shared/protocol-version'
 import { resolveLocalWorktreePath, type RuntimeGitContext } from './runtime-git-client-context'
-import {
-  callRuntimeRpc,
-  getActiveRuntimeTarget,
-  runtimeEnvironmentSupportsCapability
-} from './runtime-rpc-client'
+import { callRuntimeRpc, runtimeEnvironmentSupportsCapability } from './runtime-rpc-client'
 import { toRuntimeWorktreeSelector } from './runtime-worktree-selector'
 
 /**
@@ -18,7 +14,7 @@ export async function getRuntimeGitFileBlame(
   context: RuntimeGitContext,
   args: { filePath: string }
 ): Promise<Record<number, GitLineBlameResult> | null> {
-  const target = getActiveRuntimeTarget(context.settings)
+  const target = context.target
   if (target.kind === 'local' || !context.worktreeId) {
     return window.api.git.fileBlame({
       worktreePath: resolveLocalWorktreePath(context),
@@ -45,7 +41,7 @@ export async function getRuntimeGitLineBlame(
   context: RuntimeGitContext,
   args: { filePath: string; line: number }
 ): Promise<GitLineBlameResult | null> {
-  const target = getActiveRuntimeTarget(context.settings)
+  const target = context.target
   if (target.kind === 'local' || !context.worktreeId) {
     return window.api.git.lineBlame({
       worktreePath: resolveLocalWorktreePath(context),

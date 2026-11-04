@@ -101,7 +101,8 @@ export const visibilityArgs: Parameters<typeof useVisibleSidebarWorktrees>[0] = 
     hideWorkspacesFromOtherDevices: false,
     alwaysShowDefaultBranchWorkspace: true,
     visibleWorkspaceHostIds: null,
-    workspaceHostScope: 'all'
+    workspaceHostScope: 'all',
+    spaceScope: null
   },
   sortBy: 'recent',
   sortedIds: [worktree.id],

@@ -4,7 +4,7 @@ import { cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { useAppStore } from '@/store'
 import type { Repo } from '../../../../shared/repo-types'
-import { makeRepo } from '../worktree-jump-palette-test-fixtures'
+import { makeRepo } from '../worktree-jump/worktree-jump-palette-test-fixtures'
 import { useWorkspaceKanbanProjectSections } from './use-workspace-kanban-project-sections'
 
 const initialState = useAppStore.getInitialState()

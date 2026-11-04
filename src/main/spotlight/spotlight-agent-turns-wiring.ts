@@ -1,7 +1,7 @@
 import type { BrowserWindow } from 'electron'
 import { agentHookServer } from '../agent-hooks/server'
 import { registerPaneKeyTeardownListener } from '../ipc/pty/pane/key-state'
-import type { Store } from '../persistence'
+import type { Store } from '../persistence/loading-store/store'
 import {
   lightAgentTaskInRenderer,
   resolveAgentTaskInRenderer

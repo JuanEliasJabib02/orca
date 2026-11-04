@@ -6,13 +6,14 @@ import { ShortcutKeyCombo } from '@/components/ShortcutKeyCombo'
 import { translate } from '@/i18n/i18n'
 import { formatShortcutKeyComboDetails } from '@/hooks/useShortcutLabel'
 import { useAppStore } from '@/store'
+import { getSettingsFocusedExecutionHostId } from '../../../../shared/execution-host'
 import { getSidebarSpaceKeybindingActionId } from '../../../../shared/keybindings'
 import { ProjectGroupNameDialog } from './ProjectGroupNameDialog'
 import type { SidebarSpaceAttention } from './sidebar-space-attention'
 import { getProjectGroupHostId } from '@/store/slices/project-group-owner-routing'
 import {
   listSidebarSpaces,
-  listSpacelessRepoIdsOnHost,
+  listSpacelessReposOnHost,
   resolveActiveSidebarSpaceId
 } from './sidebar-space-scope'
 import { useSidebarSpaceAttention } from './use-sidebar-space-attention'
@@ -123,19 +124,23 @@ export function SidebarSpaceSwitcher(): React.JSX.Element {
   const handleCreateSpace = useCallback(
     async (name: string) => {
       const isFirstSpace = spaces.length === 0
-      const group = await createProjectGroup(name)
+      // Why the focused host: a space has no seed project, so it lands where new projects land.
+      const group = await createProjectGroup(
+        name,
+        getSettingsFocusedExecutionHostId(useAppStore.getState().settings)
+      )
       if (!group) {
         return
       }
       if (isFirstSpace) {
         // Why: the projects from before spaces existed move into the first one, so none start spaceless.
         const state = useAppStore.getState()
-        for (const repoId of listSpacelessRepoIdsOnHost(
+        for (const repo of listSpacelessReposOnHost(
           state.repos,
           state.projectGroups,
           getProjectGroupHostId(group)
         )) {
-          await moveProjectToGroup(repoId, group.id)
+          await moveProjectToGroup(repo, group.id)
         }
       }
       setActiveGroupId(group.id)

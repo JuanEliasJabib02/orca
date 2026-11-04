@@ -44,7 +44,8 @@ function layoutTab(tab: PublishedTab): LayoutTab {
       'shellOverride',
       'forceHostRuntime',
       'startupCwd',
-      'launchAgent'
+      'launchAgent',
+      'spotlightRepoRoot'
     ]),
     panes: {
       root: terminal.root ?? null,

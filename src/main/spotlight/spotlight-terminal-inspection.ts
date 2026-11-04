@@ -3,7 +3,7 @@ import { withTimeout } from '../../shared/promise-timeout-fallback'
 import type { SpotlightServerState } from '../../shared/spotlight'
 import { isShellProcess } from '../../shared/shell-process-detection'
 import { isClientOnlyUnverifiableInspection } from '../../shared/terminal-process-inspection'
-import { getLocalPtyProvider } from '../ipc/pty'
+import { getLocalPtyProvider } from '../ipc/pty/provider/registry'
 import { readPtyForegroundGroupFallback } from '../providers/pty-foreground-group-fallback'
 import { inspectPtyProviderProcess } from '../providers/pty-process-inspection'
 

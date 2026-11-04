@@ -55,5 +55,7 @@ export const WSL_DRIVE_UNC_STATE_DISPOSITIONS = {
   onboarding: 'keep',
   featureInteractionTelemetryBuckets: 'keep',
   codexResetCreditAttemptLedger: 'keep',
-  chatUiLaunchTipAudience: 'keep'
+  chatUiLaunchTipAudience: 'keep',
+  // holderWorktreeId names the converted worktree; repo ids and git SHAs pass through unchanged.
+  spotlightByRepoId: 'rewrite'
 } as const satisfies Record<keyof PersistedState, Disposition>

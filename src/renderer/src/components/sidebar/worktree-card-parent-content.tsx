@@ -8,6 +8,7 @@ import { WorktreeCardIdentityHover } from './worktree-card-details-items'
 import type { WorktreeCardPresentation } from './worktree-card-presentation'
 import { WorktreeCardProjectLabel } from './worktree-card-project-label'
 import { WorktreeCardSecondaryRows } from './worktree-card-secondary-rows'
+import { WorktreeCardSpotlightRootBar } from './worktree-card-spotlight-items'
 import { WorktreeCardStatusLane } from './worktree-card-status-lane'
 import type { WorktreeCardController } from './use-worktree-card-controller'
 
@@ -73,12 +74,7 @@ export function WorktreeCardParentContent({
       }
       data-worktree-card-parent-content=""
     >
-      {worktree.isMainWorktree && presentation.spotlightActive && (
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-y-1 left-0 w-[3px] rounded-full bg-amber-500"
-        />
-      )}
+      {worktree.isMainWorktree && presentation.spotlightActive && <WorktreeCardSpotlightRootBar />}
       {showCombinedStatusSlot ? (
         <WorktreeCardStatusLane card={card} showUnreadAction={showUnreadQuickAction} />
       ) : null}

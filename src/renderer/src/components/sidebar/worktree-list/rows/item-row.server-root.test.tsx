@@ -49,7 +49,6 @@ function rowIn(sectionKey: string): WorktreeItemRow {
     repo: undefined,
     depth: 0,
     groupDepth: 0,
-    lineageTrail: [],
     isLastLineageChild: false,
     lineageChildCount: 0
   }

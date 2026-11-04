@@ -1,9 +1,9 @@
 import type { Repo } from '../../shared/repo-types'
 import type { SpotlightGitContext } from '../../shared/spotlight-sync-core'
-import type { Store } from '../persistence'
-import { getLocalProjectGitExecOptions } from '../project-runtime-git-options'
+import type { Store } from '../persistence/loading-store/store'
+import { getLocalProjectGitExecOptions } from '../workspaces/execution-host/project-runtime-git-options'
 import { gitExecFileAsync } from './runner'
-import { detectConflictOperation } from './status'
+import { detectConflictOperation } from './source-control/git-conflict-operation'
 
 /** Local/WSL transport binding for the Spotlight sync core. SSH repos will get
  *  a relay-backed context in a later phase. */

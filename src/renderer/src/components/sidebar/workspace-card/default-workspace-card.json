@@ -9,29 +9,31 @@
     "pinnedRepo": "place.inPinnedSection && repo != null && !place.showProjectName",
     "inlineRepo": "!vars.classic && repo != null && !place.hideRepoBadge && !vars.folder && !vars.pinnedRepo",
     "metaRepo": "vars.classic && repo != null && !place.hideRepoBadge && !vars.pinnedRepo",
+    "projectLine": "!vars.classic && place.projectLabel != null",
+    "projectInMeta": "vars.classic && !vars.metaRepo && place.projectLabel != null",
     "hostLabel": "options.show.host ? host.contextLabel : null",
     "hostBadge": "vars.hostLabel != null && (!vars.compact || place.showProjectName)",
     "metaRow": "!vars.compact",
-    "detachedInMeta": "vars.metaRow && !vars.folder && ws.detachedHead",
+    "detachedInMeta": "vars.metaRow && !vars.folder && ws.detachedHead && !(ws.isMain && spotlight.ownsRoot)",
     "branch": "!vars.folder && len(ws.branch) > 0 && !vars.newStyle && (!vars.compact || ws.branch != ws.name)",
     "identityInMeta": "vars.newStyle && options.show.branch && ws.identity != null",
     "folderInMeta": "vars.newStyle ? options.show.branch && vars.folder && ws.identity != null : vars.folder",
     "conflict": "git.conflictOperation != null && git.conflictOperation != 'unknown' && git.conflictOperation != 'rebase'",
     "hasComment": "len(trim(ws.comment)) > 0",
     "details": "links.count > 0 || (options.show.issue && links.issue) || (options.show.linearIssue && links.linearIssue) || (options.show.jiraIssue && links.jiraIssue) || (!vars.newStyle && options.show.pr && review != null) || (options.show.comment && vars.hasComment) || (options.show.automation && provenance.automation) || (options.show.cli && provenance.cli)",
-    "ports": "options.show.ports && ports.count > 0",
+    "ports": "(options.show.ports || spotlight.portLabel != null) && ports.count > 0",
     "indicators": "vars.details || vars.ports",
     "metaIndicators": "vars.classic && vars.indicators",
     "titleIndicators": "!vars.classic && vars.indicators",
-    "hasMetaRow": "vars.metaRow ? vars.metaRepo || vars.hostBadge || vars.folderInMeta || vars.branch || vars.identityInMeta || vars.detachedInMeta || vars.conflict || git.cacheTimerActive || vars.metaIndicators : vars.conflict || git.cacheTimerActive",
+    "hasMetaRow": "vars.metaRow ? vars.metaRepo || vars.projectInMeta || vars.hostBadge || vars.folderInMeta || vars.branch || vars.identityInMeta || vars.detachedInMeta || vars.conflict || git.cacheTimerActive || vars.metaIndicators : vars.conflict || git.cacheTimerActive",
     "star": "vars.compact && ws.isMain && !vars.folder",
-    "headerActions": "vars.star || place.deleteQuickAction",
+    "headerActions": "vars.star || place.deleteQuickAction || spotlight.eligible",
     "inlineAgents": "options.show.inlineAgents && !vars.compact",
     "title": "trim(ws.title)",
     "hoverBranch": "vars.newStyle ? ws.identity : vars.compact && vars.branch ? ws.branch : null",
     "hoverTitle": "len(vars.title) > 0 && vars.title != vars.hoverBranch ? vars.title : null",
     "hoverDetails": "!vars.classic && (links.count > 0 || links.issue || links.linearIssue || links.jiraIssue || review != null || vars.hasComment || (options.show.automation && provenance.automation) || (options.show.cli && provenance.cli) || ports.count > 0 || vars.hoverTitle != null || vars.hoverBranch != null)",
-    "singleLine": "!(vars.hasMetaRow || git.remoteBranchConflict != null || vars.inlineAgents || lineage.toggleable)"
+    "singleLine": "!(vars.hasMetaRow || vars.projectLine || git.remoteBranchConflict != null || vars.inlineAgents || lineage.toggleable)"
   },
   "frame": {
     "singleLine": "=vars.singleLine",
@@ -69,6 +71,10 @@
                   "props": { "hasHoverDetails": "=vars.hoverDetails && !ws.isRenaming" }
                 },
                 {
+                  "el": "SpotlightPrimaryBadge",
+                  "when": "!vars.compact && ws.isMain && !vars.folder && spotlight.active"
+                },
+                {
                   "el": "SparseBadge",
                   "when": "ws.isSparse",
                   "props": { "hasHoverDetails": "=vars.hoverDetails && !ws.isRenaming" }
@@ -100,10 +106,22 @@
               },
               "children": [
                 { "el": "PrimaryStar", "when": "vars.star" },
+                { "el": "SpotlightPrimaryBadge", "when": "vars.star && spotlight.active" },
+                { "el": "SpotlightQuickAction", "when": "spotlight.eligible" },
                 { "el": "DeleteQuickAction", "when": "place.deleteQuickAction" }
               ]
             }
           ]
+        },
+        {
+          "el": "ProjectLabel",
+          "when": "vars.projectLine",
+          "props": {
+            "label": "=place.projectLabel",
+            "line": true,
+            "invisible": "=ws.isRenaming",
+            "tooltip": "=!vars.hoverDetails"
+          }
         },
         {
           "el": "Row",
@@ -115,6 +133,11 @@
               "props": { "grow": true, "align": "center", "gap": "md", "overflow": "clip" },
               "children": [
                 { "el": "MetaRepoBadge", "when": "vars.metaRepo" },
+                {
+                  "el": "ProjectLabel",
+                  "when": "vars.projectInMeta",
+                  "props": { "label": "=place.projectLabel", "tooltip": "=!vars.hoverDetails" }
+                },
                 {
                   "el": "HostBadge",
                   "when": "vars.hostBadge",
@@ -165,9 +188,11 @@
       "fill": true,
       "gap": "xs",
       "align": "=vars.singleLine ? 'center' : 'start'",
+      "anchor": true,
       "marker": "parent-content"
     },
     "children": [
+      { "el": "SpotlightRootBar", "when": "ws.isMain && spotlight.active" },
       {
         "el": "StatusLane",
         "when": "options.show.status",

@@ -30,7 +30,8 @@ const args: Parameters<typeof useVisibleSidebarWorktrees>[0] = {
     hideWorkspacesFromOtherDevices: false,
     alwaysShowDefaultBranchWorkspace: false,
     visibleWorkspaceHostIds: null,
-    workspaceHostScope: 'all'
+    workspaceHostScope: 'all',
+    spaceScope: null
   },
   sortBy: 'recent',
   sortedIds: [worktree.id],

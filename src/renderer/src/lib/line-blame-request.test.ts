@@ -6,13 +6,11 @@ const mocks = vi.hoisted(() => ({
   getRuntimeGitFileBlame: vi.fn()
 }))
 
-vi.mock('@/runtime/runtime-git-client', () => ({
+vi.mock('@/runtime/runtime-git-blame-client', () => ({
   getRuntimeGitLineBlame: mocks.getRuntimeGitLineBlame,
   getRuntimeGitFileBlame: mocks.getRuntimeGitFileBlame
 }))
 vi.mock('@/lib/connection-context', () => ({ getConnectionIdForFile: () => undefined }))
-vi.mock('@/runtime/runtime-rpc-client', () => ({ settingsForRuntimeOwner: () => ({}) }))
-vi.mock('@/store', () => ({ useAppStore: { getState: () => ({ settings: {} }) } }))
 
 const {
   blameKey,

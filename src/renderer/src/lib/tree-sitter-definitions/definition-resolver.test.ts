@@ -7,7 +7,7 @@ import {
 } from './definition-resolver'
 
 const ctx: ResolverContext = {
-  settings: null,
+  target: { kind: 'local' },
   worktreeId: 'w',
   worktreePath: '/repo',
   connectionId: undefined

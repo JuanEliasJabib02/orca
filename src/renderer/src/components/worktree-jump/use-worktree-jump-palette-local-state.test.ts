@@ -4,7 +4,7 @@ import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createWorktreePaletteRequestGuard } from '@/lib/worktree-palette-create-action'
 import { useAppStore } from '@/store'
-import { spaceFilterStoreState } from './sidebar/sidebar-space-project-filter-fixtures'
+import { spaceFilterStoreState } from '../sidebar/sidebar-space-project-filter-fixtures'
 import { useWorktreeJumpPaletteLocalState } from './use-worktree-jump-palette-local-state'
 
 const initialState = useAppStore.getInitialState()

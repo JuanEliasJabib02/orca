@@ -17,9 +17,9 @@ vi.mock('./agent-foreground-process', () => ({
   confirmShellForegroundProcess: vi.fn(async () => false)
 }))
 
-import { readLocalPtyForegroundGroup } from './local-pty-foreground-inspection'
-import { LocalPtyProvider } from './local-pty-provider'
-import { ptyProcesses, ptyShellPath } from './local-pty-provider-state'
+import { readLocalPtyForegroundGroup } from './local-pty/local-pty-foreground-inspection'
+import { LocalPtyProvider } from './local-pty/local-pty-provider'
+import { ptyProcesses, ptyShellPath } from './local-pty/local-pty-provider-state'
 import { inspectPtyProviderProcess } from './pty-process-inspection'
 
 const SHELL_PID = 4242

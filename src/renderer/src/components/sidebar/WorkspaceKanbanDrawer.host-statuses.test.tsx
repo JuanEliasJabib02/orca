@@ -162,7 +162,10 @@ function renderDrawer(): void {
 }
 
 function laneIds(status: string): string[] {
-  return (gridState.current?.laneViews.get(status)?.items ?? []).map((item) => item.id)
+  // Why the key fallback: a task card or project header in the lane must still fail the assertion.
+  return (gridState.current?.laneViews.get(status)?.items ?? []).map((item) =>
+    item.type === 'worktree' ? item.worktree.id : item.key
+  )
 }
 
 describe('WorkspaceKanbanDrawer paired host columns', () => {

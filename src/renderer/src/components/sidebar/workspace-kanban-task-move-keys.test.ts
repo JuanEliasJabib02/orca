@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { ExecutionHostId } from '../../../../shared/execution-host'
 import type { Worktree } from '../../../../shared/worktree/types'
 import { makeWorktree } from '../../store/slices/worktrees-slice-test-fixtures'
 import {
@@ -9,7 +10,7 @@ import {
 import { buildWorkspaceKanbanTaskMoveKeyIndex } from './workspace-kanban-task-move-keys'
 import { buildUnambiguousWorktreeIdIndex } from './worktree-unambiguous-id-index'
 
-function worktree(id: string, hostId = 'local'): Worktree {
+function worktree(id: string, hostId: ExecutionHostId = 'local'): Worktree {
   return makeWorktree({ id, repoId: id, hostId })
 }
 

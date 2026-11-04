@@ -11,7 +11,7 @@ import { normalizeRuntimePathForComparison } from '../../shared/cross-platform-p
 import { SpotlightCoreError } from '../../shared/spotlight-sync-core'
 import { isFolderRepo } from '../../shared/repo-kind'
 import { createLocalSpotlightGitContext } from '../git/spotlight-sync'
-import type { Store } from '../persistence'
+import type { Store } from '../persistence/loading-store/store'
 
 export type ResolvedRepoContext =
   | { repo: Repo; ctx: SpotlightGitContext }

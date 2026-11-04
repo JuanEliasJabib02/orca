@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import nodePath from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PtyProcessInspection } from '../providers/pty-process-inspection'
-import type { PtyProcessInfo } from '../providers/types'
+import type { PtyProcessInfo } from '../providers/pty-provider-contract'
 
 const fakePty = vi.hoisted(() => {
   const writes: { id: string; data: string }[] = []
@@ -30,11 +30,11 @@ const fakePty = vi.hoisted(() => {
   }
 })
 
-vi.mock('../ipc/pty', () => ({
+vi.mock('../ipc/pty/provider/registry', () => ({
   getLocalPtyProvider: () => fakePty,
   onLocalPtyProviderChanged: () => () => {}
 }))
-vi.mock('../pwsh', () => ({ isPwshAvailableAsync: vi.fn(async () => false) }))
+vi.mock('../pty/shell-startup/pwsh', () => ({ isPwshAvailableAsync: vi.fn(async () => false) }))
 vi.mock('../git/runner', () => ({
   gitExecFileAsync: vi.fn(async () => ({ stdout: '.git/info/exclude', stderr: '' }))
 }))

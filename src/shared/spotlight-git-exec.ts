@@ -1,7 +1,7 @@
 // Transport-agnostic Spotlight sync engine. All git access goes through the
 // injected executor so the same logic can run locally, under WSL translation,
 // or relay-side on an SSH host (phase 2). Commands are argv-only — no shell.
-import type { GitConflictOperation } from './git-status-types'
+import type { GitConflictOperation } from './git/status/git-status-types'
 import type { SpotlightErrorCode } from './spotlight'
 
 export type SpotlightGitExecutor = (

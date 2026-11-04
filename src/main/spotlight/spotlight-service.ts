@@ -34,7 +34,7 @@ import {
   type ResolvedRepoContext
 } from './spotlight-service-state'
 import { getWorktreePathBasenameFromId } from '../../shared/worktree/id'
-import type { Store } from '../persistence'
+import type { Store } from '../persistence/loading-store/store'
 
 export class SpotlightService {
   private readonly store: Store

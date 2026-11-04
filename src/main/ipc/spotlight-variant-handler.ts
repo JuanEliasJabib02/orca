@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import type { Store } from '../persistence'
+import type { Store } from '../persistence/loading-store/store'
 import type { Repo } from '../../shared/repo-types'
 import type { WorktreeMeta } from '../../shared/worktree/meta-types'
 import { isFolderRepo } from '../../shared/repo-kind'
@@ -12,7 +12,7 @@ import { gitExecFileAsync, gitOptionalLocksDisabledEnv } from '../git/runner'
 import {
   getLocalProjectWorktreeGitOptions,
   type LocalProjectWorktreeGitOptions
-} from '../project-runtime-git-options'
+} from '../workspaces/execution-host/project-runtime-git-options'
 import { detectSpotlightServerScripts } from '../spotlight/spotlight-server-script-detection'
 import { worktreePathFromId } from '../spotlight/spotlight-service-state'
 import { inferSpotlightVariant } from '../spotlight/spotlight-variant-inference'

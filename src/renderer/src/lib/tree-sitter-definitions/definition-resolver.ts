@@ -1,12 +1,14 @@
-import type { GlobalSettings } from '../../../../shared/global-settings-types'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import { escapeRegex } from '../../../../shared/string-utils'
-import { searchRuntimeFiles, readRuntimeFileContent } from '@/runtime/runtime-file-client'
+import { searchRuntimeFiles } from '@/runtime/runtime-file-search-client'
+import { readRuntimeFileContent } from '@/runtime/runtime-file-read-client'
 import { grammarForPath, resolvesTogether } from './language-registry'
 import { extractDefinitions } from './engine'
 import type { GrammarName } from './definition-queries'
 
 export type ResolverContext = {
-  settings: Pick<GlobalSettings, 'activeRuntimeEnvironmentId'> | null
+  /** The worktree owner's transport; never the focused server. */
+  target: RuntimeClientTarget
   worktreeId: string
   worktreePath: string
   connectionId: string | undefined
@@ -75,7 +77,7 @@ const defaultDeps: ResolverDeps = {
   async search(symbol, ctx) {
     const result = await searchRuntimeFiles(
       {
-        settings: ctx.settings,
+        target: ctx.target,
         worktreeId: ctx.worktreeId,
         worktreePath: ctx.worktreePath,
         connectionId: ctx.connectionId
@@ -99,7 +101,7 @@ const defaultDeps: ResolverDeps = {
   async read(file, ctx) {
     try {
       const content = await readRuntimeFileContent({
-        settings: ctx.settings,
+        target: ctx.target,
         filePath: file.filePath,
         relativePath: file.relativePath,
         worktreeId: ctx.worktreeId,

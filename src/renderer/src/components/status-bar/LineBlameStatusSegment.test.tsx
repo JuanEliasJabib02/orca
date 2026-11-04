@@ -17,7 +17,7 @@ const blameMocks = vi.hoisted(() => ({
 }))
 const i18nMocks = vi.hoisted(() => ({ locale: 'en-US' }))
 
-vi.mock('@/runtime/runtime-git-client', () => ({
+vi.mock('@/runtime/runtime-git-blame-client', () => ({
   getRuntimeGitLineBlame: blameMocks.getRuntimeGitLineBlame,
   getRuntimeGitFileBlame: blameMocks.getRuntimeGitFileBlame
 }))
@@ -25,10 +25,6 @@ vi.mock('@/runtime/runtime-git-client', () => ({
 vi.mock('@/lib/connection-context', () => ({
   getConnectionId: () => undefined,
   getConnectionIdForFile: () => undefined
-}))
-
-vi.mock('@/runtime/runtime-rpc-client', () => ({
-  settingsForRuntimeOwner: () => ({ activeRuntimeEnvironmentId: null })
 }))
 
 vi.mock('@/i18n/i18n', () => ({
