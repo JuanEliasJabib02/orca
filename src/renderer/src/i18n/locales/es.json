@@ -6751,6 +6751,11 @@
           "syncBroken": "Spotlight sync is failing:",
           "lastSynced": "Last synced {{when}}."
         },
+        "TaskTestTurnBadge": {
+          "testing": "Probando",
+          "waiting": "En cola #{{position}}",
+          "paused": "Pausado"
+        },
         "LocalGitToolchainScanBanner": {
           "xcodeLicenseTitle": "Acepta la licencia de Xcode para usar Git",
           "xcodeLicenseBody": "macOS bloquea Git hasta que la aceptes. Ejecuta esto en la terminal y vuelve a Orca. Lo comprobará de nuevo automáticamente.",

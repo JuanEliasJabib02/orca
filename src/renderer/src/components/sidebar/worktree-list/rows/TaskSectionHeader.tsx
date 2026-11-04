@@ -4,6 +4,7 @@ import type { TaskSectionInfo } from '../../../../../../shared/sidebar-list/row-
 import { useTaskSectionAgentStatus } from './task-section-agent-status'
 import { TaskSpotlightEnvPill } from './TaskSpotlightEnvPill'
 import { TaskSpotlightButton } from './TaskSpotlightButton'
+import { TaskTestTurnBadge } from './TaskTestTurnBadge'
 
 export type TaskSectionHeaderProps = {
   task: TaskSectionInfo
@@ -27,6 +28,7 @@ export function TaskSectionHeader({ task, actions }: TaskSectionHeaderProps): Re
           {actions}
         </div>
       ) : null}
+      <TaskTestTurnBadge taskKey={task.taskKey} />
       {task.taskKey !== null ? <TaskSpotlightEnvPill task={task} /> : null}
     </>
   )
