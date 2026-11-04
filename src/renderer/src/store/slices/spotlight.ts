@@ -7,6 +7,7 @@ import type {
   SpotlightOpResult,
   SpotlightRepoState
 } from '../../../../shared/spotlight'
+import type { SpotlightResumeAccountPick } from '../../../../shared/spotlight-agent-turn'
 import { translate } from '@/i18n/i18n'
 import { toastSpotlightActivated } from './spotlight-activated-toast'
 import { createSpotlightTurnsSlice, type SpotlightTurnsSlice } from './spotlight-turns'
@@ -138,6 +139,12 @@ export type SpotlightSlice = SpotlightTurnsSlice & {
     repoId: string,
     opts?: { force?: boolean; quiet?: boolean; projectName?: string }
   ) => Promise<SpotlightOpResult>
+  /** Continuar on the test queue: a paused pane resumes on the Claude account with limit left, an
+   *  idle holder is told to continue in place. `delivered: false` leaves the pane where it was. */
+  continueTestTask: (
+    paneKey: string,
+    options: { auto: boolean }
+  ) => Promise<{ delivered: boolean; pick?: SpotlightResumeAccountPick }>
 }
 
 export const createSpotlightSlice: StateCreator<AppState, [], [], SpotlightSlice> = (
@@ -166,6 +173,13 @@ export const createSpotlightSlice: StateCreator<AppState, [], [], SpotlightSlice
   return {
     ...createSpotlightTurnsSlice(set, get, api),
     spotlightByRepo: {},
+
+    continueTestTask: async (paneKey, options) => {
+      // Dynamic import: the Continuar module imports this store, so a static import would form an
+      // init-time cycle.
+      const { continueTestTask } = await import('@/lib/test-queue-continue')
+      return continueTestTask(paneKey, options)
+    },
 
     hydrateSpotlightState: async () => {
       try {

@@ -65,5 +65,7 @@ export const spotlightApi = {
     ipcRenderer.invoke('spotlight:markResuming', { paneKey, auto: options.auto }),
 
   resumeSettled: (paneKey: string, result: { delivered: boolean }) =>
-    ipcRenderer.invoke('spotlight:resumeSettled', { paneKey, delivered: result.delivered })
+    ipcRenderer.invoke('spotlight:resumeSettled', { paneKey, delivered: result.delivered }),
+
+  pickResumeAccount: () => ipcRenderer.invoke('spotlight:pickResumeAccount')
 } satisfies PreloadApi['spotlight']

@@ -121,7 +121,8 @@ function createWebPreloadApi(): Omit<Partial<PreloadApi>, 'settings' | 'plugins'
       onTurnsChanged: () => () => {},
       releaseTurn: async () => {},
       markResuming: async () => false,
-      resumeSettled: async () => {}
+      resumeSettled: async () => {},
+      pickResumeAccount: async () => ({ kind: 'none', returnsAt: null })
     },
     worktrees: createWorktreesApi(),
     fs: createFileApi(),

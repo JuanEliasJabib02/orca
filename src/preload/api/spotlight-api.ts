@@ -8,7 +8,8 @@ import type {
 import type {
   SpotlightAgentStatus,
   SpotlightAgentTaskReply,
-  SpotlightAgentTaskRequest
+  SpotlightAgentTaskRequest,
+  SpotlightResumeAccountPick
 } from '../../shared/spotlight-agent-turn'
 import type { SpotlightAutostartNote } from '../../shared/spotlight-autostart-note'
 import type { SpotlightVariantInference } from '../../shared/spotlight-server-variant'
@@ -72,4 +73,7 @@ export type SpotlightApi = {
   markResuming: (paneKey: string, options: { auto: boolean }) => Promise<boolean>
   /** Closes Continuar's window; `delivered: false` leaves the pane paused in its place. */
   resumeSettled: (paneKey: string, result: { delivered: boolean }) => Promise<void>
+  /** The Claude account Continuar resumes a paused pane with, after a fresh usage read of every
+   *  account; none, with when the first gets limit back, while every account is at its limit. */
+  pickResumeAccount: () => Promise<SpotlightResumeAccountPick>
 }

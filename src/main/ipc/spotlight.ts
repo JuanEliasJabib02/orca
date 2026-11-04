@@ -3,7 +3,8 @@ import type { BrowserWindow } from 'electron'
 import type { SpotlightServerStartResult, SpotlightServerState } from '../../shared/spotlight'
 import {
   emptySpotlightAgentStatus,
-  type SpotlightAgentStatus
+  type SpotlightAgentStatus,
+  type SpotlightResumeAccountPick
 } from '../../shared/spotlight-agent-turn'
 import { parseSpotlightAutostartNote } from '../../shared/spotlight-autostart-note'
 import type { Store } from '../persistence/loading-store/store'
@@ -21,7 +22,11 @@ import {
   trackRegisteredSpotlightLaunch
 } from '../spotlight/spotlight-server-control'
 import { getSpotlightAgentTurns } from '../spotlight/spotlight-agent-turns'
-import { installSpotlightAgentTurns } from '../spotlight/spotlight-agent-turns-wiring'
+import {
+  installSpotlightAgentTurns,
+  type SpotlightTurnAccounts
+} from '../spotlight/spotlight-agent-turns-wiring'
+import { pickResumeAccount } from '../spotlight/spotlight-resume-account'
 import { noteSpotlightAutostart } from '../spotlight/spotlight-server-start-notes'
 import { watchLateSpotlightTerminal } from '../spotlight/spotlight-server-turn-off'
 import { configureSpotlightTerminalShell } from '../spotlight/spotlight-terminal-shell'
@@ -101,17 +106,18 @@ export function registerSpotlightHandlers(
     )
   }
   const spotlight = service
+  // Why the adapter: the runtime keeps its account controller private behind these two calls.
+  const accounts: SpotlightTurnAccounts | null = runtime
+    ? {
+        usageRateLimits: () => runtime.getUsageRateLimits(),
+        getSnapshot: () => runtime.getAccountsSnapshot()
+      }
+    : null
   installSpotlightAgentTurns({
     store,
     service: spotlight,
     getWindow: () => (currentWindow && !currentWindow.isDestroyed() ? currentWindow : null),
-    // Why the adapter: the runtime keeps its account controller private behind these two calls.
-    accounts: runtime
-      ? {
-          usageRateLimits: () => runtime.getUsageRateLimits(),
-          getSnapshot: () => runtime.getAccountsSnapshot()
-        }
-      : null
+    accounts
   })
   configureSpotlightTerminalShell(() => store.getSettings())
   configureSpotlightTerminalOutputSource(runtime ?? null)
@@ -131,6 +137,7 @@ export function registerSpotlightHandlers(
   ipcMain.removeHandler('spotlight:releaseTurn')
   ipcMain.removeHandler('spotlight:markResuming')
   ipcMain.removeHandler('spotlight:resumeSettled')
+  ipcMain.removeHandler('spotlight:pickResumeAccount')
 
   // Only while Spotlight is actually active for a local repo — the
   // spotlightRepoRoot tab flag persists across sessions, so without this a
@@ -232,6 +239,11 @@ export function registerSpotlightHandlers(
     (_event, args: { paneKey: string; delivered: boolean }) => {
       getSpotlightAgentTurns()?.resumeSettled(args.paneKey, { delivered: args.delivered === true })
     }
+  )
+  // Continuar's account: main reads every account's usage, the renderer switches and restarts.
+  ipcMain.handle(
+    'spotlight:pickResumeAccount',
+    (): Promise<SpotlightResumeAccountPick> => pickResumeAccount(accounts)
   )
   // Reads only the holder's own checkout, so the renderer can't point it at another worktree.
   registerSpotlightVariantHandler(
