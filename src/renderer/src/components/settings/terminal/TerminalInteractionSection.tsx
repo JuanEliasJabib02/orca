@@ -3,6 +3,7 @@ import { RotateCcw } from 'lucide-react'
 import { Button } from '../../ui/button'
 import { Label } from '../../ui/label'
 import { ScrollSpeedSlider } from './TerminalScrollSpeedSlider'
+import { SpotlightTestQueueSettings } from './SpotlightTestQueueSettings'
 import { SettingsSubsectionHeader, SettingsSwitchRow } from '../form-controls/SettingsFormControls'
 import { SearchableSetting } from '../section-layout/SearchableSetting'
 import { matchesSettingsSearch } from '../search/settings-search'
@@ -379,6 +380,8 @@ export function TerminalInteractionSection({
             }
           />
         </SearchableSetting>
+
+        <SpotlightTestQueueSettings settings={settings} updateSettings={updateSettings} />
       </div>
     </section>
   )

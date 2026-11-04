@@ -61,6 +61,55 @@ const getTerminalAppearanceSearchEntriesWithImports = createLocalizedCatalog(
   ]
 )
 
+export const getSpotlightTestQueueSearchEntries = createLocalizedCatalog(
+  (): [SettingsSearchEntry, SettingsSearchEntry] => {
+    const testKeywords = [
+      ...translateSearchKeyword('components.settings.terminal.search.tests', 'tests'),
+      ...translateSearchKeyword('components.settings.terminal.search.testQueue', 'test queue'),
+      ...translateSearchKeyword('components.settings.terminal.search.turn', 'turn'),
+      // Keep product names searchable without translation.
+      'Playwright',
+      'Maestro',
+      'Spotlight'
+    ]
+    return [
+      {
+        title: translate(
+          'components.settings.SpotlightTestQueue.maxConcurrentTests',
+          'Tasks Testing at Once'
+        ),
+        description: translate(
+          'components.settings.SpotlightTestQueue.maxConcurrentTestsDescription',
+          'How many tasks can run Playwright or Maestro at the same time, one per space. The rest wait in line.'
+        ),
+        keywords: [
+          ...testKeywords,
+          ...translateSearchKeyword('components.settings.terminal.search.atOnce', 'at once')
+        ]
+      },
+      {
+        title: translate(
+          'components.settings.SpotlightTestQueue.autoResume',
+          'Resume After a Usage Limit'
+        ),
+        description: translate(
+          'components.settings.SpotlightTestQueue.autoResumeDescription',
+          'When a testing task stops at its Claude usage limit, continue it with an account that has limit left. Up to 3 times in a row, then it waits for you.'
+        ),
+        keywords: [
+          ...testKeywords,
+          ...translateSearchKeyword(
+            'components.settings.terminal.search.usageLimit',
+            'usage limit'
+          ),
+          ...translateSearchKeyword('components.settings.terminal.search.account', 'account'),
+          ...translateSearchKeyword('components.settings.terminal.search.resume', 'resume')
+        ]
+      }
+    ]
+  }
+)
+
 export function getTerminalAppearanceSearchEntries(
   options: TerminalAppearanceSearchOptions = {}
 ): SettingsSearchEntry[] {
@@ -147,6 +196,7 @@ export function getTerminalPaneSearchEntries(platform: {
         ]
       : []),
     ...getTerminalRightClickToPasteSearchEntry(),
+    ...getSpotlightTestQueueSearchEntries(),
     ...getManageSessionsSearchEntries(),
     ...getTerminalAdvancedSearchEntries(),
     ...(platform.isMac

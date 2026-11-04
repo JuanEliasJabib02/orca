@@ -21004,7 +21004,14 @@
           "bottom": "bottom",
           "scrollback": "scrollback",
           "snap": "snap",
-          "position": "position"
+          "position": "position",
+          "tests": "tests",
+          "testQueue": "test queue",
+          "turn": "turn",
+          "atOnce": "at once",
+          "usageLimit": "usage limit",
+          "account": "account",
+          "resume": "resume"
         }
       },
       "nativeChat": {
@@ -21031,6 +21038,14 @@
         "usageLimitContinueSearchLimit": "usage limit",
         "usageLimitContinueSearchReset": "reset",
         "usageLimitContinueToggleLabel": "Toggle continuing chats when a usage limit resets"
+      },
+      "SpotlightTestQueue": {
+        "maxConcurrentTests": "Tasks Testing at Once",
+        "maxConcurrentTestsDescription": "How many tasks can run Playwright or Maestro at the same time, one per space. The rest wait in line.",
+        "fewerTasks": "One fewer task",
+        "moreTasks": "One more task",
+        "autoResume": "Resume After a Usage Limit",
+        "autoResumeDescription": "When a testing task stops at its Claude usage limit, continue it with an account that has limit left. Up to 3 times in a row, then it waits for you."
       }
     },
     "agentChildRow": {

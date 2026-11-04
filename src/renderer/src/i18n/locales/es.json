@@ -20395,8 +20395,23 @@
           "bottom": "final",
           "scrollback": "historial",
           "snap": "ajustar",
-          "position": "posición"
+          "position": "posición",
+          "tests": "pruebas",
+          "testQueue": "cola de pruebas",
+          "turn": "turno",
+          "atOnce": "a la vez",
+          "usageLimit": "límite de uso",
+          "account": "cuenta",
+          "resume": "retomar"
         }
+      },
+      "SpotlightTestQueue": {
+        "maxConcurrentTests": "Tareas probando a la vez",
+        "maxConcurrentTestsDescription": "Cuántas tareas pueden correr Playwright o Maestro al mismo tiempo, una por espacio. Las demás esperan en la cola.",
+        "fewerTasks": "Una tarea menos",
+        "moreTasks": "Una tarea más",
+        "autoResume": "Continuar sola si se queda sin límite",
+        "autoResumeDescription": "Cuando una tarea en pruebas se queda sin límite de Claude, la continúa con una cuenta que tenga límite. Hasta 3 veces seguidas; después te espera."
       }
     },
     "onboarding": {

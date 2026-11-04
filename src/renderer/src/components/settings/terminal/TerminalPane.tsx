@@ -23,6 +23,7 @@ import {
   getTerminalWindowsShellSearchEntry,
   getTerminalWindowsAdministratorSearchEntry
 } from './platform/terminal-windows-search'
+import { getSpotlightTestQueueSearchEntries } from './terminal-search'
 import { ManageSessionsSection } from './session-management/ManageSessionsSection'
 import { TerminalAdvancedSection } from './TerminalAdvancedSection'
 import { TerminalInteractionSection } from './TerminalInteractionSection'
@@ -327,7 +328,8 @@ export function TerminalPane({
       />
     ) : null,
     matchesSettingsSearch(searchQuery, getTerminalPaneInteractionSearchEntries()) ||
-    matchesSettingsSearch(searchQuery, getTerminalRightClickToPasteSearchEntry()) ? (
+    matchesSettingsSearch(searchQuery, getTerminalRightClickToPasteSearchEntry()) ||
+    matchesSettingsSearch(searchQuery, getSpotlightTestQueueSearchEntries()) ? (
       <TerminalInteractionSection
         key="pane-interaction"
         settings={settings}
