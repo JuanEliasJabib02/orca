@@ -18,13 +18,16 @@ export type OrcaCliResult = {
 export async function runCompiledOrcaCli(
   userDataDir: string,
   args: string[],
-  timeoutMs = 120_000
+  timeoutMs = 120_000,
+  /** Variables an Orca terminal sets (e.g. `ORCA_PANE_KEY`); the profile path always wins. */
+  env: NodeJS.ProcessEnv = {}
 ): Promise<OrcaCliResult> {
   const result = await runProcess({
     program: process.execPath,
     args: [path.join(process.cwd(), 'out', 'cli', 'index.js'), ...args],
     env: {
       ...process.env,
+      ...env,
       ORCA_USER_DATA_PATH: userDataDir,
       ORCA_DEV_CLI_INVOCATION: '1'
     },
@@ -50,9 +53,10 @@ export async function runCompiledOrcaCli(
 export async function orcaCliResult<T>(
   userDataDir: string,
   args: string[],
-  timeoutMs?: number
+  timeoutMs?: number,
+  env?: NodeJS.ProcessEnv
 ): Promise<T> {
-  const run = await runCompiledOrcaCli(userDataDir, [...args, '--json'], timeoutMs)
+  const run = await runCompiledOrcaCli(userDataDir, [...args, '--json'], timeoutMs, env)
   if (run.code !== 0 || !run.json?.ok) {
     throw new Error(
       `orca ${args.join(' ')} exited ${run.code}: ${run.stdout.slice(0, 2_000)} ${run.stderr.slice(0, 2_000)}`
