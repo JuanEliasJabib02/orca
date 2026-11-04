@@ -334,4 +334,13 @@ describe('Continuar on an idle holder', () => {
       'settled:true'
     ])
   })
+
+  it('is never interrupted by an automatic resume', async () => {
+    seed(holdingBoard(), claudePane('working', ON_WORK))
+
+    expect(await continueTestTask(OTHER_PANE, { auto: true })).toEqual({ delivered: false })
+
+    expect(api.spotlight.markResuming).not.toHaveBeenCalled()
+    expect(harness.events).toEqual([])
+  })
 })

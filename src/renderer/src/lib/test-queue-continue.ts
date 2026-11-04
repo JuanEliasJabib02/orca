@@ -193,7 +193,9 @@ export async function continueTestTask(
   paneKey: string,
   options: { auto: boolean }
 ): Promise<ContinueTestTaskResult> {
-  const target = continueTarget(useAppStore.getState().spotlightTurns, paneKey)
+  const found = continueTarget(useAppStore.getState().spotlightTurns, paneKey)
+  // Why: auto-resume only resumes paused panes; interrupting a holder always takes Juan's click.
+  const target = options.auto && found?.kind !== 'paused' ? null : found
   const opened =
     target !== null &&
     (await window.api.spotlight.markResuming(target.paneKey, options).catch(() => false))
