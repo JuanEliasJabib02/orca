@@ -91,7 +91,9 @@ export function createNotificationDeliveryService(
       if (
         !request.mobileDeliveredByHost &&
         deps.dispatchMobileNotification &&
-        request.source !== 'test'
+        request.source !== 'test' &&
+        // Why: an automatic test-queue resume is a Mac-only notice; phones don't know this source.
+        request.source !== 'test-queue-auto-resume'
       ) {
         if (
           reserveNotificationCooldown(

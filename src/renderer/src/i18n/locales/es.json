@@ -20961,6 +20961,11 @@
       "title": "Las notificaciones de Orca están activadas",
       "body": "Esta es una notificación de prueba de Orca."
     },
+    "testQueueAutoResume": {
+      "title": "Cola de pruebas",
+      "body": "{{task}} siguió con la cuenta {{account}}",
+      "bodyWithoutAccount": "{{task}} siguió"
+    },
     "workspaceFallback": "espacio de trabajo",
     "agentTool": {
       "usingWithInput": "Usando {{tool}}: {{input}}",

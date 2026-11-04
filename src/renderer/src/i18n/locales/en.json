@@ -21753,6 +21753,11 @@
       "title": "Orca notifications are on",
       "body": "This is a test notification from Orca."
     },
+    "testQueueAutoResume": {
+      "title": "Test queue",
+      "body": "{{task}} continued on account {{account}}",
+      "bodyWithoutAccount": "{{task}} continued"
+    },
     "workspaceFallback": "workspace",
     "agentTool": {
       "usingWithInput": "Using {{tool}}: {{input}}",

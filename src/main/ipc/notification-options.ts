@@ -28,6 +28,10 @@ export function buildNotificationOptions(
     }
   }
 
+  if (args.source === 'test-queue-auto-resume') {
+    return buildTestQueueAutoResumeNotificationOptions(args, translate)
+  }
+
   if (args.source === 'test') {
     return {
       title: translate('notifications.test.title', 'Orca notifications are on'),
@@ -52,6 +56,27 @@ function fillNotificationPlaceholders(template: string, values: Record<string, s
   return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (placeholder, name: string) =>
     Object.hasOwn(values, name) ? values[name] : placeholder
   )
+}
+
+// The test-queue task name travels in worktreeLabel.
+function buildTestQueueAutoResumeNotificationOptions(
+  args: NotificationDispatchRequest,
+  translate: NotificationTranslator
+): { title: string; body: string } {
+  const task =
+    normalizeNotificationText(args.worktreeLabel, NOTIFICATION_TITLE_CONTEXT_MAX_LENGTH) ||
+    translateWorkspace(translate)
+  const account = normalizeNotificationText(args.accountLabel, NOTIFICATION_AGENT_LABEL_MAX_LENGTH)
+  const body = account
+    ? translate(
+        'notifications.testQueueAutoResume.body',
+        '{{task}} continued on account {{account}}'
+      )
+    : translate('notifications.testQueueAutoResume.bodyWithoutAccount', '{{task}} continued')
+  return {
+    title: translate('notifications.testQueueAutoResume.title', 'Test queue'),
+    body: fillNotificationPlaceholders(body, { task, account })
+  }
 }
 
 function buildAgentTaskCompleteNotificationOptions(

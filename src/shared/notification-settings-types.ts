@@ -33,7 +33,11 @@ export type NotificationSettings = {
   notifyHiddenWorkspaces: boolean
 }
 
-export type NotificationEventSource = 'agent-task-complete' | 'terminal-bell' | 'test'
+export type NotificationEventSource =
+  | 'agent-task-complete'
+  | 'terminal-bell'
+  | 'test'
+  | 'test-queue-auto-resume'
 
 export type StructuredNotificationRead = StructuredAttentionRead & {
   paneKey: string
@@ -53,6 +57,8 @@ export type NotificationDispatchRequest = {
   paneKey?: string
   repoLabel?: string
   worktreeLabel?: string
+  /** The Claude account a test-queue auto-resume continued on; other sources ignore it. */
+  accountLabel?: string
   /** Legacy senders may still provide this; project labels are now always shown. */
   hasMultipleActiveRepos?: boolean
   terminalTitle?: string

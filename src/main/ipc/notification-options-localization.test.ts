@@ -21,6 +21,12 @@ const TOOL: NotificationDispatchRequest = {
   agentToolInput: 'ls {{tool}}'
 }
 const FALLBACK: NotificationDispatchRequest = { source: 'agent-task-complete', worktreeId: 'wt-1' }
+const AUTO_RESUME: NotificationDispatchRequest = {
+  source: 'test-queue-auto-resume',
+  worktreeId: 'wt-1',
+  worktreeLabel: 'Fix login',
+  accountLabel: 'personal'
+}
 
 afterEach(async () => {
   await setMainUiLanguage(UI_LANGUAGE_ENGLISH)
@@ -41,6 +47,20 @@ describe('buildNotificationOptions localization', () => {
     expect(buildNotificationOptions(FALLBACK, translateMain)).toEqual({
       title: 'Tarea completada en espacio de trabajo',
       body: 'Un agente de programación terminó de trabajar.'
+    })
+  })
+
+  it('names the task and the account of an automatic test-queue resume', async () => {
+    expect(buildNotificationOptions(AUTO_RESUME, translateMain)).toEqual({
+      title: 'Test queue',
+      body: 'Fix login continued on account personal'
+    })
+
+    await setMainUiLanguage(UI_LANGUAGE_SPANISH)
+
+    expect(buildNotificationOptions(AUTO_RESUME, translateMain)).toEqual({
+      title: 'Cola de pruebas',
+      body: 'Fix login siguió con la cuenta personal'
     })
   })
 })
