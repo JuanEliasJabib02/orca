@@ -54,7 +54,7 @@ export function claudeUsagePeakPercent(
   return known.length > 0 ? Math.max(...known) : null
 }
 
-function readSnapshot(accounts: SpotlightUsageSource): UsageSnapshot | null {
+export function readSnapshot(accounts: SpotlightUsageSource): UsageSnapshot | null {
   try {
     return accounts.getSnapshot()
   } catch {
@@ -79,7 +79,7 @@ function paneAccountId(
   return claude.accounts.find((account) => isClaudePaneOnAccount(folder, account.id, claude))?.id
 }
 
-async function refreshUsage(
+export async function refreshUsage(
   service: UsageRefresher | null,
   includeInactive: boolean
 ): Promise<void> {

@@ -158,3 +158,12 @@ export type SpotlightAgentStatus = {
 export function emptySpotlightAgentStatus(): SpotlightAgentStatus {
   return { turns: [], waiting: [], paused: [], lit: [] }
 }
+
+/**
+ * The Claude account Continuar resumes a paused task with (D7): the one with the most limit left,
+ * or none while every account is at its limit. `accountId` null is Orca's System default account;
+ * `returnsAt` (epoch ms) is when the first account gets limit back, null when no reset is known.
+ */
+export type SpotlightResumeAccountPick =
+  | { kind: 'account'; accountId: string | null; label: string }
+  | { kind: 'none'; returnsAt: number | null }
