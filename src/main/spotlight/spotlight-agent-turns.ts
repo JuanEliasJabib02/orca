@@ -9,6 +9,7 @@ import type {
   SpotlightAgentTaskResolution
 } from '../../shared/spotlight-agent-turn'
 import type { WorkspacePortScanResult } from '../../shared/workspace-ports'
+import { getRepoIdFromWorktreeId } from '../../shared/worktree/id'
 import { waitForTurnServers } from './spotlight-agent-servers'
 import {
   SpotlightTurnPauses,
@@ -227,7 +228,11 @@ export class SpotlightAgentTurns {
       requestedAt: (paneKey) => this.panes.get(paneKey)?.requestedAt,
       activityAt: (paneKey) => this.activity.get(paneKey),
       isResuming: (paneKey) => this.pauses.isResuming(paneKey),
-      autoResumes: (paneKey) => this.pauses.autoResumes(paneKey)
+      autoResumes: (paneKey) => this.pauses.autoResumes(paneKey),
+      paneRepoName: (paneKey) => {
+        const pane = this.panes.get(paneKey)
+        return pane ? this.repoNames([getRepoIdFromWorktreeId(pane.worktreeId)])[0] : undefined
+      }
     }
   }
 

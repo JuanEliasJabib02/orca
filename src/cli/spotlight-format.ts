@@ -33,7 +33,8 @@ function describeBlocker(blocker: SpotlightAgentBlocker): string {
 export function formatSpotlightOn(result: SpotlightAgentOnResult): string {
   if (result.status === 'waiting') {
     return [
-      `Waiting for the Spotlight for ${result.taskKey}: ${result.blockers.map(describeBlocker).join('; ')}.`,
+      // Why "test turn": the turn caps Playwright/Maestro too, also for tasks with no Spotlight.
+      `Waiting for a test turn for ${result.taskKey}: ${result.blockers.map(describeBlocker).join('; ')}.`,
       `You are #${result.position} in line. Your place is kept: run \`orca spotlight on\` again to keep waiting.`
     ].join('\n')
   }

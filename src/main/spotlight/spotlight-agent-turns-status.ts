@@ -28,6 +28,8 @@ export type SpotlightBoardSources = {
   activityAt: (paneKey: string) => number | undefined
   isResuming: (paneKey: string) => boolean
   autoResumes: (paneKey: string) => number
+  /** The repo the pane works in; names a row whose task has no Spotlight project. */
+  paneRepoName?: (paneKey: string) => string | undefined
 }
 
 export function toAgentBlockers(
@@ -53,6 +55,18 @@ function latest(times: readonly (number | undefined)[]): number | undefined {
   return known.length > 0 ? Math.max(...known) : undefined
 }
 
+/** A slot-only row has no projects, so it is named by the repos its panes work in. */
+function rowRepoNames(
+  sources: SpotlightBoardSources,
+  repoIds: readonly string[],
+  paneKeys: readonly string[]
+): string[] {
+  if (repoIds.length > 0) {
+    return sources.repoNames(repoIds)
+  }
+  return [...new Set(paneKeys.flatMap((paneKey) => sources.paneRepoName?.(paneKey) ?? []))]
+}
+
 function turnRows(sources: SpotlightBoardSources): SpotlightAgentTurnRow[] {
   return sources.snapshot.turns.map((turn) => {
     // Why the order: Continuar resumes the pane that asked last.
@@ -65,7 +79,7 @@ function turnRows(sources: SpotlightBoardSources): SpotlightAgentTurnRow[] {
     const resuming = paneKeys.some((paneKey) => sources.isResuming(paneKey))
     return {
       taskKey: turn.taskKey,
-      repoNames: sources.repoNames(turn.repoIds),
+      repoNames: rowRepoNames(sources, turn.repoIds, paneKeys),
       panes: turn.paneKeys.length,
       grantedAt: turn.grantedAt,
       paneKeys,
@@ -87,7 +101,7 @@ function waitingRows(sources: SpotlightBoardSources): SpotlightAgentWaitingRow[]
     return [
       {
         taskKey: waiter.taskKey,
-        repoNames: sources.repoNames(waiter.repoIds),
+        repoNames: rowRepoNames(sources, waiter.repoIds, [waiter.paneKey]),
         since: waiter.since,
         paneKey: waiter.paneKey,
         ...(waiter.laneKey === undefined ? {} : { laneKey: waiter.laneKey })
@@ -108,7 +122,7 @@ export function buildSpotlightBoard(sources: SpotlightBoardSources): SpotlightAg
       return {
         paneKey: entry.paneKey,
         taskKey: entry.taskKey,
-        repoNames: repoNames(entry.repoIds),
+        repoNames: rowRepoNames(sources, entry.repoIds, [entry.paneKey]),
         ...(entry.laneKey === undefined ? {} : { laneKey: entry.laneKey }),
         since: entry.since,
         reason: entry.reason,

@@ -171,7 +171,8 @@ function setup(options: SetupOptions = {}) {
     ['back', makeRepo('back', 8080)],
     ['admin', makeRepo('admin')],
     ['shop', makeRepo('shop')],
-    ['blog', makeRepo('blog')]
+    ['blog', makeRepo('blog')],
+    ['orca', makeRepo('orca')]
   ])
   const holders = new Map<string, string>()
   let ports = options.ports ?? [
@@ -421,6 +422,8 @@ describe('SpotlightAgentTurns', () => {
       note: expect.stringContaining('test slot')
     })
     expect(lightTask).not.toHaveBeenCalled()
+    // Why: the footer row still reads `orca · Arrecife`, named by the repo the pane works in.
+    expect(turns.status().turns[0].repoNames).toEqual(['orca'])
     const second = turns.on({
       paneKey: 'p2',
       worktreeId: 'shop::/wt/ag-1',
