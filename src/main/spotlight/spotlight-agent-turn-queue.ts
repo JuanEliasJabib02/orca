@@ -282,6 +282,11 @@ export class SpotlightTurnQueue {
     return claimed
   }
 
+  /** The cap changed with nothing else moving: grants whoever the new cap lets through. */
+  regrant(): SpotlightTurn[] {
+    return this.pump()
+  }
+
   /** Grants whoever the line lets through; the cap is read once per pass. */
   private pump(): SpotlightTurn[] {
     const { line, granted } = pumpLine(this.turns, this.waiting, this.cap(), this.now)

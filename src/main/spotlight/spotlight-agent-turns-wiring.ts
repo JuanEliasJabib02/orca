@@ -87,5 +87,12 @@ export function installSpotlightAgentTurns(args: {
     turns.noteAgentActivity(status.paneKey, status.receivedAt)
   )
   registerPaneKeyTeardownListener((paneKey) => turns.handlePaneGone(paneKey))
+  // Why: a waiter blocked inside `orca spotlight on` must get in when the limit goes up, not on
+  // the next queue event, and the footer must show the new limit.
+  store.onSettingsChanged((updates) => {
+    if ('spotlightMaxConcurrentTests' in updates) {
+      turns.capChanged()
+    }
+  })
   setSpotlightAgentTurns(turns)
 }

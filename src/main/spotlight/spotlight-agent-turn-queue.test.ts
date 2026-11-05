@@ -223,6 +223,20 @@ describe('SpotlightTurnQueue lanes and cap', () => {
     expect(queue.release('pb').granted.map((turn) => turn.taskKey)).toEqual(['EX-1'])
   })
 
+  it('grants a waiter as soon as a raised cap is applied, with no other change', () => {
+    let cap = 1
+    let clock = 0
+    const queue = new SpotlightTurnQueue({ now: () => ++clock, cap: () => cap })
+    queue.request({ paneKey: 'pa', taskKey: 'AG-1', repoIds: ['shop'], laneKey: 'ag' })
+    queue.request({ paneKey: 'pb', taskKey: 'AX-1', repoIds: ['back'], laneKey: 'action' })
+    expect(queue.regrant()).toEqual([])
+
+    cap = 2
+
+    expect(queue.regrant().map((turn) => turn.taskKey)).toEqual(['AX-1'])
+    expect(queue.positionOf('pb')?.kind).toBe('holding')
+  })
+
   it('lets a lane-blocked waiter keep its projects from a later waiter of another lane', () => {
     const queue = makeCappedQueue(2)
     queue.request({ paneKey: 'pa', taskKey: 'AG-1', repoIds: ['shop'], laneKey: 'ag' })

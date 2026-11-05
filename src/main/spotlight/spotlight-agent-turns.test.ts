@@ -159,7 +159,7 @@ function fakeAccounts(
 type SetupOptions = {
   ports?: WorkspacePort[]
   server?: 'running' | 'stopped'
-  cap?: number
+  cap?: number | (() => number)
   /** Each pane's hook rows, read as `readTurnEnd` reads them in the app. */
   rows?: Map<string, SpotlightTurnEndRow[]>
   atLimit?: (paneKey: string) => Promise<boolean>
@@ -214,7 +214,7 @@ function setup(options: SetupOptions = {}) {
     lightTask,
     readServer: async () => options.server ?? 'running',
     getLane: (worktreeId) => LANES[worktreeId],
-    ...(cap === undefined ? {} : { getCap: () => cap }),
+    ...(cap === undefined ? {} : { getCap: typeof cap === 'function' ? cap : () => cap }),
     ...(rows
       ? { readTurnEnd: (paneKey: string) => readTurnEndFromRows(rows.get(paneKey) ?? []) }
       : {}),
@@ -482,6 +482,27 @@ describe('SpotlightAgentTurns lanes and limit', () => {
         { taskKey: 'AG-2', reason: 'cap' }
       ]
     })
+  })
+
+  it('lets a waiting task in as soon as the limit is raised in Settings, and pushes the board', async () => {
+    let cap = 1
+    const { turns, scanPorts, notify } = setup({ cap: () => cap })
+    await turns.on({ paneKey: 'p1', worktreeId: 'shop::/wt/ag-1', scanPorts })
+    const waiting = turns.on({
+      paneKey: 'p3',
+      worktreeId: 'back::/wt/ax-2',
+      timeoutMs: 60_000,
+      scanPorts
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(turns.status().waiting.map((row) => row.taskKey)).toEqual(['AX-2'])
+    notify.mockClear()
+
+    cap = 2
+    turns.capChanged()
+
+    await expect(waiting).resolves.toMatchObject({ status: 'on', taskKey: 'AX-2' })
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ cap: 2 }))
   })
 })
 

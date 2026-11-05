@@ -147,6 +147,12 @@ export class SpotlightAgentTurns {
     return { status: 'on', taskKey: task.taskKey, servers, skippedRepoNames, ready }
   }
 
+  /** The limit changed in Settings: a raise lets waiters in now; a cut never evicts a holder. */
+  capChanged(): void {
+    this.onGranted(this.queue.regrant())
+    this.publish()
+  }
+
   /** Gives the pane's turn (or place in line) back; the Spotlight stays as it is. */
   off(paneKey: string): SpotlightAgentOffResult {
     this.panes.delete(paneKey)
