@@ -42,14 +42,14 @@ export function readTurnEndFromRows(rows: readonly SpotlightTurnEndRow[]): Spotl
 /** What a turn end newer than the pane's last request does to its place. */
 function turnEndAction(
   end: SpotlightTurnEnd,
-  pane: { paused: boolean; resuming: boolean }
+  pane: { paused: boolean; resuming: boolean; resumed: boolean }
 ): 'ignore' | 'release' | 'pause' {
   if (end === 'boundary') {
     return 'ignore'
   }
   if (end === 'failure') {
-    // Why: the killed agent re-publishes its failure; pausing a paused pane changes nothing.
-    return pane.paused ? 'ignore' : 'pause'
+    // Why: a killed agent re-publishes its failure; only a resumed agent's own one pauses again.
+    return pane.paused && (pane.resuming || !pane.resumed) ? 'ignore' : 'pause'
   }
   // Why: inside Continuar's window the Esc and the restart end turns on purpose.
   return pane.resuming ? 'ignore' : 'release'
@@ -68,15 +68,22 @@ export type SpotlightTurnPauseHost = {
   publish: () => void
   readTurnEnd?: (paneKey: string) => SpotlightTurnEnd
   paneAccountAtLimit?: (paneKey: string) => Promise<boolean>
+  /** Whether a terminal runs under the pane's key now; a restarted pane's new one counts. */
+  isPaneLive: (paneKey: string) => boolean
 }
 
+/** Continuar's open window: whether auto-resume opened it, and whether the pane's terminal left. */
+type ResumeWindow = { timer: ReturnType<typeof setTimeout>; auto: boolean; paneGone: boolean }
+
 /**
- * Turn ends, pauses and Continuar's bookkeeping per pane: its resuming window, its automatic
- * resumes in a row, the newest turn end already handled, and a pause whose usage read is running.
+ * Turn ends, pauses and Continuar's bookkeeping per pane: its resuming window, its delivered
+ * automatic resumes in a row, a delivered resume since its last pause, the newest turn end already
+ * handled, and a pause whose usage read is running.
  */
 export class SpotlightTurnPauses {
-  private readonly windows = new Map<string, ReturnType<typeof setTimeout>>()
+  private readonly windows = new Map<string, ResumeWindow>()
   private readonly autoCounts = new Map<string, number>()
+  private readonly resumed = new Set<string>()
   private readonly handled = new Map<string, number>()
   private readonly pausing = new Set<string>()
 
@@ -117,63 +124,88 @@ export class SpotlightTurnPauses {
   /**
    * Opens Continuar's window for a paused pane or a holder: its turn ends and teardown don't
    * count until `resumeSettled` or the window runs out. False when the pane is neither, a window
-   * is open, or `auto` and its automatic resumes in a row are used up. Never grants a turn.
+   * is open, or `auto` and its delivered automatic resumes in a row are used up. Never grants a
+   * turn.
    */
   markResuming(paneKey: string, options: { auto: boolean }): boolean {
     const position = this.host.queue.positionOf(paneKey)
     const resumable =
       position?.kind === 'holding' ||
       (position?.kind === 'waiting' && position.paused !== undefined)
-    const count = this.autoResumes(paneKey)
     if (
       !resumable ||
       this.windows.has(paneKey) ||
-      (options.auto && count >= MAX_AUTO_RESUMES_IN_A_ROW)
+      (options.auto && this.autoResumes(paneKey) >= MAX_AUTO_RESUMES_IN_A_ROW)
     ) {
       return false
     }
-    if (options.auto) {
-      this.autoCounts.set(paneKey, count + 1)
-    }
-    const timer = setTimeout(() => {
-      if (this.closeWindow(paneKey)) {
-        this.host.publish()
-      }
-    }, RESUME_WINDOW_MS)
-    this.windows.set(paneKey, timer)
+    const timer = setTimeout(
+      () => this.settleWindow(paneKey, { delivered: false }),
+      RESUME_WINDOW_MS
+    )
+    this.windows.set(paneKey, { timer, auto: options.auto, paneGone: false })
     this.host.publish()
     return true
   }
 
   /** Continuar finished; a delivered follow-up spends every turn end up to now. */
   resumeSettled(paneKey: string, result: { delivered: boolean }): void {
-    if (!this.closeWindow(paneKey)) {
-      return
+    this.settleWindow(paneKey, result)
+  }
+
+  /** The pane's terminal left; true inside its window, which then decides once it ends. */
+  noteGone(paneKey: string): boolean {
+    const resumeWindow = this.windows.get(paneKey)
+    if (!resumeWindow) {
+      return false
     }
-    if (result.delivered) {
-      // Why: the Esc's cancellation and the old session's rows are older than the follow-up.
-      this.markHandled(paneKey, this.host.now())
-    }
-    this.host.publish()
+    resumeWindow.paneGone = true
+    return true
   }
 
   /** Ends the pane's window; true when one was open. */
   closeWindow(paneKey: string): boolean {
-    const timer = this.windows.get(paneKey)
-    if (timer === undefined) {
-      return false
-    }
-    clearTimeout(timer)
-    this.windows.delete(paneKey)
-    return true
+    return this.takeWindow(paneKey) !== undefined
   }
 
   /** The pane left the queue: its window, its automatic count and its handled ends go. */
   forget(paneKey: string): void {
     this.closeWindow(paneKey)
     this.autoCounts.delete(paneKey)
+    this.resumed.delete(paneKey)
     this.handled.delete(paneKey)
     this.pausing.delete(paneKey)
+  }
+
+  private takeWindow(paneKey: string): ResumeWindow | undefined {
+    const resumeWindow = this.windows.get(paneKey)
+    if (resumeWindow) {
+      clearTimeout(resumeWindow.timer)
+      this.windows.delete(paneKey)
+    }
+    return resumeWindow
+  }
+
+  /** Closes the pane's window by its result; an expired window settles undelivered. */
+  private settleWindow(paneKey: string, result: { delivered: boolean }): void {
+    const resumeWindow = this.takeWindow(paneKey)
+    if (!resumeWindow) {
+      return
+    }
+    // Why: a pane torn down in its window that no terminal took back has no one to give it back.
+    if (resumeWindow.paneGone && !this.host.isPaneLive(paneKey)) {
+      this.host.release(paneKey)
+      return
+    }
+    if (result.delivered) {
+      // Why: the Esc's cancellation and the old session's rows are older than the follow-up.
+      this.markHandled(paneKey, this.host.now())
+      this.resumed.add(paneKey)
+      if (resumeWindow.auto) {
+        this.autoCounts.set(paneKey, this.autoResumes(paneKey) + 1)
+      }
+    }
+    this.host.publish()
   }
 
   private markHandled(paneKey: string, at: number): void {
@@ -185,7 +217,11 @@ export class SpotlightTurnPauses {
     const position = this.host.queue.positionOf(paneKey)
     const paused =
       this.pausing.has(paneKey) || (position?.kind === 'waiting' && position.paused !== undefined)
-    const action = turnEndAction(end, { paused, resuming: this.isResuming(paneKey) })
+    const action = turnEndAction(end, {
+      paused,
+      resuming: this.isResuming(paneKey),
+      resumed: this.resumed.has(paneKey)
+    })
     if (action === 'pause') {
       return this.pause(paneKey)
     }
@@ -199,6 +235,7 @@ export class SpotlightTurnPauses {
   private async pause(paneKey: string): Promise<void> {
     const askedAt = this.host.requestedAt(paneKey)
     this.pausing.add(paneKey)
+    this.resumed.delete(paneKey)
     let atLimit = false
     try {
       atLimit = (await this.host.paneAccountAtLimit?.(paneKey)) ?? false

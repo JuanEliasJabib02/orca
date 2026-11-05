@@ -43,6 +43,8 @@ export type SpotlightAgentTurnsDeps = {
   readTurnEnd?: (paneKey: string) => SpotlightTurnEnd
   /** Whether the pane's Claude account is out of usage, after a forced usage read. */
   paneAccountAtLimit?: (paneKey: string) => Promise<boolean>
+  /** Whether a terminal runs under the pane's key now; a restarted pane's new one counts. */
+  isPaneLive: (paneKey: string) => boolean
   /** Receives the board after every queue change. */
   notify?: (board: SpotlightAgentStatus) => void
 }
@@ -50,7 +52,7 @@ export type SpotlightAgentTurnsDeps = {
 type LightResults = Map<string, SpotlightAgentLightResult>
 
 function slotOnlyNote(taskKey: string): string {
-  return `No project of ${taskKey} can hold a Spotlight here, so this turn only holds a test slot: start what you test yourself, then run your tests.`
+  return `No project of ${taskKey} can hold a Spotlight here, so this turn only holds a test slot: run your tests.`
 }
 
 /**
@@ -80,7 +82,8 @@ export class SpotlightAgentTurns {
       granted: (turns) => this.onGranted(turns),
       publish: () => this.publish(),
       readTurnEnd: deps.readTurnEnd,
-      paneAccountAtLimit: deps.paneAccountAtLimit
+      paneAccountAtLimit: deps.paneAccountAtLimit,
+      isPaneLive: deps.isPaneLive
     })
   }
 
@@ -197,8 +200,8 @@ export class SpotlightAgentTurns {
   }
 
   handlePaneGone(paneKey: string): void {
-    // Why: Continuar's restart stops the old process first; the pane comes back in its place.
-    if (this.pauses.isResuming(paneKey)) {
+    // Why: Continuar's restart stops the old process first; its window's end tells if it came back.
+    if (this.pauses.noteGone(paneKey)) {
       return
     }
     if (this.panes.has(paneKey) || this.queue.positionOf(paneKey)) {

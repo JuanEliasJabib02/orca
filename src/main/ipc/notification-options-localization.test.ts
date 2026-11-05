@@ -21,11 +21,19 @@ const TOOL: NotificationDispatchRequest = {
   agentToolInput: 'ls {{tool}}'
 }
 const FALLBACK: NotificationDispatchRequest = { source: 'agent-task-complete', worktreeId: 'wt-1' }
-const AUTO_RESUME: NotificationDispatchRequest = {
+const AUTO_RESUME_WITHOUT_ACCOUNT: NotificationDispatchRequest = {
   source: 'test-queue-auto-resume',
   worktreeId: 'wt-1',
-  worktreeLabel: 'Fix login',
+  worktreeLabel: 'Fix login'
+}
+const AUTO_RESUME: NotificationDispatchRequest = {
+  ...AUTO_RESUME_WITHOUT_ACCOUNT,
   accountLabel: 'personal'
+}
+
+/** Echoes the key and the fallback's placeholders, so the case reads no catalog's wording. */
+function echoKey(key: string, fallback: string): string {
+  return [key, ...(fallback.match(/\{\{\w+\}\}/g) ?? [])].join(' ')
 }
 
 afterEach(async () => {
@@ -50,17 +58,14 @@ describe('buildNotificationOptions localization', () => {
     })
   })
 
-  it('names the task and the account of an automatic test-queue resume', async () => {
-    expect(buildNotificationOptions(AUTO_RESUME, translateMain)).toEqual({
-      title: 'Test queue',
-      body: 'Fix login continued on account personal'
+  it('fills the task and the account into the keys of an automatic test-queue resume', () => {
+    expect(buildNotificationOptions(AUTO_RESUME, echoKey)).toEqual({
+      title: 'notifications.testQueueAutoResume.title',
+      body: 'notifications.testQueueAutoResume.body Fix login personal'
     })
-
-    await setMainUiLanguage(UI_LANGUAGE_SPANISH)
-
-    expect(buildNotificationOptions(AUTO_RESUME, translateMain)).toEqual({
-      title: 'Cola de pruebas',
-      body: 'Fix login siguió con la cuenta personal'
+    expect(buildNotificationOptions(AUTO_RESUME_WITHOUT_ACCOUNT, echoKey)).toEqual({
+      title: 'notifications.testQueueAutoResume.title',
+      body: 'notifications.testQueueAutoResume.bodyWithoutAccount Fix login'
     })
   })
 })

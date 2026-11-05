@@ -324,13 +324,25 @@ describe('SpotlightTurnQueue paused panes', () => {
       blockers: [{ taskKey: 'AG-2', repoIds: ['shop'], holding: true }],
       paused: { reason: 'limit', pausedAt: 4 }
     })
-    // Why: the killed agent re-publishes its failure; pausing again changes nothing.
-    expect(queue.pause('pa', { reason: 'error' })).toEqual({
-      pausedTaskKey: null,
+  })
+
+  it('pauses a paused pane anew in its place, with the new reason and time', () => {
+    const queue = makeQueue()
+    queue.request({ paneKey: 'pa', taskKey: 'AX-1', repoIds: ['admin'] })
+    queue.request({ paneKey: 'pb', taskKey: 'AX-2', repoIds: ['admin'] })
+    queue.request({ paneKey: 'pc', taskKey: 'AX-3', repoIds: ['admin'] })
+    queue.pause('pb', { reason: 'limit' })
+
+    expect(queue.pause('pb', { reason: 'error' })).toEqual({
+      pausedTaskKey: 'AX-2',
       wasHolding: false,
       granted: []
     })
-    expect(queue.snapshot().paused.map((entry) => entry.reason)).toEqual(['limit'])
+    expect(queue.snapshot().paused).toEqual([
+      { paneKey: 'pb', taskKey: 'AX-2', repoIds: ['admin'], since: 3, reason: 'error', pausedAt: 6 }
+    ])
+    queue.request({ paneKey: 'pb', taskKey: 'AX-2', repoIds: ['admin'] })
+    expect(queue.release('pa').granted.map((turn) => turn.taskKey)).toEqual(['AX-2'])
   })
 
   it('keeps the turn of a two-pane task while its other pane works', () => {

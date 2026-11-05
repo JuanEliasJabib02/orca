@@ -190,6 +190,8 @@ function setup(options: SetupOptions = {}) {
     return repoIds.map((repoId) => ({ repoId, ok: true }))
   })
   const notify = vi.fn<(board: SpotlightAgentStatus) => void>(options.notify ?? (() => {}))
+  /** Panes whose terminal closed for good; any other pane keeps or gets one back. */
+  const closed = new Set<string>()
   const { rows, cap } = options
   const turns = new SpotlightAgentTurns({
     getRepo: (repoId) => repos.get(repoId),
@@ -220,6 +222,7 @@ function setup(options: SetupOptions = {}) {
       ? { readTurnEnd: (paneKey: string) => readTurnEndFromRows(rows.get(paneKey) ?? []) }
       : {}),
     ...(options.atLimit ? { paneAccountAtLimit: options.atLimit } : {}),
+    isPaneLive: (paneKey) => !closed.has(paneKey),
     notify
   })
   const scanPorts = async (): Promise<WorkspacePortScanResult> => ({
@@ -235,6 +238,11 @@ function setup(options: SetupOptions = {}) {
     scanPorts,
     setPorts: (next: WorkspacePort[]) => {
       ports = next
+    },
+    /** The pane's terminal goes away and nothing takes its key again. */
+    closeTerminal: (paneKey: string) => {
+      closed.add(paneKey)
+      turns.handlePaneGone(paneKey)
     }
   }
 }
@@ -597,9 +605,9 @@ describe('SpotlightAgentTurns turn ends', () => {
 })
 
 describe('SpotlightAgentTurns resuming', () => {
-  async function pausedHolder() {
+  async function pausedHolder(atLimit = async () => true) {
     const rows = new Map<string, SpotlightTurnEndRow[]>()
-    const env = setup({ cap: 2, rows, atLimit: async () => true })
+    const env = setup({ cap: 2, rows, atLimit })
     await env.turns.on({ paneKey: 'p1', worktreeId: 'shop::/wt/ag-1', scanPorts: env.scanPorts })
     await env.turns.on({ paneKey: 'p2', worktreeId: 'back::/wt/ax-2', scanPorts: env.scanPorts })
     await report(env.turns, rows, 'p1', PROMPT, STOP_FAILURE)
@@ -683,11 +691,59 @@ describe('SpotlightAgentTurns resuming', () => {
     expect(turns.status().paused).toEqual([])
   })
 
-  it('allows three automatic resumes in a row, then waits for a click', async () => {
+  it('gives back the place or turn of a pane closed during its window once the window ends', async () => {
+    const { turns, closeTerminal } = await pausedHolder()
+    turns.markResuming('p1', { auto: false })
+    turns.markResuming('p2', { auto: false })
+    closeTerminal('p1')
+    closeTerminal('p2')
+
+    turns.resumeSettled('p1', { delivered: true })
+    expect(turns.status().paused).toEqual([])
+    expect(turns.status().turns).toMatchObject([{ taskKey: 'AX-2' }])
+
+    await vi.advanceTimersByTimeAsync(3 * 60_000)
+    expect(turns.status().turns).toEqual([])
+  })
+
+  it('pauses a resumed pane again when its agent fails before asking for a turn', async () => {
+    let atLimit = true
+    const { turns, rows } = await pausedHolder(async () => atLimit)
+    const firstPausedAt = turns.status().paused?.[0].pausedAt ?? 0
+    turns.markResuming('p1', { auto: true })
+    turns.resumeSettled('p1', { delivered: true })
+    atLimit = false
+
+    await report(turns, rows, 'p1', PROMPT, STOP_FAILURE)
+
+    expect(turns.status().paused).toMatchObject([{ paneKey: 'p1', reason: 'error' }])
+    expect(turns.status().paused?.[0].pausedAt).toBeGreaterThan(firstPausedAt)
+    expect(turns.markResuming('p1', { auto: true })).toBe(true)
+  })
+
+  it('keeps a pause as it was on a failure after an undelivered resume or inside the window', async () => {
+    const { turns, rows } = await pausedHolder()
+    const pausedAt = turns.status().paused?.[0].pausedAt
+    turns.markResuming('p1', { auto: false })
+    turns.resumeSettled('p1', { delivered: false })
+    await report(turns, rows, 'p1', STOP_FAILURE)
+    turns.markResuming('p1', { auto: false })
+    turns.resumeSettled('p1', { delivered: true })
+    turns.markResuming('p1', { auto: false })
+    // Why: the second Continuar's restart kills the agent, which re-publishes its failure.
+    await report(turns, rows, 'p1', STOP_FAILURE)
+    expect(turns.status().paused?.[0].pausedAt).toBe(pausedAt)
+  })
+
+  it('counts only delivered automatic resumes, and waits for a click after three in a row', async () => {
     const { turns } = await pausedHolder()
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
       expect(turns.markResuming('p1', { auto: true })).toBe(true)
       turns.resumeSettled('p1', { delivered: false })
+    }
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      expect(turns.markResuming('p1', { auto: true })).toBe(true)
+      turns.resumeSettled('p1', { delivered: true })
       expect(turns.status().paused?.[0].autoResumes).toBe(attempt)
     }
 

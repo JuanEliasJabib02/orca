@@ -78,7 +78,7 @@ export type SpotlightTurnReleaseOutcome = {
 }
 
 export type SpotlightTurnPauseOutcome = {
-  /** The task the pane was paused in; null when it had no place or was already paused. */
+  /** The task the pane was paused in; null when it had no place. */
   pausedTaskKey: string | null
   /** The pane left a turn it held. */
   wasHolding: boolean
@@ -164,14 +164,13 @@ export class SpotlightTurnQueue {
 
   /**
    * The pane's agent stopped mid-turn: takes it out of its turn but keeps its place, a holder at
-   * the front of the line and a waiter where it stands. Its next `request` ends the pause.
+   * the front of the line and a waiter where it stands; a paused pane gets a new reason and time.
+   * Its next `request` ends the pause.
    */
   pause(paneKey: string, info: { reason: SpotlightTurnPauseReason }): SpotlightTurnPauseOutcome {
     const queued = this.waiting.find((waiter) => waiter.paneKey === paneKey)
     if (queued) {
-      if (queued.pause) {
-        return { pausedTaskKey: null, wasHolding: false, granted: [] }
-      }
+      // Why a paused entry too: a resumed agent that fails again is paused anew, in the same place.
       queued.pause = { reason: info.reason, pausedAt: this.now() }
       return { pausedTaskKey: queued.taskKey, wasHolding: false, granted: this.pump() }
     }

@@ -3,7 +3,7 @@ import { laneKeyOf } from '../../shared/project-group-space'
 import { normalizeSpotlightMaxConcurrentTests } from '../../shared/spotlight-test-queue-settings'
 import { getRepoIdFromWorktreeId } from '../../shared/worktree/id'
 import { agentHookServer } from '../agent-hooks/server'
-import { registerPaneKeyTeardownListener } from '../ipc/pty/pane/key-state'
+import { getPtyIdForPaneKey, registerPaneKeyTeardownListener } from '../ipc/pty/pane/key-state'
 import type { Store } from '../persistence/loading-store/store'
 import type { RuntimeAccountController } from '../runtime/runtime-account-controller'
 import {
@@ -77,6 +77,8 @@ export function installSpotlightAgentTurns(args: {
         accounts: args.accounts,
         platform: process.platform
       }),
+    // Why: a pty's teardown drops its key, and a restarted pane's new pty registers it again.
+    isPaneLive: (paneKey) => getPtyIdForPaneKey(paneKey) !== undefined,
     notify: (board) => {
       // Why the getter: it is null once the window is destroyed.
       args.getWindow()?.webContents.send('spotlight:turnsChanged', board)
