@@ -49,9 +49,7 @@ describe('findTopLevelGroupId', () => {
 
 describe('findWorktreeSidebarSpaceId', () => {
   it('names the space of a repo worktree and of a folder workspace', () => {
-    expect(findWorktreeSidebarSpaceId({ id: 'shop::/wt/ag-1', repoId: 'shop' }, sources)).toBe(
-      'ag'
-    )
+    expect(findWorktreeSidebarSpaceId({ id: 'shop::/wt/ag-1', repoId: 'shop' }, sources)).toBe('ag')
     expect(
       findWorktreeSidebarSpaceId(
         { id: 'folder:notes', repoId: 'folder-workspace:ag-clients' },

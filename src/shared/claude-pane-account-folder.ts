@@ -1,7 +1,4 @@
-import type {
-  ClaudeManagedAccount,
-  ClaudeRateLimitAccountsState
-} from './managed-account-types'
+import type { ClaudeManagedAccount, ClaudeRateLimitAccountsState } from './managed-account-types'
 
 function normalizeFolder(path: string, platform: NodeJS.Platform): string {
   const slashed = path.replace(/\\/g, '/').replace(/\/+$/, '')

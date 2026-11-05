@@ -19,9 +19,7 @@ function pauseKey(row: SpotlightAgentPausedRow): string {
 
 function canAutoResume(row: SpotlightAgentPausedRow): boolean {
   return (
-    row.reason === 'limit' &&
-    !row.resuming &&
-    (row.autoResumes ?? 0) < MAX_AUTO_RESUMES_IN_A_ROW
+    row.reason === 'limit' && !row.resuming && (row.autoResumes ?? 0) < MAX_AUTO_RESUMES_IN_A_ROW
   )
 }
 

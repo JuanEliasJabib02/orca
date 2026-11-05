@@ -223,8 +223,9 @@ export function registerSpotlightHandlers(
     }
   )
   // The test queue for the footer monitor; every later change arrives on `spotlight:turnsChanged`.
-  ipcMain.handle('spotlight:getTurns', (): SpotlightAgentStatus =>
-    getSpotlightAgentTurns()?.status() ?? emptySpotlightAgentStatus()
+  ipcMain.handle(
+    'spotlight:getTurns',
+    (): SpotlightAgentStatus => getSpotlightAgentTurns()?.status() ?? emptySpotlightAgentStatus()
   )
   ipcMain.handle('spotlight:releaseTurn', (_event, args: { paneKey: string }) => {
     getSpotlightAgentTurns()?.off(args.paneKey)
@@ -241,9 +242,8 @@ export function registerSpotlightHandlers(
     }
   )
   // Continuar's account: main reads every account's usage, the renderer switches and restarts.
-  ipcMain.handle(
-    'spotlight:pickResumeAccount',
-    (): Promise<SpotlightResumeAccountPick> => pickResumeAccount(accounts)
+  ipcMain.handle('spotlight:pickResumeAccount', (): Promise<SpotlightResumeAccountPick> =>
+    pickResumeAccount(accounts)
   )
   // Reads only the holder's own checkout, so the renderer can't point it at another worktree.
   registerSpotlightVariantHandler(
