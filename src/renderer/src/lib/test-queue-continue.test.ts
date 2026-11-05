@@ -335,6 +335,21 @@ describe('Continuar on an idle holder', () => {
     ])
   })
 
+  it('leaves a gap after the Esc before pasting, even when the agent is not working', async () => {
+    vi.useFakeTimers()
+    seed(holdingBoard(), claudePane('done', ON_WORK))
+
+    const result = continueTestTask(OTHER_PANE, { auto: false })
+    await vi.waitFor(() => expect(harness.events).toContain(`esc:driving:${PTY}`))
+    await vi.advanceTimersByTimeAsync(400)
+    // Why: Esc glued to the paste's own escape sequence reads as one key to the agent's input.
+    expect(sendBracketedPasteToRunningAgent).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(100)
+
+    expect(await result).toMatchObject({ delivered: true })
+    expect(harness.events.slice(-2)).toEqual([`paste:${PTY}`, 'settled:true'])
+  })
+
   it('is never interrupted by an automatic resume', async () => {
     seed(holdingBoard(), claudePane('working', ON_WORK))
 

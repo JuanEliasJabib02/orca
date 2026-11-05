@@ -19,6 +19,8 @@ import { isForeignMachineCodexPtyId } from './codex-pane-selection-lane'
 
 /** The idle holder's Esc gets this long to stop the running turn before the message goes in. */
 const ESC_SETTLE_MS = 5_000
+/** The least time between the Esc and the paste, so the agent reads them as two inputs. */
+const ESC_PASTE_GAP_MS = 500
 /** A restarted pane gets this long to come back on its new PTY; main's window lasts 3 min. */
 const RESTART_WAIT_MS = 2 * 60_000
 
@@ -174,6 +176,8 @@ async function nudgeIdleHolder(paneKey: string): Promise<boolean> {
   }
   // Why 'driving': only driving input turns Esc into the agent's cancellation.
   window.api.pty.write(pane.ptyId, '\x1b', 'driving')
+  // Why the gap: an Esc glued to the paste's own escape sequence reads as one key to the agent.
+  await new Promise((resolve) => setTimeout(resolve, ESC_PASTE_GAP_MS))
   await waitForStore(
     (state) => (state.agentStatusByPaneKey[paneKey]?.state === 'working' ? null : true),
     ESC_SETTLE_MS
