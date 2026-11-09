@@ -1,5 +1,5 @@
-import type { FolderWorkspace } from './folder-workspace-types'
-import { projectGroupIdFromRepoId } from './folder-workspace-worktree'
+import type { FolderWorkspace } from './folder-workspaces/folder-workspace-types'
+import { projectGroupIdFromRepoId } from './folder-workspaces/folder-workspace-worktree'
 import type { ProjectGroup } from './project-group-types'
 import type { Repo } from './repo-types'
 import { parseWorkspaceKey } from './workspace-scope'

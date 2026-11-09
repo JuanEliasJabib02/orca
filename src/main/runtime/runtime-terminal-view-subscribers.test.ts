@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { RuntimeTerminalViewSubscribers } from './runtime-terminal-view-subscribers'
+import { RuntimeTerminalViewSubscribers } from './terminal/view/runtime-terminal-view-subscribers'
 
 const PTY_ID = 'repo-1::/tmp/wt@@1a2b3c4d'
 

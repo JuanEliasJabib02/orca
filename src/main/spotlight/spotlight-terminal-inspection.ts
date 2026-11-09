@@ -1,8 +1,8 @@
 // What the repo's Spotlight terminal runs, read through the local PTY provider.
 import { withTimeout } from '../../shared/promise-timeout-fallback'
 import type { SpotlightServerState } from '../../shared/spotlight'
-import { isShellProcess } from '../../shared/shell-process-detection'
-import { isClientOnlyUnverifiableInspection } from '../../shared/terminal-process-inspection'
+import { isShellProcess } from '../../shared/agent-status/process/shell-process-detection'
+import { isClientOnlyUnverifiableInspection } from '../../shared/terminal/pty/lifecycle/terminal-process-inspection'
 import { getLocalPtyProvider } from '../ipc/pty/provider/registry'
 import { readPtyForegroundGroupFallback } from '../providers/pty-foreground-group-fallback'
 import { inspectPtyProviderProcess } from '../providers/pty-process-inspection'

@@ -2,8 +2,8 @@
 import { getFirstCommandToken } from '../../shared/command-token-scanner'
 import { collectDescendantsFromIndex, getProcessTableIndex } from '../../shared/process-table-index'
 import type { ProcessTableRow } from '../../shared/process-table-snapshot'
-import { isShellProcess } from '../../shared/shell-process-detection'
-import type { PtyForegroundGroup } from '../../shared/terminal-process-inspection'
+import { isShellProcess } from '../../shared/agent-status/process/shell-process-detection'
+import type { PtyForegroundGroup } from '../../shared/terminal/pty/lifecycle/terminal-process-inspection'
 
 function runsShell(row: ProcessTableRow): boolean {
   // Login shells report as `-zsh` / `-/bin/zsh`.

@@ -1,4 +1,4 @@
-import type { GitLineBlameResult } from '../../shared/git-line-blame-types'
+import type { GitLineBlameResult } from '../../../../shared/git-line-blame-types'
 import {
   normalizeRuntimeGitRelativePath,
   requireRuntimeGitProvider,

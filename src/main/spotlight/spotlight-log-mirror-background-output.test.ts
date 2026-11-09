@@ -20,7 +20,7 @@ vi.mock('../git/runner', () => ({
 
 import { SPOTLIGHT_LOG_RELATIVE_PATH } from '../../shared/spotlight'
 import { OrcaRuntimeService } from '../runtime/orca-runtime'
-import type { RuntimePtyController } from '../runtime/runtime-pty-controller-contract'
+import type { RuntimePtyController } from '../runtime/terminal/lifecycle/runtime-pty-controller-contract'
 import { startSpotlightLogCapture, stopSpotlightLogCapture } from './spotlight-log-mirror'
 import { configureSpotlightTerminalOutputSource } from './spotlight-terminal-output-source'
 

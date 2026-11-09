@@ -2,9 +2,11 @@
 // PTY, derived from its name mocks: children or a non-shell in front are a job, a shell is the shell.
 // Also what an older host answers, with the process table main then reads itself.
 import type { ProcessTableRow } from '../../shared/process-table-snapshot'
-import { isShellProcess } from '../../shared/shell-process-detection'
-import type { HostProcessInspection } from '../../shared/terminal-process-inspection'
-import type { PtyProcessInspection } from '../providers/pty-process-inspection'
+import { isShellProcess } from '../../shared/agent-status/process/shell-process-detection'
+import type {
+  HostProcessInspection,
+  TerminalProcessInspection as PtyProcessInspection
+} from '../../shared/terminal/pty/lifecycle/terminal-process-inspection'
 
 type NameMockedPty = {
   hasChildProcesses: (id: string) => Promise<boolean>

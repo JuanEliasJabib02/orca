@@ -4,8 +4,8 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GlobalSettings } from '../../shared/global-settings-types'
 import { SshHostNotServedError } from '../providers/ssh-host-not-served-error'
-import { RuntimeGitCommands } from './orca-runtime-git'
-import type { ResolvedRuntimeGitWorktree } from './runtime-git-command-target'
+import { RuntimeGitCommands } from './integrations/git/orca-runtime-git'
+import type { ResolvedRuntimeGitWorktree } from './integrations/git/runtime-git-command-target'
 
 const mocks = vi.hoisted(() => ({
   getLineBlame: vi.fn()

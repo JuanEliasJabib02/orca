@@ -1,6 +1,6 @@
 import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { inspectPackageManagerSetupCandidate } from '../../shared/setup-script-package-manager-suggestion'
+import { inspectPackageManagerSetupCandidate } from '../../shared/workspace-setup/setup-script-package-manager-suggestion'
 import {
   emptySpotlightServerScriptDetection,
   SPOTLIGHT_SERVER_ENVS,

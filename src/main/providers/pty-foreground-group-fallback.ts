@@ -3,7 +3,7 @@
 // host's own reading: resolvePtyForegroundGroup over the PTY's root pid.
 import type { RemoteForegroundEvidence } from '../../shared/foreground-process-evidence'
 import { getStrictProcessTableSnapshot } from '../../shared/process-table-snapshot-reader'
-import type { PtyForegroundGroup } from '../../shared/terminal-process-inspection'
+import type { PtyForegroundGroup } from '../../shared/terminal/pty/lifecycle/terminal-process-inspection'
 import { resolvePtyForegroundGroup } from './posix-shell-foreground-group'
 import type { IPtyProvider } from './pty-provider-contract'
 

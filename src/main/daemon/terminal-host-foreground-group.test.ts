@@ -1,9 +1,9 @@
-import './mock-descendant-sweep'
+import './pty-subprocess/testing/mock-descendant-sweep'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ProcessTableRow } from '../../shared/process-table-snapshot'
 import type * as SnapshotReader from '../../shared/process-table-snapshot-reader'
-import type { SubprocessHandle } from './session-subprocess-handle'
-import { TerminalHost } from './terminal-host'
+import type { SubprocessHandle } from './sessions/session-subprocess-handle'
+import { TerminalHost } from './terminal-host/terminal-host'
 
 const { readSnapshot } = vi.hoisted(() => ({ readSnapshot: vi.fn() }))
 vi.mock('../../shared/process-table-snapshot-reader', async (importOriginal) => ({

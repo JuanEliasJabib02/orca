@@ -2,10 +2,10 @@ import type { BrowserWindow } from 'electron'
 import { laneKeyOf } from '../../shared/project-group-space'
 import { normalizeSpotlightMaxConcurrentTests } from '../../shared/spotlight-test-queue-settings'
 import { getRepoIdFromWorktreeId } from '../../shared/worktree/id'
-import { agentHookServer } from '../agent-hooks/server'
+import { agentHookServer } from '../agent-hooks/server/agent-hook-server'
 import { getPtyIdForPaneKey, registerPaneKeyTeardownListener } from '../ipc/pty/pane/key-state'
 import type { Store } from '../persistence/loading-store/store'
-import type { RuntimeAccountController } from '../runtime/runtime-account-controller'
+import type { RuntimeAccountController } from '../runtime/agent-session/environment/runtime-account-controller'
 import {
   lightAgentTaskInRenderer,
   resolveAgentTaskInRenderer

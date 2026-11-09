@@ -46,6 +46,7 @@ import { SPEECH_METHODS } from './speech/speech'
 import { CLIENT_UI_METHODS } from './client-state/client-ui'
 import { CLIENT_EVENT_METHODS } from './client-events/client-events'
 import { WORKSPACE_PORT_METHODS } from './workspace-ports/workspace-ports'
+import { SPOTLIGHT_METHODS } from './spotlight'
 import { LINK_PREVIEW_METHODS } from './link-preview/link-preview'
 import { PLUGIN_METHODS } from './plugins/plugins'
 import { PLUGIN_VIEW_METHODS } from './plugins/plugin-view'
@@ -141,6 +142,7 @@ export const ALL_RPC_METHODS = [
   ...RECIPE_VM_WAKE_METHODS,
   ...SPEECH_METHODS,
   ...WORKSPACE_PORT_METHODS,
+  ...SPOTLIGHT_METHODS,
   ...LINK_PREVIEW_METHODS,
   ...PLUGIN_METHODS,
   ...PLUGIN_VIEW_METHODS,

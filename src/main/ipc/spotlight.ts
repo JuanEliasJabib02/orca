@@ -8,7 +8,7 @@ import {
 } from '../../shared/spotlight-agent-turn'
 import { parseSpotlightAutostartNote } from '../../shared/spotlight-autostart-note'
 import type { Store } from '../persistence/loading-store/store'
-import type { RuntimeServiceCommandSurface } from '../runtime/runtime-service-command-surface'
+import type { RuntimeServiceCommandSurface } from '../runtime/construction/runtime-service-command-surface'
 import { SpotlightService } from '../spotlight/spotlight-service'
 import {
   getSpotlightTerminal,

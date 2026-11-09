@@ -11,8 +11,8 @@ import type {
   SpotlightAgentTaskResolution
 } from '../../shared/spotlight-agent-turn'
 import type { WorkspacePort, WorkspacePortScanResult } from '../../shared/workspace-ports'
-import { _internals } from '../agent-hooks/server'
-import { buildBody } from '../agent-hooks/server.test-fixtures'
+import { _internals } from '../agent-hooks/server/agent-hook-server'
+import { buildBody } from '../agent-hooks/server/testing/server.test-fixtures'
 import { readTurnEndFromRows, type SpotlightTurnEndRow } from './spotlight-agent-turn-pause'
 import { isPaneAccountAtLimit } from './spotlight-agent-turn-usage'
 import { SpotlightAgentTurns } from './spotlight-agent-turns'

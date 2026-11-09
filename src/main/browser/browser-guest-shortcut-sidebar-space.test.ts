@@ -6,7 +6,7 @@ vi.mock('electron', () => ({
   webContents: { fromId: vi.fn() }
 }))
 
-import { setupGuestShortcutForwarding } from './guest-lifecycle/input/browser-guest-shortcut-forwarding'
+import { setupGuestShortcutForwarding } from './guest-lifecycle/input/shortcuts/browser-guest-shortcut-forwarding'
 
 type BeforeInputListener = (event: Electron.Event, input: Electron.Input) => void
 
