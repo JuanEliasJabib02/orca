@@ -1,5 +1,5 @@
 import type { WorktreeRemovalTarget } from '../../../../../../shared/worktree/removal'
-import type { WorktreeDeleteIdentity } from '../../worktree-delete-request'
+import type { WorktreeDeleteIdentity } from '../../workspace-actions/deletion/worktree-delete-request'
 
 // Why host + id: the same `repoId::path` id can exist on two hosts (STA-4343).
 export function deleteTargetKey(id: string, hostId: string | null | undefined): string {

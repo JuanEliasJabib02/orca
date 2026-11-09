@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 import { useAppStore } from '@/store'
-import { makeWorktree } from '../../store/slices/store-test-helpers'
+import { makeWorktree } from '@/store/slices/worktrees/worktree.test-fixture'
 import { makeOwnedPort, makePortScan } from './spotlight-holder-ports-test-fixtures'
 import type { WorkspaceKanbanTaskLaneItem } from './workspace-kanban-lane-items'
 import { holdersByRepo } from './worktree-list/rows/task-spotlight-test-fixtures'
@@ -34,7 +34,7 @@ vi.mock('./worktree-list/rows/TaskHeaderMenu', () => ({
     <div data-task-header-menu="">{children}</div>
   )
 }))
-vi.mock('./WorktreeStatusMenuItems', () => ({
+vi.mock('./workspace-status/presentation/WorktreeStatusMenuItems', () => ({
   WorktreeStatusMenuItems: (props: {
     contextWorkspaceStatus: string
     isMultiContext: boolean

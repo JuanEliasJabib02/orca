@@ -3,7 +3,8 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useAppStore, type AppState } from '@/store'
+import { useAppStore } from '@/store'
+import type { AppState } from '@/store/types'
 import { createProjectGroup } from '../../../../../shared/project-groups'
 import type {
   SpotlightAgentPausedRow,
@@ -11,7 +12,7 @@ import type {
   SpotlightAgentTurnRow,
   SpotlightResumeAccountPick
 } from '../../../../../shared/spotlight-agent-turn'
-import { makeAgentStatusEntry } from '../../../runtime/sync-runtime-graph-test-harness'
+import { makeAgentStatusEntry } from '../../../runtime/sync-runtime-graph/testing/sync-runtime-graph-test-harness'
 import { TestQueuePopover } from './TestQueuePopover'
 
 type ContinueTestTask = AppState['continueTestTask']

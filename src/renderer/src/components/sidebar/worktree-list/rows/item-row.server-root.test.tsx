@@ -1,10 +1,10 @@
 import type React from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('../../WorktreeCard', () => ({ default: () => null }))
+vi.mock('../../workspace-card/surface/WorktreeCard', () => ({ default: () => null }))
 vi.mock('@/lib/open-spotlight-terminal-tab', () => ({ selectSpotlightTerminalTab: vi.fn() }))
 
-import { worktree } from '../../worktree-list-groups-test-fixtures'
+import { worktree } from '../grouping/worktree-list-groups-test-fixtures'
 import { WORKTREE_ROW_DRAG_INITIAL_STATE } from '../drag/row-state'
 import { SERVERS_LANE_KEY } from '../grouping/server-root-lane'
 import { NO_TASK_LANE_KEY } from '../grouping/worktree-task-key'
@@ -17,12 +17,11 @@ const ROOT = { ...worktree, id: 'backend::/root', isMainWorktree: true }
 const ctx: WorktreeItemRowContext = {
   settings: null,
   groupBy: 'task',
-  folderBackedProjectGroupIds: new Set(),
   groupKeyByRowKey: new Map(),
   groupIndexByRowKey: new Map(),
   agentSendTargetWorktreeId: null,
   worktreeDragState: WORKTREE_ROW_DRAG_INITIAL_STATE,
-  nativeLineageDropTargetId: null,
+  nativeLineageDropTargetIdentity: null,
   activeWorktreeId: null,
   activeWorkspaceExecutionHostId: null,
   currentWorktreeId: null,

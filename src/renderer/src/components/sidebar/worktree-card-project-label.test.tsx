@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { folderWorkspaceRepoId } from '../../../../shared/folder-workspace-worktree'
+import { folderWorkspaceRepoId } from '../../../../shared/folder-workspaces/folder-workspace-worktree'
 import {
   getWorktreeCardProjectLabel,
   WorktreeCardProjectLabel

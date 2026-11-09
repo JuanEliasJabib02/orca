@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Repo } from '../../../../shared/repo-types'
-import { revealRepoInProjectFilter } from './project-filter-reveal'
+import { revealRepoInProjectFilter } from './worktree-list/controls/project-filter-reveal'
 import { SPACE_FILTER_REPOS, spaceFilterStoreState } from './sidebar-space-project-filter-fixtures'
 
 function makeState(filterRepoIds: readonly string[], activeSpaceGroupId: string | null = null) {

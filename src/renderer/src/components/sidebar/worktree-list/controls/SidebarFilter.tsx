@@ -28,8 +28,11 @@ import {
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import RepoBadgeLabel from '@/components/repo/RepoBadgeLabel'
 import { FilterToggleRow } from './FilterToggleRow'
-import { useActiveSidebarSpaceScope, useActiveSpaceRepos } from './use-active-sidebar-space'
-import { replaceSpaceRepoFilterIds, resolveSidebarSpaceScopeFromState } from './sidebar-space-scope'
+import { useActiveSidebarSpaceScope, useActiveSpaceRepos } from '../../use-active-sidebar-space'
+import {
+  replaceSpaceRepoFilterIds,
+  resolveSidebarSpaceScopeFromState
+} from '../../sidebar-space-scope'
 import { useShortcutLabel } from '@/hooks/useShortcutLabel'
 import { searchRepos } from '@/lib/repo-search'
 import { clearSidebarFilters, selectSidebarFilterState } from './sidebar-filter-actions'

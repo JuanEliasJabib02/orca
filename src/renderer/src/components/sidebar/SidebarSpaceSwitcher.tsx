@@ -8,9 +8,9 @@ import { formatShortcutKeyComboDetails } from '@/hooks/useShortcutLabel'
 import { useAppStore } from '@/store'
 import { getSettingsFocusedExecutionHostId } from '../../../../shared/execution-host'
 import { getSidebarSpaceKeybindingActionId } from '../../../../shared/keybindings'
-import { ProjectGroupNameDialog } from './ProjectGroupNameDialog'
+import { ProjectGroupNameDialog } from './worktree-list/rows/ProjectGroupNameDialog'
 import type { SidebarSpaceAttention } from './sidebar-space-attention'
-import { getProjectGroupHostId } from '@/store/slices/project-group-owner-routing'
+import { getProjectGroupHostId } from '@/store/project-groups/project-group-owner-routing'
 import {
   listSidebarSpaces,
   listSpacelessReposOnHost,

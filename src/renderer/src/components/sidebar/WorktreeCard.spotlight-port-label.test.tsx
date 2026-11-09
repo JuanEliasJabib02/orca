@@ -81,28 +81,28 @@ vi.mock('@/lib/sidebar-worktree-activation', () => ({
   activateWorktreeFromSidebar: vi.fn()
 }))
 
-vi.mock('./use-worktree-activity-status', () => ({
+vi.mock('./workspace-card/activity/use-worktree-activity-status', () => ({
   useWorktreeActivityStatus: () => 'active'
 }))
 
-vi.mock('./use-worktree-sleep-state', () => ({
+vi.mock('./workspace-actions/sleep/use-worktree-sleep-state', () => ({
   useIsSleepingWorktree: () => false
 }))
 
-vi.mock('./CacheTimer', () => ({
+vi.mock('./workspace-card/activity/CacheTimer', () => ({
   default: () => null,
   usePromptCacheCountdownStartedAt: cacheTimerMocks.usePromptCacheCountdownStartedAt
 }))
 
-vi.mock('./useWorktreeAgentRows', () => ({
+vi.mock('./workspace-card/activity/useWorktreeAgentRows', () => ({
   useWorktreeAgentRows: vi.fn(() => [] as DashboardAgentRowData[])
 }))
 
-vi.mock('./WorktreeCardAgents', () => ({
+vi.mock('./workspace-card/activity/WorktreeCardAgents', () => ({
   default: () => <div data-worktree-agents="" />
 }))
 
-vi.mock('./WorktreeContextMenu', () => ({
+vi.mock('./workspace-actions/context-menu/WorktreeContextMenu', () => ({
   default: ({ children }: { children: ReactNode }) => <>{children}</>,
   WORKTREE_CONTEXT_MENU_SCOPE_ATTR: 'data-orca-context-menu-scope',
   WORKTREE_NATIVE_CONTEXT_MENU_ATTR: 'data-worktree-native-context-menu'
@@ -204,7 +204,7 @@ describe('WorktreeCard Spotlight port label', () => {
   }
 
   async function renderCard(worktree: Worktree): Promise<void> {
-    const { default: WorktreeCard } = await import('./WorktreeCard')
+    const { default: WorktreeCard } = await import('./workspace-card/surface/WorktreeCard')
     act(() => {
       root.render(<WorktreeCard worktree={worktree} repo={makeRepo()} isActive={false} />)
     })

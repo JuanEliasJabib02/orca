@@ -8,11 +8,11 @@ import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { WorktreeMeta } from '../../../../shared/worktree/meta-types'
 import type { WorkspaceStatus, Worktree } from '../../../../shared/worktree/types'
-import type { WorktreeMetaBatchUpdate } from '../../store/slices/worktree-helpers'
+import type { WorktreeMetaBatchUpdate } from '@/store/slices/worktrees/metadata/worktree-meta-update-options'
 import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
-import { makeWorktree } from '../../store/slices/store-test-helpers'
-import WorkspaceKanbanDrawer from './WorkspaceKanbanDrawer'
-import type { WorkspaceKanbanLaneView } from './workspace-kanban-search'
+import { makeWorktree } from '@/store/slices/worktrees/worktree.test-fixture'
+import WorkspaceKanbanDrawer from './workspace-board/surface/WorkspaceKanbanDrawer'
+import type { WorkspaceKanbanLaneView } from './workspace-board/search/workspace-kanban-search'
 
 type GridCapture = {
   laneViews: ReadonlyMap<string, WorkspaceKanbanLaneView>
@@ -45,20 +45,20 @@ vi.mock('@/components/ui/sheet', () => ({
   Sheet: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   SheetContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
 }))
-vi.mock('./WorkspaceKanbanDrawerHeader', () => ({ default: () => <div /> }))
-vi.mock('./WorkspaceKanbanLaneGrid', () => ({
+vi.mock('./workspace-board/surface/WorkspaceKanbanDrawerHeader', () => ({ default: () => <div /> }))
+vi.mock('./workspace-board/viewport/WorkspaceKanbanLaneGrid', () => ({
   default: (props: GridCapture) => {
     gridState.current = props
     return <div />
   }
 }))
-vi.mock('./WorkspaceKanbanAreaSelectionOverlay', () => ({
+vi.mock('./workspace-board/selection/WorkspaceKanbanAreaSelectionOverlay', () => ({
   default: React.forwardRef<HTMLDivElement>((_, ref) => <div ref={ref} />)
 }))
-vi.mock('./WorkspaceKanbanPinDropTarget', () => ({ default: () => <div /> }))
+vi.mock('./workspace-board/drag/WorkspaceKanbanPinDropTarget', () => ({ default: () => <div /> }))
 // Why: stands in for the sidebar filters — the space and primaries as the real hook drops them,
 // plus whatever a test hides as if a Projects or sleep filter did.
-vi.mock('./use-visible-workspace-kanban-worktree-ids', () => ({
+vi.mock('./workspace-board/surface/use-visible-workspace-kanban-worktree-ids', () => ({
   useVisibleWorkspaceKanbanWorktreeIds: ({ allWorktrees }: { allWorktrees: readonly Worktree[] }) =>
     new Set(
       allWorktrees
@@ -71,10 +71,10 @@ vi.mock('./use-visible-workspace-kanban-worktree-ids', () => ({
         .map(getWorktreeHostIdentity)
     )
 }))
-vi.mock('./use-workspace-kanban-area-selection', () => ({
+vi.mock('./workspace-board/selection/use-workspace-kanban-area-selection', () => ({
   useWorkspaceKanbanAreaSelection: () => ({ handleAreaSelectionPointerDown: vi.fn() })
 }))
-vi.mock('./use-workspace-kanban-column-resize', () => ({
+vi.mock('./workspace-board/viewport/use-workspace-kanban-column-resize', () => ({
   useWorkspaceKanbanColumnResize: () => ({
     columnWidth: 308,
     isResizingColumn: false,
@@ -82,26 +82,28 @@ vi.mock('./use-workspace-kanban-column-resize', () => ({
     onColumnResizeKeyDown: vi.fn()
   })
 }))
-vi.mock('./use-workspace-kanban-create-worktree', () => ({
+vi.mock('./workspace-board/surface/use-workspace-kanban-create-worktree', () => ({
   useWorkspaceKanbanCreateWorktree: () => ({ createWorktreeForStatus: vi.fn() })
 }))
-vi.mock('./use-workspace-kanban-shift-wheel-scroll', () => ({
+vi.mock('./workspace-board/viewport/use-workspace-kanban-shift-wheel-scroll', () => ({
   useWorkspaceKanbanShiftWheelScroll: vi.fn()
 }))
-vi.mock('./use-workspace-kanban-outside-dismiss', () => ({
+vi.mock('./workspace-board/surface/use-workspace-kanban-outside-dismiss', () => ({
   isWorkspaceBoardKeepOpenTarget: () => false,
   useWorkspaceKanbanOutsideDismiss: vi.fn()
 }))
 vi.mock('@/components/contextual-tours/use-contextual-tour', () => ({
   useContextualTour: vi.fn()
 }))
-vi.mock('./use-workspace-kanban-card-pointer-drag', () => ({
+vi.mock('./workspace-board/drag/use-workspace-kanban-card-pointer-drag', () => ({
   useWorkspaceKanbanCardPointerDrag: (params: PointerDragCapture) => {
     pointerDragState.current = params
     return { isPointerDragActiveRef: { current: false }, onCardPointerDownCapture: vi.fn() }
   }
 }))
-vi.mock('./use-workspace-status-drop', () => ({ useWorkspaceStatusDocumentDrop: vi.fn() }))
+vi.mock('./worktree-list/drag/use-workspace-status-drop', () => ({
+  useWorkspaceStatusDocumentDrop: vi.fn()
+}))
 
 type UpdateWorktreesMeta = (
   updates: readonly WorktreeMetaBatchUpdate[] | ReadonlyMap<string, Partial<WorktreeMeta>>

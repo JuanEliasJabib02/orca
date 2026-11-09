@@ -1,6 +1,6 @@
-import type { WorktreeCardController } from '../use-worktree-card-controller'
-import { WorktreeCardSpotlightRootBar } from '../worktree-card-spotlight-items'
-import { SpotlightPrimaryBadge, SpotlightQuickAction } from '../WorktreeCardSpotlightControls'
+import type { WorktreeCardController } from '../controller/use-worktree-card-controller'
+import { WorktreeCardSpotlightRootBar } from '../../worktree-card-spotlight-items'
+import { SpotlightPrimaryBadge, SpotlightQuickAction } from '../../WorktreeCardSpotlightControls'
 import { cardElement } from './card-template-compiler'
 
 type Card = WorktreeCardController

@@ -5,7 +5,8 @@ import { useNow } from '@/hooks/use-now'
 import { translate } from '@/i18n/i18n'
 import { uiDateTimeFormat } from '@/i18n/ui-intl-formatters'
 import { useAppStore } from '@/store'
-import { getAllWorktreesFromState } from '@/store/selectors'
+import { getIndexedAllWorktrees } from '@/store/slices/worktrees/listing/worktree-catalog-index'
+import { selectWorktreesByRepo } from '@/store/workspaces/catalog/workspace-record-fields'
 import { findTaskTitle } from '../../../../../shared/sidebar-list/task-sections'
 import type {
   SpotlightAgentPauseReason,
@@ -135,7 +136,7 @@ export function TestQueuePopover(): React.JSX.Element {
   useTranslation()
   const board = useAppStore((s) => s.spotlightTurns)
   const agentStatusByPaneKey = useAppStore((s) => s.agentStatusByPaneKey)
-  const worktrees = useAppStore(getAllWorktreesFromState)
+  const worktrees = useAppStore((s) => getIndexedAllWorktrees(selectWorktreesByRepo(s)))
   const projectGroups = useAppStore((s) => s.projectGroups)
   const now = useNow(MINUTE_MS)
   const view = useMemo(

@@ -1,7 +1,9 @@
 import React, { useMemo } from 'react'
 import { Ellipsis, StickyNote, Trash2 } from 'lucide-react'
 import { useAppStore } from '@/store'
-import { getAllWorktreesFromState, useAllWorktrees } from '@/store/selectors'
+import { useAllWorktrees } from '@/store/slices/worktrees/listing/use-worktree-catalog'
+import { getIndexedAllWorktrees } from '@/store/slices/worktrees/listing/worktree-catalog-index'
+import { selectWorktreesByRepo } from '@/store/workspaces/catalog/workspace-record-fields'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -12,8 +14,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { translate } from '@/i18n/i18n'
 import { getTaskNote } from '@/store/slices/ui/ui-slice-task-note-actions'
-import { runWorktreeBatchDelete } from '../../delete-worktree-flow'
-import { REPO_HEADER_ACTION_BUTTON_CLASS } from '../../repo-header-action-button-class'
+import { runWorktreeBatchDelete } from '../../workspace-actions/deletion/delete-worktree-flow'
+import { REPO_HEADER_ACTION_BUTTON_CLASS } from './repo-header-action-button-class'
 import { useActiveSidebarSpaceScope } from '../../use-active-sidebar-space'
 import type { TaskSectionInfo } from '../../../../../../shared/sidebar-list/row-types'
 import {
@@ -107,7 +109,7 @@ export function TaskHeaderMenu({
                 if (
                   !hasTaskWorktreesBesides(
                     taskKey,
-                    getAllWorktreesFromState(useAppStore.getState()),
+                    getIndexedAllWorktrees(selectWorktreesByRepo(useAppStore.getState())),
                     targets
                   )
                 ) {

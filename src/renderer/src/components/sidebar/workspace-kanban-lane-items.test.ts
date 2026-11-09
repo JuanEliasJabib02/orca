@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { WorkspaceStatusDefinition, Worktree } from '../../../../shared/worktree/types'
-import { makeWorktree } from '../../store/slices/store-test-helpers'
+import { makeWorktree } from '@/store/slices/worktrees/worktree.test-fixture'
 import type { SidebarSpaceScope } from './sidebar-space-scope'
 import { buildWorktreeTaskKeys } from '../../../../shared/sidebar-list/worktree-task-keys'
 import {

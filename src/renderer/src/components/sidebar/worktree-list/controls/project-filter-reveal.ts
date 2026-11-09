@@ -5,7 +5,7 @@ import {
   resolveSidebarSpaceScope,
   resolveSidebarSpaceScopeFromState,
   type SidebarSpaceScope
-} from './sidebar-space-scope'
+} from '../../sidebar-space-scope'
 
 export type ProjectFilterRevealState = Pick<
   AppState,

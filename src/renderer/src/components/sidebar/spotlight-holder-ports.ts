@@ -5,7 +5,7 @@ import {
 import type { AppState } from '@/store/types'
 import type { WorkspacePort } from '../../../../shared/workspace-ports'
 import type { Worktree } from '../../../../shared/worktree/types'
-import { EMPTY_WORKSPACE_PORTS } from './worktree-card-model'
+import { EMPTY_WORKSPACE_PORTS } from './workspace-card/controller/worktree-card-model'
 
 export type SpotlightPortsState = Pick<
   AppState,

@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useAppStore } from '@/store'
-import { useProjectHostSetupProjection } from '@/store/selectors'
+import { useProjectHostSetupProjection } from '@/store/projects/use-project-host-setup-projection'
 import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { Repo } from '../../../../shared/repo-types'
 import { getLogicalRepoOrderRankById } from '../../../../shared/project-section-order'

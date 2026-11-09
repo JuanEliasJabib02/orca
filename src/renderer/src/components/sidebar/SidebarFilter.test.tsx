@@ -18,7 +18,7 @@ vi.mock('@/store', () => ({
 }))
 
 import { TooltipProvider } from '@/components/ui/tooltip'
-import SidebarFilter from './SidebarFilter'
+import SidebarFilter from './worktree-list/controls/SidebarFilter'
 import { spaceFilterStoreState } from './sidebar-space-project-filter-fixtures'
 
 let container: HTMLDivElement

@@ -6,7 +6,7 @@ import {
   type LiveAgentWorktreeStatus
 } from '@/lib/worktree-activity-state'
 import { folderWorkspaceKey } from '../../../../../../shared/workspace-scope'
-import { getVisibleWorktreeTerminalActivityTabs } from '../../visible-worktree-activity-inputs'
+import { getVisibleWorktreeTerminalActivityTabs } from '../listing/visible-worktree-activity-inputs'
 import type { TaskSectionInfo } from '../../../../../../shared/sidebar-list/row-types'
 
 const STATUS_URGENCY: Record<LiveAgentWorktreeStatus, number> = {

@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useAppStore } from '@/store'
 import { getAgentStatusEpochNow } from '@/lib/agent-status-epoch-clock'
 import { getLiveAgentStatusByWorktreeId } from '@/lib/worktree-activity-state'
-import { getVisibleWorktreeTerminalActivityTabs } from './visible-worktree-activity-inputs'
+import { getVisibleWorktreeTerminalActivityTabs } from './worktree-list/listing/visible-worktree-activity-inputs'
 import { rollUpSidebarSpaceAttention, type SidebarSpaceAttention } from './sidebar-space-attention'
 
 export function useSidebarSpaceAttention(): ReadonlyMap<string, SidebarSpaceAttention> {

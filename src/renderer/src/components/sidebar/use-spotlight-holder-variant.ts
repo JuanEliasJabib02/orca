@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAppStore } from '@/store'
-import { getIndexedAllWorktrees } from '@/store/worktree-repo-index'
+import { getIndexedAllWorktrees } from '@/store/slices/worktrees/listing/worktree-catalog-index'
 import { getSpotlightVariantForTaskRepo } from '@/store/slices/ui/ui-slice-spotlight-variant-actions'
 import { getSpotlightEnvKey } from '@/lib/spotlight-env-key'
 import type { Worktree } from '../../../../shared/worktree/types'

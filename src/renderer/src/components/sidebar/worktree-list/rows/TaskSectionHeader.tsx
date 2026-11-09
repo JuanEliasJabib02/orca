@@ -1,5 +1,5 @@
 import React from 'react'
-import StatusIndicator from '../../StatusIndicator'
+import StatusIndicator from '../../workspace-card/surface/StatusIndicator'
 import type { TaskSectionInfo } from '../../../../../../shared/sidebar-list/row-types'
 import { useTaskSectionAgentStatus } from './task-section-agent-status'
 import { TaskSpotlightEnvPill } from './TaskSpotlightEnvPill'

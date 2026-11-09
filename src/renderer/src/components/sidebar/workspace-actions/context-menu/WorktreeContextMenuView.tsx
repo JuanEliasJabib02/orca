@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { WorktreeRowOpenInSubMenu } from '../open/WorktreeRowOpenInSubMenu'
 import { WorktreeDeveloperMenu } from '../open/WorktreeDeveloperMenu'
 import { WorkspaceSleepMenuItems } from '../sleep/WorkspaceSleepMenuItems'
+import { WorktreeSpotlightMenuItems } from '../../WorktreeSpotlightMenuItems'
 import { isEventTargetInsideCurrentTarget } from '../../workspace-card/controller/worktree-card-dom-events'
 import { useTranslate } from '@/i18n/use-translate'
 import type { WorktreeContextMenuModel } from './use-worktree-context-menu-model'
@@ -147,6 +148,7 @@ export default function WorktreeContextMenuView({ model }: { model: WorktreeCont
                 : t('auto.components.sidebar.WorktreeContextMenu.f50603c6b2', 'Mark Unread')}
             </DropdownMenuItem>
           )}
+          {!isMultiContext && <WorktreeSpotlightMenuItems model={model} />}
           <WorktreeContextMenuDeleteItems model={model} />
           <DropdownMenuSeparator />
           {!isMultiContext && (

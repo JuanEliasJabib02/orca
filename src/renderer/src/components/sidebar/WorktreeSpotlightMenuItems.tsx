@@ -1,7 +1,7 @@
 import { Flashlight } from 'lucide-react'
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { translate } from '@/i18n/i18n'
-import type { WorktreeContextMenuModel } from './use-worktree-context-menu-model'
+import type { WorktreeContextMenuModel } from './workspace-actions/context-menu/use-worktree-context-menu-model'
 import { WorktreeSpotlightEnvSubMenu } from './WorktreeSpotlightEnvSubMenu'
 
 export type WorktreeSpotlightMenuModel = Pick<

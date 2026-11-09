@@ -3,7 +3,7 @@ import { isWorktreeInSidebarSpace, type SidebarSpaceScope } from '../../sidebar-
 import {
   toWorktreeDeleteIdentities,
   type WorktreeDeleteIdentity
-} from '../../worktree-delete-request'
+} from '../../workspace-actions/deletion/worktree-delete-request'
 import { getTaskKeysForAllWorktrees } from '../grouping/worktree-task-keys'
 import { deleteTargetKey } from './task-note-delete-cleanup'
 

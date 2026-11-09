@@ -3,7 +3,7 @@
 import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AppState } from '@/store'
+import type { AppState } from '@/store/types'
 import SidebarToolbar from './SidebarToolbar'
 
 // Orca Pro Max: the footer's space switcher and test-queue flask are fork-only, so their order is pinned here.

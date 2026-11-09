@@ -12,7 +12,7 @@ import {
   expandWorkspaceKanbanCardIds,
   updateWorkspaceKanbanCardSelection,
   type WorkspaceKanbanCardMembers
-} from './workspace-kanban-card-selection'
+} from '../../workspace-kanban-card-selection'
 
 /** Returns the first still-rendered selected id, or `null` if the anchor is fine. */
 function resolveRenderedAnchorId(

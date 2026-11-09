@@ -10,7 +10,7 @@ import { getSpotlightEnvKey } from '@/lib/spotlight-env-key'
 import type { Repo } from '../../../../shared/repo-types'
 import type { SpotlightServerState } from '../../../../shared/spotlight'
 import type { SpotlightServerScriptDetection } from '../../../../shared/spotlight-server-types'
-import type { TerminalTab } from '../../../../shared/terminal-tab-types'
+import type { TerminalTab } from '../../../../shared/workspace-layout/terminal-tab-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 import {
   holdersByRepo,

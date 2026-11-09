@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { useAppStore } from '@/store'
 import { spaceFilterStoreState } from './sidebar-space-project-filter-fixtures'
-import { useWorkspaceOptionsFilterBadge } from './workspace-options-menu-items'
+import { useWorkspaceOptionsFilterBadge } from './worktree-list/controls/workspace-options-menu-items'
 
 const initialState = useAppStore.getInitialState()
 

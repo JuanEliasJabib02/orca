@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { folderWorkspaceToWorktree } from '../../../../shared/folder-workspace-worktree'
+import { folderWorkspaceToWorktree } from '../../../../shared/folder-workspaces/folder-workspace-worktree'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { WorktreeCardProperty } from '../../../../shared/ui-chrome-types'
@@ -53,7 +53,7 @@ vi.mock('@/store', () => {
   }
 })
 
-vi.mock('@/lib/worktree-activation', () => ({
+vi.mock('@/lib/workspace/activation/worktree-activation', () => ({
   activateAndRevealWorktree: vi.fn()
 }))
 
@@ -63,24 +63,24 @@ vi.mock('@/components/ui/tooltip', () => ({
   TooltipTrigger: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
-vi.mock('./use-worktree-activity-status', () => ({
+vi.mock('./workspace-card/activity/use-worktree-activity-status', () => ({
   useWorktreeActivityStatus: () => 'idle'
 }))
 
-vi.mock('./use-worktree-sleep-state', () => ({
+vi.mock('./workspace-actions/sleep/use-worktree-sleep-state', () => ({
   useIsSleepingWorktree: () => false
 }))
 
-vi.mock('./CacheTimer', () => ({
+vi.mock('./workspace-card/activity/CacheTimer', () => ({
   default: () => null,
   usePromptCacheCountdownStartedAt: () => null
 }))
 
-vi.mock('./WorktreeCardAgents', () => ({
+vi.mock('./workspace-card/activity/WorktreeCardAgents', () => ({
   default: () => null
 }))
 
-vi.mock('./WorktreeContextMenu', () => ({
+vi.mock('./workspace-actions/context-menu/WorktreeContextMenu', () => ({
   default: ({ children }: { children: ReactNode }) => <>{children}</>,
   CLOSE_ALL_CONTEXT_MENUS_EVENT: 'orca:test-close-context-menus',
   WORKTREE_NATIVE_CONTEXT_MENU_ATTR: 'data-worktree-native-context-menu',
@@ -150,7 +150,7 @@ async function renderCard(props: {
   inPinnedSection?: boolean
   affiliateListMode?: boolean
 }): Promise<string> {
-  const { default: WorktreeCard } = await import('./WorktreeCard')
+  const { default: WorktreeCard } = await import('./workspace-card/surface/WorktreeCard')
   return renderToStaticMarkup(
     <WorktreeCard
       worktree={props.worktree ?? makeWorktree()}

@@ -9,11 +9,11 @@ import {
   toWorkspaceKanbanWorktreeLaneItems,
   type WorkspaceKanbanLaneItem
 } from './workspace-kanban-lane-items'
-import WorkspaceKanbanStatusLane from './WorkspaceKanbanStatusLane'
+import WorkspaceKanbanStatusLane from './workspace-board/viewport/WorkspaceKanbanStatusLane'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-vi.mock('./WorkspaceKanbanLaneCardList', () => ({
+vi.mock('./workspace-board/viewport/WorkspaceKanbanLaneCardList', () => ({
   default: ({ items }: { items: readonly WorkspaceKanbanLaneItem[] }) => (
     <div>
       {items.map((item) => (

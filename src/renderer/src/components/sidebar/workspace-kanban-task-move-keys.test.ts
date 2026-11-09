@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { ExecutionHostId } from '../../../../shared/execution-host'
 import type { Worktree } from '../../../../shared/worktree/types'
-import { makeWorktree } from '../../store/slices/worktrees-slice-test-fixtures'
+import { makeWorktree } from '@/store/slices/worktrees/worktree.test-fixture'
 import {
   toWorkspaceKanbanWorktreeLaneItem,
   type WorkspaceKanbanLaneItem,
   type WorkspaceKanbanTaskLaneItem
 } from './workspace-kanban-lane-items'
 import { buildWorkspaceKanbanTaskMoveKeyIndex } from './workspace-kanban-task-move-keys'
-import { buildUnambiguousWorktreeIdIndex } from './worktree-unambiguous-id-index'
+import { buildUnambiguousWorktreeIdIndex } from './worktree-list/navigation/worktree-unambiguous-id-index'
 
 function worktree(id: string, hostId: ExecutionHostId = 'local'): Worktree {
   return makeWorktree({ id, repoId: id, hostId })

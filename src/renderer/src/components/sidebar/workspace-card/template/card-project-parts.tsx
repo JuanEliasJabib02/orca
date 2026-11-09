@@ -1,7 +1,7 @@
 import React from 'react'
 import { cn } from '@/lib/utils'
-import type { WorktreeCardController } from '../use-worktree-card-controller'
-import { WorktreeCardProjectLabel } from '../worktree-card-project-label'
+import type { WorktreeCardController } from '../controller/use-worktree-card-controller'
+import { WorktreeCardProjectLabel } from '../../worktree-card-project-label'
 import { cardElement } from './card-template-compiler'
 
 const part = cardElement<WorktreeCardController>

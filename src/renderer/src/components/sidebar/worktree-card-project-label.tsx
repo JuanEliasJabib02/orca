@@ -1,6 +1,6 @@
 import React from 'react'
 
-import { projectGroupIdFromRepoId } from '../../../../shared/folder-workspace-worktree'
+import { projectGroupIdFromRepoId } from '../../../../shared/folder-workspaces/folder-workspace-worktree'
 import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { Repo } from '../../../../shared/repo-types'
 import { cn } from '@/lib/utils'

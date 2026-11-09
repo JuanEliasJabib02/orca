@@ -2,7 +2,7 @@ import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { ProjectOrderBy } from '../../../../shared/ui-chrome-types'
 import type { WorkspaceStatus, Worktree } from '../../../../shared/worktree/types'
-import { projectGroupIdFromRepoId } from '../../../../shared/folder-workspace-worktree'
+import { projectGroupIdFromRepoId } from '../../../../shared/folder-workspaces/folder-workspace-worktree'
 import { getProjectGroupHeaderKey } from '../../../../shared/sidebar-list/group-keys'
 import {
   getProjectGroupingForRepo,

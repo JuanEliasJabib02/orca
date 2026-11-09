@@ -3,7 +3,7 @@ import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { Project, ProjectHostSetup } from '../../../../shared/project-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
-import { makeWorktree } from '../../store/slices/store-test-helpers'
+import { makeWorktree } from '@/store/slices/worktrees/worktree.test-fixture'
 import { makeRepo } from '../worktree-jump/worktree-jump-palette-test-fixtures'
 import { buildProjectGroupingIndex } from '../../../../shared/project-section-grouping'
 import {

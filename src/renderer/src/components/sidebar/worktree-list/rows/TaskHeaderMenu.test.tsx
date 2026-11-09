@@ -13,7 +13,7 @@ import { makeTaskWorktree } from './task-spotlight-test-fixtures'
 
 const runWorktreeBatchDelete = vi.hoisted(() => vi.fn())
 
-vi.mock('../../delete-worktree-flow', () => ({ runWorktreeBatchDelete }))
+vi.mock('../../workspace-actions/deletion/delete-worktree-flow', () => ({ runWorktreeBatchDelete }))
 
 // Why: Radix menus need real pointer events to open; render them inline so the item is reachable.
 vi.mock('@/components/ui/dropdown-menu', async () => {

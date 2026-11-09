@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeVisibleWorktreeIds } from './visible-worktrees'
+import { computeVisibleWorktreeIds } from './worktree-list/listing/compute-visible-worktrees'
 import type { SidebarSpaceScope } from './sidebar-space-scope'
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'

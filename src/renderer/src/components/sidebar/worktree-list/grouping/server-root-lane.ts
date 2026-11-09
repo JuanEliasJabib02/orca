@@ -1,6 +1,6 @@
 import type { Worktree } from '../../../../../../shared/worktree/types'
 import { isServersLaneRow } from '../../../../../../shared/sidebar-list/server-root-lane'
-import { resolveGroupByShowingRepo } from '../../project-filter-reveal'
+import { resolveGroupByShowingRepo } from '../controls/project-filter-reveal'
 
 // The lane rules live in src/shared so the shared row builder files roots under Servers too.
 export * from '../../../../../../shared/sidebar-list/server-root-lane'

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Worktree } from '../../../../../../shared/worktree/types'
 import { MAX_TASK_KEY_LENGTH } from '../../../../store/slices/ui/ui-slice-task-key-record'
-import { worktree } from '../../worktree-list-groups-test-fixtures'
+import { worktree } from './worktree-list-groups-test-fixtures'
 import { NO_TASK_LANE_KEY } from './worktree-task-key'
 import {
   TICKET_ONLY_TASK_KEYS,

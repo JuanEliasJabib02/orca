@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Worktree } from '../../../../shared/worktree/types'
-import { makeWorktree } from '../../store/slices/store-test-helpers'
+import { makeWorktree } from '@/store/slices/worktrees/worktree.test-fixture'
 import {
   buildWorkspaceKanbanCardMembers,
   EMPTY_WORKSPACE_KANBAN_CARD_MEMBERS,

@@ -1,6 +1,6 @@
 import { getRepoExecutionHostId } from '../../../../shared/execution-host'
 import type { Repo } from '../../../../shared/repo-types'
-import { getProjectGroupHostId } from '@/store/slices/project-group-owner-routing'
+import { getProjectGroupHostId } from '@/store/project-groups/project-group-owner-routing'
 import type { AppState } from '@/store/types'
 import { resolveActiveSidebarSpaceId } from './sidebar-space-scope'
 

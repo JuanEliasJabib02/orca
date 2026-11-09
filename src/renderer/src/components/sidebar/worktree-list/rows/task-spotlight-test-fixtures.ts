@@ -5,7 +5,7 @@ import type { Worktree } from '../../../../../../shared/worktree/types'
 import {
   repo as baseRepo,
   worktree as baseWorktree
-} from '../../worktree-list-groups-test-fixtures'
+} from '../grouping/worktree-list-groups-test-fixtures'
 
 /** A local git repo with Spotlight testing on, so it can hold a task worktree. */
 export function makeSpotlightRepo(id: string, overrides: Partial<Repo> = {}): Repo {

@@ -14,10 +14,10 @@ import { TaskHeaderMenu } from './worktree-list/rows/TaskHeaderMenu'
 import { TaskHeaderNoteSurface } from './worktree-list/rows/TaskHeaderNoteSurface'
 import { TaskSectionHeader } from './worktree-list/rows/TaskSectionHeader'
 import { TaskSpotlightButton } from './worktree-list/rows/TaskSpotlightButton'
-import { WorktreeStatusMenuItems } from './WorktreeStatusMenuItems'
+import { WorktreeStatusMenuItems } from './workspace-status/presentation/WorktreeStatusMenuItems'
 import { canHoldSpotlight, SpotlightQuickAction } from './WorktreeCardSpotlightControls'
 import { selectSpotlightPortLabel } from './spotlight-holder-ports'
-import { isEventTargetInsideCurrentTarget } from './worktree-card-dom-events'
+import { isEventTargetInsideCurrentTarget } from './workspace-card/controller/worktree-card-dom-events'
 import {
   isSameTaskSectionInfo,
   type WorkspaceKanbanTaskLaneItem

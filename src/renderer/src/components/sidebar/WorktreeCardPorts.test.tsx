@@ -35,7 +35,7 @@ const port: WorkspacePort = {
 
 describe('WorktreeCardPortsTrigger', () => {
   it('shows the plug icon when no label is given', async () => {
-    const { WorktreeCardPortsTrigger } = await import('./WorktreeCardPorts')
+    const { WorktreeCardPortsTrigger } = await import('./workspace-card/details/WorktreeCardPorts')
 
     const markup = renderToStaticMarkup(<WorktreeCardPortsTrigger ports={[port]} />)
 
@@ -44,7 +44,7 @@ describe('WorktreeCardPortsTrigger', () => {
   })
 
   it('shows the Spotlight port label in place of the plug icon', async () => {
-    const { WorktreeCardPortsTrigger } = await import('./WorktreeCardPorts')
+    const { WorktreeCardPortsTrigger } = await import('./workspace-card/details/WorktreeCardPorts')
 
     const markup = renderToStaticMarkup(
       <WorktreeCardPortsTrigger ports={[port]} label=":8080 +1" />
@@ -56,7 +56,7 @@ describe('WorktreeCardPortsTrigger', () => {
   })
 
   it('renders nothing without ports', async () => {
-    const { WorktreeCardPortsTrigger } = await import('./WorktreeCardPorts')
+    const { WorktreeCardPortsTrigger } = await import('./workspace-card/details/WorktreeCardPorts')
 
     expect(renderToStaticMarkup(<WorktreeCardPortsTrigger ports={[]} label=":8080" />)).toBe('')
   })

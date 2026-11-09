@@ -2,9 +2,9 @@ import { ALL_EXECUTION_HOSTS_SCOPE } from '../../../../shared/execution-host'
 import type { Worktree } from '../../../../shared/worktree/types'
 import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
 import { isWorktreeInSidebarSpace } from './sidebar-space-scope'
-import { worktreeMatchesVisibleHost } from './visible-worktree-host-scope'
-// Runtime edge only one way: visible-worktrees imports this module, this one only its types.
-import type { VisibleWorktreeOptions } from './visible-worktrees'
+import { worktreeMatchesVisibleHost } from './worktree-list/listing/visible-worktree-host-scope'
+// Runtime edge only one way: compute-visible-worktrees imports this module, this one only its types.
+import type { VisibleWorktreeOptions } from './worktree-list/listing/compute-visible-worktrees'
 import { isServerRootWorktree } from './worktree-list/grouping/server-root-lane'
 
 /**

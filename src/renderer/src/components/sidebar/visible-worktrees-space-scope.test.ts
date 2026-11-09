@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { computeVisibleWorktreeIds, sidebarHasActiveFilters } from './visible-worktrees'
+import { computeVisibleWorktreeIds } from './worktree-list/listing/compute-visible-worktrees'
 import {
   clearSidebarFilters,
+  sidebarHasActiveFilters,
   type SidebarFilterSetters,
   type SidebarFilterState
-} from './sidebar-filter-actions'
+} from './worktree-list/controls/sidebar-filter-actions'
 import type { SidebarSpaceScope } from './sidebar-space-scope'
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'

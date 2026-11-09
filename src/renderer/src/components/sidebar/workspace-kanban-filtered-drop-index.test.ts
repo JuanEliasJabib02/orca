@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   resolveFullLaneDropIndex,
   toWorktreeDropIndex
-} from './workspace-kanban-filtered-drop-index'
+} from './workspace-board/drag/workspace-kanban-filtered-drop-index'
 
 describe('toWorktreeDropIndex', () => {
   it('is the identity when every card holds one worktree', () => {
