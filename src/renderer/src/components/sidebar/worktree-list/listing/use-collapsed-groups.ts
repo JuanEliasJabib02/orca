@@ -13,7 +13,7 @@ import type {
 import type { ProjectGroupingModel } from '../../../../../../shared/project-section-grouping'
 import type { WorktreeTaskKeys } from '../../../../../../shared/sidebar-list/worktree-task-keys'
 import { getFolderWorkspaceRevealGroupKeys } from '../navigation/folder-reveal'
-import type { FolderWorkspace } from '../../../../../../shared/folder-workspace-types'
+import type { FolderWorkspace } from '../../../../../../shared/folder-workspaces/folder-workspace-types'
 import type { ExecutionHostId } from '../../../../../../shared/execution-host'
 
 // While the agent send picker targets a workspace, force open every section that hides it.

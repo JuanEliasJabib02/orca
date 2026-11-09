@@ -5,10 +5,10 @@ import type { AgentProviderSessionMetadata } from '../../agent-session/lifecycle
 import type { AgentMainAgentStatus } from '../lifecycle/main-agent-status'
 import type { AgentStateHistoryEntry } from '../lifecycle/agent-state-history'
 import { isAgentTurnOutcome } from '../lifecycle/agent-turn-outcome'
-import type { OrchestrationFleetAttention } from '../../orchestration-fleet-attention'
+import type { OrchestrationFleetAttention } from '../../orchestration/fleet/orchestration-fleet-attention'
 import type { AgentStatusRowFacets } from './agent-status-observation'
 import type { AgentChildWorkView } from '../child-work/agent-status-child-work-view'
-import type { TerminalAgent } from '../../terminal-agent'
+import type { TerminalAgent } from '../identity/terminal-agent'
 import {
   AGENT_MODEL_MAX_LENGTH,
   AGENT_STATUS_TOOL_INPUT_MAX_LENGTH,
@@ -19,7 +19,7 @@ import {
   normalizePromptField,
   normalizeTurnCompletedAtField
 } from './agent-status-field-normalization'
-import { assertJsonTextStructureWithinLimits } from '../../json-text-structure-limit'
+import { assertJsonTextStructureWithinLimits } from '../../json-stream/json-text-structure-limit'
 
 import {
   normalizeAgentSubagentsField,

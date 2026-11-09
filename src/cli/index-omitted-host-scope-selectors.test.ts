@@ -1,3 +1,4 @@
+import type * as RuntimeEnvironmentStore from '../shared/remote-runtime/host-store/runtime-environment-store'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type * as ChildProcess from 'node:child_process'
 
@@ -31,10 +32,17 @@ vi.mock('./runtime-client', async () => {
 
 vi.mock('./runtime/environments', () => ({
   addEnvironmentFromPairingCode: addEnvironmentFromPairingCodeMock,
-  listEnvironments: listEnvironmentsMock,
   removeEnvironment: vi.fn(),
   resolveEnvironment: vi.fn()
 }))
+
+vi.mock(
+  '../shared/remote-runtime/host-store/runtime-environment-store',
+  async (importOriginal) => ({
+    ...(await importOriginal<typeof RuntimeEnvironmentStore>()),
+    listEnvironments: listEnvironmentsMock
+  })
+)
 
 vi.mock('child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof ChildProcess>()
@@ -58,12 +66,12 @@ let catalog: RuntimeAgentLineageCatalogTestModule
 beforeAll(async () => {
   lineage = (
     await vi.importActual<{ default: RuntimeAgentLineageTestModule }>(
-      '../main/runtime/runtime-agent-lineage.test-fixture'
+      '../main/runtime/workspaces/process-listing/runtime-agent-lineage.test-fixture'
     )
   ).default
   catalog = (
     await vi.importActual<{ default: RuntimeAgentLineageCatalogTestModule }>(
-      '../main/runtime/runtime-agent-lineage-catalog.test-fixture'
+      '../main/runtime/workspaces/process-listing/runtime-agent-lineage-catalog.test-fixture'
     )
   ).default
 })

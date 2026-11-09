@@ -24,7 +24,7 @@ import { serializeAgentStatusSubject } from '../../../shared/agent-status/contra
 import { structuredStatusLegacyEvent } from './server-structured-status-row'
 import { PaneTimers } from './program-status/pane-timers'
 import { ProgramStatusFacetStore } from './program-status/facet-store'
-import { parsePaneKey } from '../../../shared/stable-pane-id'
+import { parsePaneKey } from '../../../shared/workspace-layout/stable-pane-id'
 
 // Unassigned rows sort after the listing counter, which starts at 1.
 const UNORDERED_STATUS_ROW = Number.MAX_SAFE_INTEGER
@@ -263,6 +263,15 @@ export abstract class AgentHookServerListeners extends AgentHookServerState {
       }
     }
     return rows
+  }
+
+  /** The lead's full final reply for the finished turn `leadTurnKey` names, when this runtime admitted one. */
+  getAcceptedReply(paneKey: string, leadTurnKey: number): string | undefined {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Main admits enriched legacy rows; the shared view declares their base event type.
+    const row = this.state.lastStatusByPaneKey.get(paneKey) as
+      | EnrichedAgentHookEventPayload
+      | undefined
+    return row?.acceptedReply?.leadTurnKey === leadTurnKey ? row.acceptedReply.text : undefined
   }
 
   getHydratedAuthorityCommitments(): readonly AgentHookAuthorityEvidence[] {

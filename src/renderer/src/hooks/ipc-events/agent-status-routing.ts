@@ -1,4 +1,4 @@
-import { resolveAgentPaneAuthorityKey } from '@/store/slices/agent-pane-authority'
+import { resolveAgentPaneAuthorityKey } from '@/store/slices/agent-status/agent-pane-authority'
 import type { AppState } from '../../store/types'
 import { titleHasAgentName } from '../../../../shared/agent-status/title/agent-name-token-match'
 import type {
@@ -9,7 +9,7 @@ import type {
 import type { AgentStatusIpcPayload } from '../../../../shared/agent-status/contracts/agent-status-ipc-payload'
 import { resolveAgentStatusIdentity } from '../../../../shared/agent-status/identity/agent-status-identity'
 import { sameAgentStatusTerminalOwner } from '../../../../shared/agent-status/identity/agent-status-terminal-owner'
-import { makePaneKey, parsePaneKey } from '../../../../shared/stable-pane-id'
+import { makePaneKey, parsePaneKey } from '../../../../shared/workspace-layout/stable-pane-id'
 import type { useAppStore } from '../../store'
 
 export function isAgentStatusForRecentlyClosedTab(

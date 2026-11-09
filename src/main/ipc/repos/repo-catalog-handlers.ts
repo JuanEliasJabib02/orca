@@ -1,5 +1,4 @@
-import type { BrowserWindow } from 'electron'
-import { ipcMain } from 'electron'
+import { type BrowserWindow, ipcMain } from 'electron'
 import type { Store } from '../../persistence/loading-store/store'
 import type { Project, ProjectUpdateArgs } from '../../../shared/project-types'
 import {
@@ -16,7 +15,10 @@ import { notifyReposChanged } from './repos-changed-notification'
 import { scheduleCurrentWorktreeBaseDirectoryWatcherSync } from '../worktrees/creation/worktree-base-directory-watcher'
 import { deactivateSpotlightBeforeTeardown } from '../spotlight'
 import { ProjectUpdateIpcArgs, parseProjectGroupIpcArgs } from './repo-ipc-arg-schemas'
-import { visibleProjectHostSetups, visibleRepos } from '../../ssh/orcad-retained-source'
+import {
+  visibleProjectHostSetups,
+  visibleRepos
+} from '../../persistence/migrating-orcad-catalog/orcad-source-visibility'
 import {
   assertWslMoveProjectWritable,
   assertWslMoveReposWritable,
@@ -24,7 +26,7 @@ import {
 } from '../../persistence/moving-wsl-projects/wsl-move-scope-guard'
 import { listWslMovedProjects } from '../../persistence/moving-wsl-projects/wsl-moved-projects'
 import { listHostRepoCatalogSnapshots } from '../../host-repo-catalog-snapshot/host-repo-catalog-snapshot-recorder'
-import { listEnvironments } from '../../../shared/runtime-environment-store'
+import { listEnvironments } from '../../../shared/remote-runtime/host-store/runtime-environment-store'
 import { getRuntimeEnvironmentRegistryRoot } from '../runtime-environments/runtime-environment-registry-root'
 import { isGatedOffWslHost } from '../../wsl/host-lifecycle/wsl-host-gate'
 

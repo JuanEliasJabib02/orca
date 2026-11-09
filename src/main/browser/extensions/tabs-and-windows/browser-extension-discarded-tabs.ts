@@ -1,8 +1,8 @@
 import { webContents } from 'electron'
 import type { Store } from '../../../persistence/loading-store/store'
 import type { BrowserWorkspace } from '../../../../shared/browser-workspace-types'
-import type { WorkspaceSessionState } from '../../../../shared/workspace-session-state-types'
-import { browserManager } from '../../browser-manager'
+import type { WorkspaceSessionState } from '../../../../shared/workspace-session/workspace-session-state-types'
+import { browserManager } from '../../guest-lifecycle/manager/browser-manager'
 import { emitBrowserExtensionEvent } from '../api-runtime/browser-extension-api-host'
 import {
   getBrowserExtensionProfile,

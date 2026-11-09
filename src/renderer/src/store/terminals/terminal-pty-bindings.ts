@@ -4,7 +4,7 @@ import {
   toRemoteRuntimePtyId
 } from '../../../../shared/remote-runtime/remote-runtime-pty-id'
 import { getRepoIdFromWorktreeId } from '../../../../shared/worktree/id'
-import { isTerminalTabPresent } from '../slices/terminal-tab-retirement'
+import { isTerminalTabPresent } from './terminal-tab-retirement'
 import type { TerminalSlice, TerminalStoreGet, TerminalStoreSet } from './terminal-state'
 import {
   consumePendingActivationSpawn,
@@ -13,7 +13,7 @@ import {
 import { omitUnverifiedPtyLossTabIds } from './terminal-unverified-pty-loss'
 import { clearWorktreeSleepIntent } from '@/lib/worktree-sleep-intent'
 import { omitDisownedPtyIds } from './terminal-disowned-pty-sources'
-import { selectWorktreesByRepo } from '../workspace-record-selectors'
+import { selectWorktreesByRepo } from '../workspaces/catalog/workspace-record-fields'
 
 export function createTerminalPtyBindingActions(
   set: TerminalStoreSet,

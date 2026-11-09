@@ -1,12 +1,12 @@
-import type { AppState } from '@/store'
-import type { OpenFile } from '@/store/slices/editor'
-import { getIndexedWorktreesById } from '@/store/worktree-repo-index'
+import type { AppState } from '@/store/types'
+import type { OpenFile } from '@/store/slices/editor/types/open-file'
+import { getIndexedWorktreesById } from '@/store/slices/worktrees/listing/worktree-catalog-index'
 import { folderWorkspaceKey } from '../../../shared/workspace-scope'
-import { findWorktreeById } from '@/store/slices/worktree-helpers'
+import { findFirstIndexedWorktree } from '@/lib/workspace/ownership/worktree-runtime-owner-index'
 import { isVirtualEditorFile } from '@/store/slices/editor/tabs/editor-tab-content-type'
-import { findRepoForHost } from '@/store/slices/repo-host-identity'
+import { findRepoForHost } from '@/store/repos/repo-host-identity'
 import { isLocalWindowsDesktopClient } from '@/lib/desktop-window-chrome'
-import { runtimeEnvironmentIdOrLocalUnlessTwin } from '@/lib/worktree-runtime-owner'
+import { runtimeEnvironmentIdOrLocalUnlessTwin } from '@/lib/workspace/ownership/worktree-runtime-owner'
 import {
   LOCAL_EXECUTION_HOST_ID,
   parseExecutionHostId,
@@ -20,7 +20,10 @@ import {
   resolveEditorExternalWatchTargetRows
 } from './editor-external-watch-target-rows'
 import { selectWatchEligibleWorkspaceIds } from './editor-external-watch-scope'
-import { selectFolderWorkspaces, selectWorktreesByRepo } from '@/store/workspace-record-selectors'
+import {
+  selectFolderWorkspaces,
+  selectWorktreesByRepo
+} from '@/store/workspaces/catalog/workspace-record-fields'
 
 export type EditorExternalWatchTarget = {
   worktreeId: string
@@ -63,6 +66,8 @@ type WatchedTargetsSnapshot = {
   unwatchedTargetsKey: string
 }
 
+const NO_SECTION_TARGETS: readonly EditorExternalWatchTarget[] = []
+let cachedSectionTargets = NO_SECTION_TARGETS
 let cachedOpenFiles: AppState['openFiles'] | null = null
 let cachedWorktreesByRepo: AppState['worktreesByRepo'] | null = null
 let cachedRepos: AppState['repos'] | null = null
@@ -152,11 +157,13 @@ function addWatchConsumer(
 }
 
 export function selectEditorExternalWatchTargets(
-  state: EditorExternalWatchTargetState
+  state: EditorExternalWatchTargetState,
+  sectionTargets: readonly EditorExternalWatchTarget[] = NO_SECTION_TARGETS
 ): WatchedTargetsSnapshot {
   const runtimeEnvironmentId = state.settings?.activeRuntimeEnvironmentId?.trim() || undefined
   const activeWorkspaceExecutionHostId = state.activeWorkspaceExecutionHostId ?? null
   if (
+    cachedSectionTargets === sectionTargets &&
     cachedOpenFiles === state.openFiles &&
     cachedWorktreesByRepo === selectWorktreesByRepo(state) &&
     cachedRepos === state.repos &&
@@ -181,6 +188,7 @@ export function selectEditorExternalWatchTargets(
   const unwatchedConsumersByWorktreeId = new Map<string, Map<string, WatchConsumer>>()
   const watchEligibleIds = selectWatchEligibleWorkspaceIds({
     activeWorktreeId: state.activeWorktreeId,
+    sourceControlWorkspaceIds: sectionTargets.map((target) => target.worktreeId),
     lastVisitedAtByWorktreeId: state.lastVisitedAtByWorktreeId,
     openFiles: state.openFiles,
     exists: (id) =>
@@ -201,7 +209,7 @@ export function selectEditorExternalWatchTargets(
   }
   const activeWorktreeId = state.activeWorktreeId
   const activeWorktree = activeWorktreeId
-    ? findWorktreeById(selectWorktreesByRepo(state), activeWorktreeId)
+    ? findFirstIndexedWorktree(selectWorktreesByRepo(state), activeWorktreeId)
     : undefined
   const activeWorktreeHost = parseExecutionHostId(activeWorktree?.hostId)
   const activeRepo = activeWorktree
@@ -247,6 +255,9 @@ export function selectEditorExternalWatchTargets(
   }
 
   const targetsByKey = resolveWatchTargets(state, consumersByWorktreeId)
+  for (const target of sectionTargets) {
+    targetsByKey.set(getEditorExternalWatchTargetKey(target), target)
+  }
   const unwatchedTargetKeys = new Set(
     [...resolveWatchTargets(state, unwatchedConsumersByWorktreeId).keys()].filter(
       (key) => !targetsByKey.has(key)
@@ -260,6 +271,7 @@ export function selectEditorExternalWatchTargets(
   const nextTargets = sortedEntries.map(([, target]) => target)
   const targetsKey = sortedEntries.map(([key]) => key).join('|')
   const unwatchedTargetsKey = [...unwatchedTargetKeys].sort().join('|')
+  cachedSectionTargets = sectionTargets
   cachedOpenFiles = state.openFiles
   cachedWorktreesByRepo = selectWorktreesByRepo(state)
   cachedRepos = state.repos

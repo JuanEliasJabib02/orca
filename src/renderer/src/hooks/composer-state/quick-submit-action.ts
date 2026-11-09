@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import type { TuiAgent } from '../../../../shared/agent-launch/catalog/tui-agent'
-import type { WorktreeCreationRequest } from '@/lib/pending-worktree-creation'
-import { findPendingLinkedWorkItemCreationId } from '@/lib/pending-worktree-creation'
+import type { WorktreeCreationRequest } from '@/lib/workspace/creation/pending-worktree-creation'
+import { findPendingLinkedWorkItemCreationId } from '@/lib/workspace/creation/pending-worktree-creation'
 import { useAppStore } from '@/store'
 import { getWorkspaceSeedName } from '@/lib/new-workspace'
 import { settleComposerSubmit } from '@/lib/composer-submit-cancellation'
@@ -131,6 +131,7 @@ export function useQuickSubmitAction(input: QuickSubmitActionInput) {
       )
 
       if (pendingCreationId) {
+        liveStore.updatePendingWorktreeCreation(pendingCreationId, { loaderVisible: true })
         liveStore.setActivePendingWorktreeCreation(pendingCreationId)
         liveStore.setActiveView('terminal')
         liveStore.setSidebarOpen(true)

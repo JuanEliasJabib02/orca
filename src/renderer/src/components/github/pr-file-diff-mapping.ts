@@ -3,8 +3,8 @@ import {
   MAX_RENDERED_DIFF_LINES_PER_SIDE,
   getLargeDiffRenderLimit,
   type LargeDiffRenderLimit
-} from '@/components/editor/large-diff-render-limit'
-import type { TaskSourceContext } from '../../../../shared/task-source-context'
+} from '../../../../shared/large-diff-render-limit'
+import type { TaskSourceContext } from '../../../../shared/work-items/task-source-context'
 import type {
   GitBranchChangeEntry,
   GitDiffResult

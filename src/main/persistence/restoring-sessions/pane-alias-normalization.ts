@@ -5,8 +5,8 @@ import {
   isTerminalLeafId,
   parseLegacyNumericPaneKey,
   parsePaneKey
-} from '../../../shared/stable-pane-id'
-import { agentHookServer } from '../../agent-hooks/server'
+} from '../../../shared/workspace-layout/stable-pane-id'
+import { agentHookServer } from '../../agent-hooks/server/agent-hook-server'
 
 export function legacyMigrationUnsupportedRowsToAliasEntries(
   entries: MigrationUnsupportedPtyEntry[]

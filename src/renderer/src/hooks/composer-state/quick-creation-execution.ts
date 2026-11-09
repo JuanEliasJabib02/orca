@@ -4,9 +4,9 @@ import { resolveQuickCreateLinkedWorkItemPrompt } from '@/lib/linked-work-item-c
 import { useCallback } from 'react'
 import type { Repo } from '../../../../shared/repo-types'
 import type { TuiAgent } from '../../../../shared/agent-launch/catalog/tui-agent'
-import type { WorktreeCreationRequest } from '@/lib/pending-worktree-creation'
+import type { WorktreeCreationRequest } from '@/lib/workspace/creation/pending-worktree-creation'
 import { useAppStore } from '@/store'
-import { isWorkspaceStatusAllowedOnHost } from '@/store/host-workspace-status-columns'
+import { isWorkspaceStatusAllowedOnHost } from '@/store/workspaces/status/host-workspace-status-columns'
 import { settleComposerSubmit } from '@/lib/composer-submit-cancellation'
 import type { ComposerCreateHandoff } from '@/lib/composer-create-handoff'
 import { translate } from '@/i18n/i18n'
@@ -14,7 +14,7 @@ import { prepareQuickComposerStartup } from './quick-startup-plan'
 import { buildQuickCreationRequest } from './quick-creation-request'
 import type { ComposerQuickSubmitOptions } from './composer-submit-model'
 import type { PendingSmartGitHubSubmitResolution } from './source-selection-decisions'
-import { resolveAgentSessionLaunchRoute } from '@/lib/agent-session-launch-plan'
+import { resolveAgentSessionLaunchRoute } from '@/lib/agent-session/launch/routing/agent-session-launch-plan'
 import { prepareStoreCompanionWorktrees } from './companion-worktree-creation-deps'
 import type { CompanionLaunchPlan } from './multi-repo-worktree-creation'
 import { launchPrimaryWorktreeWithHandoff } from './primary-worktree-handoff-launch'
@@ -184,12 +184,18 @@ export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
         telemetrySource,
         route: agentLaunchRoute,
         launchInputs: options?.launchInputs,
+        legacyLaunchInputs: options?.legacyLaunchInputs,
+        ephemeralVm: Boolean(ephemeralVmRecipe),
         addDirPaths: companionPlan.addDirPaths
       })
 
       // Created companions commit the submit; the primary launch decides what a dismissal skips.
       if (isSubmissionCancelled() && companionPlan.createdCompanions.length === 0) {
         return
+      }
+      if (quickStartup.creationStartup) {
+        quickStartup.creationStartup.onLegacyPreparationFailure =
+          options?.onLegacyPreparationFailure
       }
       const request = buildQuickCreationRequest({
         repoId,
@@ -216,6 +222,8 @@ export function useQuickCreationExecution(input: QuickCreationExecutionInput) {
         agent,
         agentLaunchRoute,
         launchInputs: options?.launchInputs,
+        legacyLaunchInputs: options?.legacyLaunchInputs,
+        creationStartup: quickStartup.creationStartup,
         linkedLinearIssue,
         linkedLinearIssueWorkspaceId,
         linkedLinearIssueOrganizationUrlKey,

@@ -9,7 +9,7 @@ import type { BrowserExtensionWebStoreApi } from './browser-extension-webstore-a
 import type {
   BrowserExtensionActionResult,
   BrowserExtensionListResult
-} from '../../../shared/browser-extension-types'
+} from '../../../shared/browser/extensions/browser-extension-types'
 import type {
   BrowserPageSiteDisplay,
   BrowserSiteColorScheme
@@ -23,7 +23,7 @@ import type {
 import type {
   BrowserClientPageMetadataParams,
   BrowserClientPageMetadataPublishOutcome
-} from '../../../shared/browser-client-page-metadata-protocol'
+} from '../../../shared/browser/client-hosting/browser-client-page-metadata-protocol'
 import type {
   BrowserWebAuthnAccountRequest,
   BrowserWebAuthnAccountResponse
@@ -74,7 +74,7 @@ import type {
 import type {
   BrowserClientPageRendererOutcome,
   BrowserClientPageRendererRequest
-} from '../../../shared/browser-client-page-renderer-protocol'
+} from '../../../shared/browser/client-hosting/browser-client-page-renderer-protocol'
 
 export type BrowserApi = {
   /** Absent on clients that host no browser guests, including web clients. */
@@ -208,6 +208,8 @@ export type BrowserApi = {
   onGrabActionShortcut: (
     callback: (args: { browserPageId: string; key: 'c' | 's' }) => void
   ) => () => void
+  /** Escape pressed in a focused page; the page also receives it unless a grab pick is running. */
+  onGuestEscape: (callback: (args: { browserPageId: string }) => void) => () => void
   sessionListProfiles: () => Promise<BrowserSessionProfile[]>
   onSessionProfilesChanged: (callback: () => void) => () => void
   /** Resolves once the SSH workspace's partition is bound and proxy-verified; the webview must wait for it. */

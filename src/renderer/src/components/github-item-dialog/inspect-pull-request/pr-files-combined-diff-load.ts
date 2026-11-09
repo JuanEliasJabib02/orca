@@ -1,13 +1,13 @@
 import type React from 'react'
 import { toast } from 'sonner'
-import type { DiffSection } from '@/components/editor/diff-section-types'
+import type { DiffSection } from '@/components/editor/diff/sections/diff-section-types'
 import { addPRReviewCommentForRepo } from '@/components/github/github-work-item-comment-mutations'
 import type { PRComment } from '../../../../../shared/github/comment-types'
-import { removeDiffSectionMeasuredHeight } from '@/components/editor/diff-section-height-cache'
+import { removeDiffSectionMeasuredHeight } from '@/components/editor/diff/sections/diff-section-height-cache'
 import {
   getStoredTextDiffContent,
   getStoredTextDiffResult
-} from '@/components/editor/large-diff-section-content'
+} from '@/components/editor/diff/large-files/large-diff-section-content'
 import {
   getPRFileContentsRenderLimit,
   getPRFileDiffResult
@@ -18,7 +18,7 @@ import type {
   GitHubPRFile,
   GitHubPRFileContents
 } from '../../../../../shared/github/pull-request-types'
-import type { TaskSourceContext } from '../../../../../shared/task-source-context'
+import type { TaskSourceContext } from '../../../../../shared/work-items/task-source-context'
 import { translate } from '@/i18n/i18n'
 import { loadPRFileContents } from '../load-item-details/pr-file-content-cache'
 import { codeHostErrorText } from '@/lib/code-host-error-copy'

@@ -13,10 +13,10 @@ import {
   getProjectHeaderHostRepos
 } from './host-labels'
 import type { OrderedGroupEntry, WorktreeGroupEntry } from './worktree-group-entry'
+import type { RenderableFolderWorkspace } from './folder-workspace-lanes'
 import type { ProjectGroupingIndex } from '../project-section-grouping'
 import {
   appendWorktreeRows,
-  buildFolderWorkspaceRow,
   buildImportedWorktreesCardRow,
   buildNewExternalWorktreesInboxRow,
   buildPendingCreationRow
@@ -51,6 +51,7 @@ export type SectionAppendContext = {
   occurrencePlan: WorktreeOccurrencePlan<Worktree>
   /** Task mode only: every visible worktree per task lane, pinned ones included. */
   taskWorktreesByLaneKey?: ReadonlyMap<string, readonly Worktree[]>
+  folderPairByIdentity?: ReadonlyMap<string, RenderableFolderWorkspace>
 }
 
 function getProjectHeaderHostScope(
@@ -195,7 +196,6 @@ export function appendOrderedGroups(
             result.push(
               buildImportedWorktreesCardRow(
                 candidate,
-                'repo-group',
                 ctx.noticeHostContextLabelByRepoId?.get(repoId)
               )
             )
@@ -228,11 +228,9 @@ export function appendOrderedGroups(
         groupDepth: projectGroupDepth,
         sectionKey: key,
         hostContextLabelByRepoId,
-        hostContextLabelByWorktreeIdentity: mixedWorktreeHostContextLabels
+        hostContextLabelByWorktreeIdentity: mixedWorktreeHostContextLabels,
+        folderPairByIdentity: ctx.folderPairByIdentity
       })
-      for (const pair of folderPairs) {
-        result.push(buildFolderWorkspaceRow(pair, projectGroupDepth))
-      }
     }
   }
 }

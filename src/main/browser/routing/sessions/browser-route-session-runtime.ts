@@ -1,4 +1,4 @@
-import { BrowserClientProfileMetadata } from '../../../../shared/browser-client-profile-switch-protocol'
+import { BrowserClientProfileMetadata } from '../../../../shared/browser/client-hosting/browser-client-profile-switch-protocol'
 import { installBrowserRoutePartitionPolicies } from './browser-session-route-policies'
 import { session, webContents } from 'electron'
 import { setBrowserClientRouteWebContentsProbe } from '../../client-hosts/file-transfers/browser-client-download-routing'
@@ -9,14 +9,14 @@ import {
 } from '../partitions/browser-route-partition-binding-runtime'
 import { releaseEvictedBrowserRoutePartitionStorage } from '../partitions/browser-route-partition-storage-dependencies'
 import { isBrowserRouteGuestPopup } from '../guest-authority/browser-route-guest-popup-ownership'
-import { browserManager } from '../../browser-manager'
+import { browserManager } from '../../guest-lifecycle/manager/browser-manager'
 import {
   isBrowserRoutePartitionRetainedByAnyOwner,
   registerBrowserRoutePartitionRetentionProbe
 } from '../partitions/browser-route-partition-retention'
 import { BrowserRouteSessionRegistry } from './browser-route-session-registry'
 import { BrowserRouteWebContentsRegistry } from '../guest-authority/browser-route-webcontents-registry'
-import { browserSessionRegistry } from '../../sessions/browser-session-registry'
+import { browserSessionRegistry } from '../../sessions/profiles/browser-session-registry'
 
 const routeWebContentsRegistryRef: {
   current: BrowserRouteWebContentsRegistry | null

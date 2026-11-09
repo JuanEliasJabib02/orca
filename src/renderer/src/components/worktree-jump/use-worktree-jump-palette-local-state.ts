@@ -1,6 +1,6 @@
 import { useDeferredValue, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import type { WorktreePaletteRequestGuard } from '@/lib/worktree-palette-create-action'
+import type { WorktreePaletteRequestGuard } from '@/lib/workspace/search/worktrees/worktree-palette-create-action'
 import {
   buildPaletteFilterFromSidebarScope,
   type PaletteFilterState
@@ -8,8 +8,8 @@ import {
 import { useAppStore } from '@/store/index'
 import { getSpaceRepoFilterIds } from '@/components/sidebar/sidebar-space-scope'
 import { useActiveSidebarSpaceScope } from '@/components/sidebar/use-active-sidebar-space'
-import { parseCmdJTaskSourceUrl } from '@/lib/worktree-palette-task-url-match'
-import { getWorktreePaletteCreateActionState } from '@/lib/worktree-palette-create-action'
+import { parseCmdJTaskSourceUrl } from '@/lib/workspace/search/worktrees/worktree-palette-task-url-match'
+import { getWorktreePaletteCreateActionState } from '@/lib/workspace/search/worktrees/worktree-palette-create-action'
 import type { CmdJActiveGroupSnapshot } from '@/components/cmd-j/quick-action-context'
 import type { WorkspaceVisibleTabType } from '../../../../shared/tab-types'
 import type { PaletteItem } from './worktree-jump-palette-model'

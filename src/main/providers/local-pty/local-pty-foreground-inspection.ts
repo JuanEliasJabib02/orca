@@ -1,7 +1,7 @@
 import type {
   PtyChildProcessVerdict,
   PtyForegroundGroup
-} from '../../../shared/terminal-process-inspection'
+} from '../../../shared/terminal/pty/lifecycle/terminal-process-inspection'
 import { recognizeAgentProcessFromCommandLine } from '../../../shared/agent-status/process/agent-process-recognition'
 import { getCheapProcessTableSnapshot } from '../../../shared/cheap-process-table-snapshot-reader'
 import {

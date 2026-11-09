@@ -3,9 +3,9 @@ import type {
   BrowserExtensionContextMenuClick,
   BrowserExtensionContextMenuGroup,
   BrowserExtensionContextMenuPayload
-} from '../../../../shared/browser-extension-context-menu-types'
-import { chromeFrameId } from '../api/web-navigation'
-import { noteBrowserExtensionUserGesture } from '../api/permissions'
+} from '../../../../shared/browser/extensions/browser-extension-context-menu-types'
+import { chromeFrameId } from '../tabs-and-windows/browser-extension-frame-projection'
+import { noteBrowserExtensionUserGesture } from '../permissions/browser-extension-user-gesture'
 import {
   emitBrowserExtensionEvent,
   getBrowserExtensionProfileIdForSession

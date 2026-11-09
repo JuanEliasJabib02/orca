@@ -75,6 +75,7 @@ export const STATUS_BAR_ITEMS = [
   'grok',
   'cursor',
   'zcode',
+  'muse',
   'ssh',
   'resource-usage',
   'ports',
