@@ -1,7 +1,7 @@
 import { useAppStore } from '@/store'
 import { useDocumentDarkTheme } from '@/hooks/use-document-dark-theme'
 import { useMonacoTheme } from '@/hooks/use-monaco-theme'
-import { useCodeEditorThemeStore } from '@/store/code-editor-theme'
+import { useCodeEditorThemeStore } from '@/store/appearance/code-editor-theme'
 import {
   DEFAULT_EDITOR_THEME_ID,
   EDITOR_SYNTAX_THEME_OPTIONS,

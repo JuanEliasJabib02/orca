@@ -40,7 +40,9 @@ vi.mock('@/store', async () => {
 vi.mock('@/components/tab-bar/reconcile-order', () => ({
   appendTerminalToPersistedTabOrder: vi.fn()
 }))
-vi.mock('@/lib/worktree-activation', () => ({ activateAndRevealWorktree: vi.fn() }))
+vi.mock('@/lib/workspace/activation/worktree-activation', () => ({
+  activateAndRevealWorktree: vi.fn()
+}))
 vi.mock('@/components/terminal/background-terminal-worktree-mount', async () => {
   const { spotlightTerminalEvents: events, spotlightTerminalTestStore: store } =
     await import('./spotlight-terminal-test-store')

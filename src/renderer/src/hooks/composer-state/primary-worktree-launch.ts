@@ -2,8 +2,8 @@ import { toast } from 'sonner'
 import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
 import { translate } from '@/i18n/i18n'
-import type { WorktreeCreationRequest } from '@/lib/pending-worktree-creation'
-import { runBackgroundWorktreeCreation } from '@/lib/worktree-creation-flow'
+import type { WorktreeCreationRequest } from '@/lib/workspace/creation/pending-worktree-creation'
+import { runBackgroundWorktreeCreation } from '@/lib/workspace/creation/worktree-creation-flow'
 import type { CreatedCompanionWorktree } from './multi-repo-worktree-creation'
 
 function toastCompanionsLeft(companions: readonly CreatedCompanionWorktree[]): void {

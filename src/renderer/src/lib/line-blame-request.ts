@@ -1,5 +1,5 @@
 import { getConnectionIdForFile } from '@/lib/connection-context'
-import { runtimeTargetForOwnerEnvironment } from '@/runtime/runtime-client-target'
+import { runtimeTargetForOwnerEnvironment } from '@/runtime/rpc/targets/runtime-client-target'
 import { getRuntimeGitFileBlame, getRuntimeGitLineBlame } from '@/runtime/runtime-git-blame-client'
 import type { GitLineBlameResult } from '../../../shared/git-line-blame-types'
 

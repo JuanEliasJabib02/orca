@@ -9,7 +9,7 @@ import type {
   SpotlightAgentStatus,
   SpotlightResumeAccountPick
 } from '../../../shared/spotlight-agent-turn'
-import type * as RestartStartup from './agent-account-restart-startup'
+import type * as RestartStartup from './agent-session/accounts/agent-account-restart-startup'
 import type * as PasteDraft from './agent-paste-draft'
 
 // Only what Continuar reads and calls; the store's own actions are recorded, not run.
@@ -39,7 +39,7 @@ vi.mock('@/store', () => ({
     subscribe: (listener: (state: TestState) => void) => harness.store?.subscribe(listener)
   }
 }))
-vi.mock('./agent-account-restart-startup', async (importOriginal) => ({
+vi.mock('./agent-session/accounts/agent-account-restart-startup', async (importOriginal) => ({
   ...(await importOriginal<typeof RestartStartup>()),
   buildPaneAccountRestartStartup: vi.fn()
 }))
@@ -58,7 +58,7 @@ vi.mock('./agent-paste-draft', async (importOriginal) => ({
   })
 }))
 
-import { buildPaneAccountRestartStartup } from './agent-account-restart-startup'
+import { buildPaneAccountRestartStartup } from './agent-session/accounts/agent-account-restart-startup'
 import { sendBracketedPasteToRunningAgent } from './agent-paste-draft'
 import { continueTestTask } from './test-queue-continue'
 

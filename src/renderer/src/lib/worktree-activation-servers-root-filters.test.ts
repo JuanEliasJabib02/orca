@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ProjectGroup } from '../../../shared/project-group-types'
 import type { Worktree } from '../../../shared/worktree/types'
 import { useAppStore } from '@/store'
-import { activateAndRevealWorktree } from './worktree-activation'
+import { activateAndRevealWorktree } from './workspace/activation/worktree-activation'
 
 const initialAppStoreState = useAppStore.getState()
 

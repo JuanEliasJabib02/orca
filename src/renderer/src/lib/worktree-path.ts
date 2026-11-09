@@ -1,5 +1,5 @@
 import type { AppState } from '@/store/types'
-import { getIndexedWorktreeById } from '@/store/worktree-repo-index'
+import { getIndexedWorktreeById } from '@/store/slices/worktrees/listing/worktree-catalog-index'
 import { parseWorkspaceKey } from '../../../shared/workspace-scope'
 
 // Why: only the two collections this reads, so callers holding a narrower

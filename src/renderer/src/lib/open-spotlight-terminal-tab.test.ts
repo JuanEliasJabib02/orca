@@ -13,7 +13,9 @@ vi.mock('@/store', async () => {
 vi.mock('@/components/tab-bar/reconcile-order', () => ({
   appendTerminalToPersistedTabOrder: vi.fn()
 }))
-vi.mock('@/lib/worktree-activation', () => ({ activateAndRevealWorktree: vi.fn() }))
+vi.mock('@/lib/workspace/activation/worktree-activation', () => ({
+  activateAndRevealWorktree: vi.fn()
+}))
 
 import {
   findSpotlightTerminalTabId,

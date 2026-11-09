@@ -1,7 +1,8 @@
 // Continuar on the test queue: a paused pane resumes on the Claude account with limit left, an idle
 // holder is interrupted in place; both end with "continue" typed to the agent and main's settle.
-import { useAppStore, type AppState } from '@/store'
-import { selectClaudeProviderAccount } from '@/runtime/runtime-provider-accounts-client'
+import { useAppStore } from '@/store'
+import type { AppState } from '@/store/types'
+import { selectClaudeProviderAccount } from '@/runtime/provider-accounts/observations/runtime-provider-accounts-client'
 import { TUI_AGENT_CONFIG } from '../../../shared/agent-launch/catalog/tui-agent-config'
 import { normalizeAgentProviderSession } from '../../../shared/agent-session/lifecycle/agent-session-resume'
 import { NATIVE_CHAT_USAGE_LIMIT_CONTINUE_MESSAGE } from '../../../shared/native-chat/native-chat-usage-limit-cut'
@@ -9,12 +10,15 @@ import type {
   SpotlightAgentStatus,
   SpotlightResumeAccountPick
 } from '../../../shared/spotlight-agent-turn'
-import { parsePaneKey } from '../../../shared/stable-pane-id'
-import { buildPaneAccountRestartStartup } from './agent-account-restart-startup'
+import { parsePaneKey } from '../../../shared/workspace-layout/stable-pane-id'
+import { buildPaneAccountRestartStartup } from './agent-session/accounts/agent-account-restart-startup'
 import { sendFollowupPromptWhenAgentReady } from './agent-followup-delivery'
 import { sendBracketedPasteToRunningAgent } from './agent-paste-draft'
-import { isClaudePaneOnAccount, resolveClaudePaneFolder } from './claude-pane-account-folder'
-import { claudeLaunchAccountId } from './claude-session-account-move'
+import {
+  isClaudePaneOnAccount,
+  resolveClaudePaneFolder
+} from './agent-session/accounts/claude/claude-pane-account-folder'
+import { claudeLaunchAccountId } from './agent-session/accounts/claude/claude-session-account-move'
 import { isForeignMachineCodexPtyId } from './codex-pane-selection-lane'
 
 /** The idle holder's Esc gets this long to stop the running turn before the message goes in. */

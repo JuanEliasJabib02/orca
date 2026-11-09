@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/store', () => ({ useAppStore: store }))
 vi.mock('sonner', () => ({ toast: { error: mocks.toastError } }))
-vi.mock('@/lib/worktree-creation-flow', () => ({
+vi.mock('@/lib/workspace/creation/worktree-creation-flow', () => ({
   runBackgroundWorktreeCreation: mocks.runBackgroundWorktreeCreation
 }))
 

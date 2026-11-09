@@ -1,10 +1,13 @@
 // @vitest-environment happy-dom
 
 import React, { act } from 'react'
+import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Repo } from '../../../shared/repo-types'
+import type { NewWorkspaceProjectOption } from '@/lib/new-workspace-project-options'
+import type { ProjectHostSetupOption } from '@/lib/project-host-setup-options'
 import type { ComposerCompanionRepos } from './new-workspace/use-composer-companion-repos'
-import { renderCard } from './NewWorkspaceComposerCard.test-fixture'
+import NewWorkspaceComposerCard from './NewWorkspaceComposerCard'
 
 vi.mock('@/store', () => ({
   useAppStore: Object.assign(
@@ -23,9 +26,12 @@ vi.mock('@/store', () => ({
 }))
 
 const launchAppliesAgentArgs = vi.hoisted(() => vi.fn(() => true))
-vi.mock('@/components/right-sidebar/source-control-launch-agent-args-applicability', () => ({
-  sourceControlLaunchAppliesAgentArgs: launchAppliesAgentArgs
-}))
+vi.mock(
+  '@/components/right-sidebar/source-control/ai/source-control-launch-agent-args-applicability',
+  () => ({
+    sourceControlLaunchAppliesAgentArgs: launchAppliesAgentArgs
+  })
+)
 
 vi.mock('@/components/contextual-tours/use-contextual-tour', () => ({
   useContextualTour: vi.fn()
@@ -41,7 +47,7 @@ vi.mock('@/components/agent/AgentCombobox', () => ({
   default: () => <button type="button">Agent picker</button>
 }))
 
-vi.mock('@/components/sidebar/AddRemoteHostDialog', () => ({
+vi.mock('@/components/sidebar/host-admission/ssh/AddRemoteHostDialog', () => ({
   AddRemoteHostDialog: () => null
 }))
 
@@ -52,6 +58,110 @@ vi.mock('@/components/new-workspace/SmartWorkspaceNameField', () => ({
 vi.mock('@/components/new-workspace/ProjectCombobox', () => ({
   default: () => <div data-testid="project-combobox" />
 }))
+
+// Why inline: upstream dropped the shared card fixture (#40072); this fork suite is its only user.
+const projectOptions: NewWorkspaceProjectOption[] = [
+  {
+    kind: 'project-group',
+    id: 'project-group:platform',
+    projectGroupId: 'platform',
+    displayName: 'Platform',
+    badgeColor: 'var(--muted-foreground)',
+    detail: '/workspace/platform',
+    parentPath: '/workspace/platform',
+    connectionId: null
+  }
+]
+
+const hostOptions: ProjectHostSetupOption[] = [
+  {
+    kind: 'ready',
+    id: 'setup-local',
+    projectId: 'project-group:platform',
+    hostId: 'local',
+    repoId: 'repo-a',
+    label: 'Local Mac',
+    detail: 'Orca',
+    path: '/Users/alice/orca'
+  }
+]
+
+async function renderCard(
+  overrides: Partial<React.ComponentProps<typeof NewWorkspaceComposerCard>> = {}
+): Promise<HTMLDivElement> {
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  act(() => {
+    root.render(
+      <NewWorkspaceComposerCard
+        quickAgent={null}
+        onQuickAgentChange={() => {}}
+        eligibleRepos={[]}
+        repoId="repo-a"
+        projectOptions={projectOptions}
+        selectedProjectId="project-group:platform"
+        selectedRepoIsGit
+        onRepoChange={() => {}}
+        onProjectChange={() => {}}
+        primaryActionLabel="Create workspace"
+        name=""
+        onNameValueChange={() => {}}
+        onSmartGitHubItemSelect={() => {}}
+        onSmartGitLabItemSelect={() => {}}
+        onSmartBranchSelect={() => {}}
+        onSmartLinearIssueSelect={() => {}}
+        smartNameSelection={null}
+        onClearSmartNameSelection={() => {}}
+        canReuseSelectedBranch={false}
+        reuseSelectedBranch={false}
+        onReuseSelectedBranchChange={() => {}}
+        forkPushWarning={null}
+        detectedAgentIds={null}
+        onOpenAgentSettings={() => {}}
+        advancedOpen={false}
+        onToggleAdvanced={() => {}}
+        parentWorktreeId={null}
+        onParentWorktreeIdChange={() => {}}
+        createDisabled={false}
+        projectError={null}
+        creating={false}
+        onCreate={() => {}}
+        note=""
+        onNoteChange={() => {}}
+        setupConfig={null}
+        requiresExplicitSetupChoice={false}
+        setupDecision={null}
+        onSetupDecisionChange={() => {}}
+        setupAgentStartupPolicy="start-immediately"
+        onSetupAgentStartupPolicyChange={() => {}}
+        shouldWaitForSetupCheck={false}
+        resolvedSetupDecision={null}
+        createError={null}
+        selectedRepoConnectionId={null}
+        selectedRepoSshStatus={null}
+        selectedRepoRequiresConnection={false}
+        selectedRepoConnectInProgress={false}
+        onConnectSelectedRepo={async () => {}}
+        canUseSparseCheckout={false}
+        sparsePresets={[]}
+        sparseSelectedPresetId={null}
+        onSparseSelectPreset={() => {}}
+        branchNameOverride={undefined}
+        onBranchNameOverrideChange={() => {}}
+        branchesEnabled={false}
+        setupControlsEnabled={false}
+        sparseControlsEnabled={false}
+        projectHostSetupOptions={hostOptions}
+        selectedProjectHostSetupId="setup-local"
+        {...overrides}
+      />
+    )
+  })
+  // Settle mount-time warm-up before clicking; Vitest serializes overlapping imports unlike browsers.
+  await act(async () => {})
+  return container
+}
 
 function repo(id: string): Repo {
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the row renders only id, name and badge color.

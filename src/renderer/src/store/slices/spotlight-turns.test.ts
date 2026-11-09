@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SpotlightAgentStatus } from '../../../../shared/spotlight-agent-turn'
 import { installApi } from '../../web/web-preload-api-test-harness'
 import { subscribeSpotlightTurns } from './spotlight-turns'
-import { createTestStore } from './store-test-helpers'
+import { createTestStore } from '../testing/app-store-test-fixture'
 
 function boardOf(taskKeys: string[]): SpotlightAgentStatus {
   return {

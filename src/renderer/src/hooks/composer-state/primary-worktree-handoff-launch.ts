@@ -1,6 +1,6 @@
 import { useAppStore } from '@/store'
 import type { ComposerCreateHandoff } from '@/lib/composer-create-handoff'
-import type { WorktreeCreationRequest } from '@/lib/pending-worktree-creation'
+import type { WorktreeCreationRequest } from '@/lib/workspace/creation/pending-worktree-creation'
 import { launchPrimaryWorktree, watchPrimaryFailureForCompanions } from './primary-worktree-launch'
 
 type PrimaryWorktreeLaunchArgs = Parameters<typeof launchPrimaryWorktree>[0]

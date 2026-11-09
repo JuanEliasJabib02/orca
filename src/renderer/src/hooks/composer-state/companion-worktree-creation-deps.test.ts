@@ -29,17 +29,20 @@ vi.mock('@/store', () => ({
     })
   }
 }))
-vi.mock('@/components/right-sidebar/source-control-launch-agent-args-applicability', () => ({
-  sourceControlLaunchAppliesAgentArgs: mocks.launchAppliesAgentArgs
-}))
-vi.mock('@/runtime/runtime-hooks-client', () => ({
+vi.mock(
+  '@/components/right-sidebar/source-control/ai/source-control-launch-agent-args-applicability',
+  () => ({
+    sourceControlLaunchAppliesAgentArgs: mocks.launchAppliesAgentArgs
+  })
+)
+vi.mock('@/runtime/repo-hooks/runtime-hooks-client', () => ({
   checkRuntimeHooks: mocks.checkRuntimeHooks
 }))
 vi.mock('@/lib/hook-script-trust-content', () => ({
   resolveHookTrustContent: mocks.resolveHookTrustContent,
   isHookScriptContentTrusted: mocks.isHookScriptContentTrusted
 }))
-vi.mock('@/lib/worktree-initial-terminal-seeding', () => ({
+vi.mock('@/lib/workspace/activation/initial-surface/worktree-initial-terminal-seeding', () => ({
   ensureWorktreeHasInitialTerminal: mocks.ensureWorktreeHasInitialTerminal
 }))
 

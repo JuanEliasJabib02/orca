@@ -4,7 +4,7 @@ import {
   openHttpLink,
   registerHttpLinkStoreAccessor,
   registerWorkspaceHttpLinkBrowserOpener
-} from './http-link-routing'
+} from './browser/navigation/http-link-routing'
 
 const actionSpace: ProjectGroup = {
   id: 'action',

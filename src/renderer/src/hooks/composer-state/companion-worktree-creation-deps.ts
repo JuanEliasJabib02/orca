@@ -1,14 +1,14 @@
 import type { Repo } from '../../../../shared/repo-types'
 import { getRepoExecutionHostId, type ExecutionHostId } from '../../../../shared/execution-host'
 import { useAppStore } from '@/store'
-import { sourceControlLaunchAppliesAgentArgs } from '@/components/right-sidebar/source-control-launch-agent-args-applicability'
+import { sourceControlLaunchAppliesAgentArgs } from '@/components/right-sidebar/source-control/ai/source-control-launch-agent-args-applicability'
 import { getSetupConfig } from '../../../../shared/orca-hook-setup-config'
-import { checkRuntimeHooks } from '@/runtime/runtime-hooks-client'
+import { checkRuntimeHooks } from '@/runtime/repo-hooks/runtime-hooks-client'
 import {
   isHookScriptContentTrusted,
   resolveHookTrustContent
 } from '@/lib/hook-script-trust-content'
-import { ensureWorktreeHasInitialTerminal } from '@/lib/worktree-initial-terminal-seeding'
+import { ensureWorktreeHasInitialTerminal } from '@/lib/workspace/activation/initial-surface/worktree-initial-terminal-seeding'
 import {
   prepareCompanionWorktrees,
   type CompanionCreationDeps,

@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ProjectGroup } from '../../../../shared/project-group-types'
-import { createTestStore } from './store-test-helpers'
+import { createTestStore } from '../testing/app-store-test-fixture'
 import {
   installReposRuntimeRoutingHarness,
   localRepo,
   projectGroupsMoveProject,
   reposAdd,
   reposUpdate
-} from './repos-runtime-routing-fixture'
+} from '../repos/repo-runtime-routing.test-fixture'
 
 vi.mock('sonner', () => ({
   toast: {

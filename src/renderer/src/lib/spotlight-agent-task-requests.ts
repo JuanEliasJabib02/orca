@@ -1,5 +1,6 @@
 import { useAppStore } from '@/store'
-import { getAllWorktreesFromState } from '@/store/selectors'
+import { getIndexedAllWorktrees } from '@/store/slices/worktrees/listing/worktree-catalog-index'
+import { selectWorktreesByRepo } from '@/store/workspaces/catalog/workspace-record-fields'
 import { getTaskKeysForAllWorktrees } from '@/components/sidebar/worktree-list/grouping/worktree-task-keys'
 import {
   notifyTaskSpotlightBatch,
@@ -64,7 +65,7 @@ function resolveFromStore(worktreeId: string): AgentSpotlightTask {
   const state = useAppStore.getState()
   const task = resolveAgentSpotlightTask({
     worktreeId,
-    allWorktrees: getAllWorktreesFromState(state),
+    allWorktrees: getIndexedAllWorktrees(selectWorktreesByRepo(state)),
     worktreesByRepo: state.worktreesByRepo,
     repos: state.repos
   })

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createUIStore, makePersistedUI } from './ui-slice-test-harness'
+import { createUIStore, makePersistedUI } from './ui/ui-slice-test-harness'
 import {
   getTaskNote,
   normalizeTaskNote,

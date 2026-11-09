@@ -4,7 +4,7 @@ import { vi, type Mock } from 'vitest'
 import type { Repo } from '../../../shared/repo-types'
 import type { SpotlightRepoState } from '../../../shared/spotlight'
 import type { SpotlightServerEnv } from '../../../shared/spotlight-server-types'
-import type { TerminalTab } from '../../../shared/terminal-tab-types'
+import type { TerminalTab } from '../../../shared/workspace-layout/terminal-tab-types'
 import type { Worktree } from '../../../shared/worktree/types'
 import { toSpotlightVariantKey } from '@/store/slices/ui/ui-slice-spotlight-variant-actions'
 

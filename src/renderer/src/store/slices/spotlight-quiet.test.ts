@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SpotlightOpResult } from '../../../../shared/spotlight'
-import { createTestStore } from './store-test-helpers'
+import { createTestStore } from '../testing/app-store-test-fixture'
 
 const mockApi = {
   spotlight: { activate: vi.fn(), deactivate: vi.fn() }

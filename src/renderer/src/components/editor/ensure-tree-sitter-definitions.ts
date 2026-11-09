@@ -3,9 +3,9 @@ import { useAppStore } from '@/store'
 import { detectLanguage } from '@/lib/language-detect'
 import { getConnectionId } from '@/lib/connection-context'
 import { isTwinWorkspace } from '@/lib/resolve-owner'
-import { runtimeEnvironmentIdOrLocalUnlessTwin } from '@/lib/worktree-runtime-owner'
+import { runtimeEnvironmentIdOrLocalUnlessTwin } from '@/lib/workspace/ownership/worktree-runtime-owner'
 import { registerTreeSitterDefinitions } from '@/lib/tree-sitter-definitions/definition-provider'
-import { runtimeTargetForOwnerEnvironment } from '@/runtime/runtime-client-target'
+import { runtimeTargetForOwnerEnvironment } from '@/runtime/rpc/targets/runtime-client-target'
 import { relativePathInsideRoot } from '../../../../shared/cross-platform-path'
 
 let registered = false

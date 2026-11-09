@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StoreApi } from 'zustand/vanilla'
 import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { AppState } from '../types'
-import { createUIStore, makePersistedUI } from './ui-slice-test-harness'
+import { createUIStore, makePersistedUI } from './ui/ui-slice-test-harness'
 
 function makeSpace(
   id: string,

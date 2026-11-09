@@ -1,7 +1,7 @@
 import { isRemoteRuntimePtyId } from '../../../../shared/remote-runtime/remote-runtime-pty-id'
 import { getRepoIdFromWorktreeId } from '../../../../shared/worktree/id'
 import { hasWorktreeSleepIntent } from '@/lib/worktree-sleep-intent'
-import { selectWorktreesByRepo } from '../workspace-record-selectors'
+import { selectWorktreesByRepo } from '../workspaces/catalog/workspace-record-fields'
 import type { TerminalSlice, TerminalStoreGet, TerminalStoreSet } from './terminal-state'
 import {
   consumePendingActivationSpawn,

@@ -1,8 +1,12 @@
 import type { GitLineBlameResult } from '../../../shared/git-line-blame-types'
 import { GIT_BLAME_RUNTIME_CAPABILITY } from '../../../shared/protocol-version'
-import { resolveLocalWorktreePath, type RuntimeGitContext } from './runtime-git-client-context'
-import { callRuntimeRpc, runtimeEnvironmentSupportsCapability } from './runtime-rpc-client'
-import { toRuntimeWorktreeSelector } from './runtime-worktree-selector'
+import {
+  resolveLocalWorktreePath,
+  type RuntimeGitContext
+} from './source-control/git/runtime-git-client-context'
+import { callRuntimeRpc } from './rpc/calls/runtime-rpc-call'
+import { runtimeEnvironmentSupportsCapability } from './rpc/compatibility/runtime-capability-proof'
+import { toRuntimeWorktreeSelector } from './rpc/targets/runtime-worktree-selector'
 
 /**
  * Authorship for every line of a file, in one walk.

@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { GIT_BLAME_RUNTIME_CAPABILITY } from '../../../shared/protocol-version'
-import type { RuntimeGitContext } from './runtime-git-client-context'
+import type { RuntimeGitContext } from './source-control/git/runtime-git-client-context'
 
 const mocks = vi.hoisted(() => ({
   callRuntimeRpc: vi.fn(),
   supportsCapability: vi.fn()
 }))
 
-vi.mock('./runtime-rpc-client', () => ({
-  callRuntimeRpc: mocks.callRuntimeRpc,
+vi.mock('./rpc/calls/runtime-rpc-call', () => ({
+  callRuntimeRpc: mocks.callRuntimeRpc
+}))
+vi.mock('./rpc/compatibility/runtime-capability-proof', () => ({
   runtimeEnvironmentSupportsCapability: mocks.supportsCapability
 }))
 
